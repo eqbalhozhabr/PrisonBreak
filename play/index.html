@@ -46,6 +46,7 @@
 <div id="app">
   <header>
     <h1 id="title">Blind Spots<small id="subtitle"></small></h1>
+    <button id="btnMute" aria-label="sound">🔊</button>
     <button id="btnHearts">♥</button>
     <button id="btnLevels"></button>
     <button id="btnLang">EN</button>
@@ -147,6 +148,51 @@ const store = {
 lang = store.get('pb_lang', 'fa');
 const tr = () => T[lang];
 
+/* ---------------------------------------------------------------- sound */
+/* All sounds are synthesised with WebAudio, so there are no audio files. The context starts on the
+   first touch (browsers require that). Design notes: docs/sound-design.md */
+const Sfx = (() => {
+  let ac = null, master = null, muted = store.get('pb_mute', false);
+  const get = () => {
+    if (ac === null) { try { ac = new (window.AudioContext || window.webkitAudioContext)(); master = ac.createGain(); master.gain.value = .55; master.connect(ac.destination); } catch (e) { ac = false; } }
+    if (ac && ac.state === 'suspended') ac.resume();
+    return ac;
+  };
+  const tone = (a, t, f0, f1, dur, type, vol, delay = 0, lp = 0) => {
+    const o = a.createOscillator(), g = a.createGain(); let out = o;
+    o.type = type; o.frequency.setValueAtTime(f0, t + delay); o.frequency.exponentialRampToValueAtTime(Math.max(20, f1), t + delay + dur);
+    if (lp) { const f = a.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = lp; o.connect(f); out = f; }
+    g.gain.setValueAtTime(0.0001, t + delay); g.gain.exponentialRampToValueAtTime(vol, t + delay + .008); g.gain.exponentialRampToValueAtTime(.0001, t + delay + dur);
+    out.connect(g); g.connect(master); o.start(t + delay); o.stop(t + delay + dur + .02);
+  };
+  const noise = (a, t, dur, vol, delay = 0, hp = 1500) => {
+    const n = Math.max(1, Math.floor(a.sampleRate * dur)), buf = a.createBuffer(1, n, a.sampleRate), d = buf.getChannelData(0);
+    for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / n);
+    const s = a.createBufferSource(), f = a.createBiquadFilter(), g = a.createGain(); s.buffer = buf; f.type = 'highpass'; f.frequency.value = hp; g.gain.value = vol;
+    s.connect(f); f.connect(g); g.connect(master); s.start(t + delay);
+  };
+  const S = {
+    click: (a, t) => tone(a, t, 900, 700, .03, 'square', .04),
+    step: (a, t) => { tone(a, t, 150 + Math.random() * 25, 90, .06, 'triangle', .13); noise(a, t, .03, .03, 0, 3000); },
+    cam: (a, t) => { tone(a, t, 170, 330, .2, 'sawtooth', .07, 0, 900); tone(a, t, 1300, 1300, .02, 'square', .05, .2); },       // servo whirr and a latch click
+    guardStep: (a, t) => { tone(a, t, 130, 55, .14, 'sine', .3); noise(a, t, .05, .05, 0, 2000); },
+    turn: (a, t) => { tone(a, t, 520, 330, .07, 'square', .05); tone(a, t, 400, 300, .07, 'square', .05, .08); noise(a, t, .12, .03, 0, 4000); },
+    refuse: (a, t) => { tone(a, t, 110, 100, .2, 'square', .09, 0, 700); tone(a, t, 117, 104, .2, 'square', .07, 0, 700); },
+    spotted: (a, t) => { for (let i = 0; i < 4; i++) tone(a, t, i % 2 ? 660 : 880, i % 2 ? 660 : 880, .09, 'square', .07, i * .1, 2400); },
+    caught: (a, t) => { tone(a, t, 440, 90, .55, 'sawtooth', .1, 0, 1400); tone(a, t, 90, 50, .3, 'sine', .3, .45); },
+    win: (a, t) => { [523, 659, 784, 1047].forEach((f, i) => tone(a, t, f, f, .16, 'triangle', .13, i * .09)); tone(a, t, 2093, 2093, .35, 'sine', .05, .4); },
+    hint: (a, t) => { tone(a, t, 1318, 1318, .45, 'sine', .1); tone(a, t, 1976, 1976, .35, 'sine', .05, .02); },
+    undo: (a, t) => tone(a, t, 520, 280, .09, 'triangle', .1),
+  };
+  return {
+    play(name) { if (muted) return; const a = get(); if (!a) return; try { S[name](a, a.currentTime); } catch (e) {} },
+    unlock() { if (!muted) get(); },
+    toggle() { muted = !muted; store.set('pb_mute', muted); if (!muted) { get(); this.play('click'); } return muted; },
+    get muted() { return muted; },
+  };
+})();
+window.addEventListener('pointerdown', () => Sfx.unlock());
+
 /* ---------------------------------------------------------------- state */
 let li = 0, L, dg, thief, thiefDir = 2, hist = [], moves = 0, sel = -1, hintWho = -1, walking = null;
 let flash = 0, flashCell = -1, shake = 0, hearts = HEARTS_MAX, lost = 0, hintsUsed = 0, caughtOn = false;
@@ -184,33 +230,32 @@ function guardOptions(k) {
   const horiz = (g.rail[0] % L.w) !== (g.rail[g.rail.length - 1] % L.w);
   for (const s of [-1, 1]) {
     const ni = i + s;
-    out.push({ label: horiz ? (s < 0 ? '◀' : '▶') : (s < 0 ? '▲' : '▼'), dg: (ni >= 0 && ni < g.rail.length && !blocked(ni)) ? Object.assign(dg.slice(), { [k]: ni * 2 + (s === 1 ? 0 : 1) }) : null });
+    out.push({ kind: 'guardStep', label: horiz ? (s < 0 ? '◀' : '▶') : (s < 0 ? '▲' : '▼'), dg: (ni >= 0 && ni < g.rail.length && !blocked(ni)) ? Object.assign(dg.slice(), { [k]: ni * 2 + (s === 1 ? 0 : 1) }) : null });
   }
-  out.push({ label: '⟲', dg: Object.assign(dg.slice(), { [k]: i * 2 + (1 - f) }) });
+  out.push({ kind: 'turn', label: '⟲', dg: Object.assign(dg.slice(), { [k]: i * 2 + (1 - f) }) });
   return out;
 }
 function options(k) {
-  if (k < nc()) return [{ label: '↺', dg: Object.assign(dg.slice(), { [k]: (dg[k] + 3) % 4 }) }, { label: '↻', dg: Object.assign(dg.slice(), { [k]: (dg[k] + 1) % 4 }) }];
+  if (k < nc()) return [{ kind: 'cam', label: '↺', dg: Object.assign(dg.slice(), { [k]: (dg[k] + 3) % 4 }) }, { kind: 'cam', label: '↻', dg: Object.assign(dg.slice(), { [k]: (dg[k] + 1) % 4 }) }];
   return guardOptions(k);
 }
 function push() { hist.push({ dg: dg.slice(), thief, moves, hearts, lost, thiefDir }); }
 function damage() {
-  hearts--; lost++; flash = 1; flashCell = thief; shake = 1; setTip(tr().seen, 'warn');
+  hearts--; lost++; flash = 1; flashCell = thief; shake = 1; setTip(tr().seen, 'warn'); Sfx.play('spotted');
   if (hearts <= 0) caught();
   syncUI();
 }
 function caught() {
-  walking = null; caughtOn = true;
+  walking = null; caughtOn = true; Sfx.play('caught');
   $('caughtTitle').textContent = tr().caught; $('caughtText').textContent = tr().caughtText;
   $('caughtRetry').textContent = tr().retry; $('caughtRevive').textContent = tr().revive;
   $('caughtOv').classList.add('on');
 }
-function tryAction(nd) {
+function tryAction(nd, kind) {
   if (!nd || walking || caughtOn) return;
   const e = ev(nd), wasLit = ev().lit[thief];
-  if (e.occ[thief]) { setTip(tr().refused, 'warn'); flashCell = thief; flash = 1; shake = 1; return; }
-  if (e.lit[thief] && !heartsMode) { setTip(tr().refused, 'warn'); flashCell = thief; flash = 1; shake = 1; return; }
-  push(); dg = nd; moves++; hintWho = -1; setTip('');
+  if (e.occ[thief] || (e.lit[thief] && !heartsMode)) { setTip(tr().refused, 'warn'); flashCell = thief; flash = 1; shake = 1; Sfx.play('refuse'); return; }
+  push(); dg = nd; moves++; hintWho = -1; setTip(''); Sfx.play(kind || 'cam');
   if (e.lit[thief] && !wasLit) damage();
   syncUI(); buildBar();
 }
@@ -239,7 +284,7 @@ function pathTo(target) {
 function walkTo(c) {
   if (caughtOn) return;
   const path = pathTo(c);
-  if (!path) { setTip(tr().unreach, 'warn'); flashCell = c; flash = 1; return; }
+  if (!path) { setTip(tr().unreach, 'warn'); flashCell = c; flash = 1; Sfx.play('refuse'); return; }
   if (!path.length) return;
   push(); setTip(''); hintWho = -1;
   walking = { path, t: 0 };
@@ -252,7 +297,7 @@ function stepWalk(dt) {
     const next = walking.path.shift(), e = ev(), wasLit = e.lit[thief];
     const dx = next % L.w - thief % L.w, dy = ((next / L.w) | 0) - ((thief / L.w) | 0);
     thiefDir = dy < 0 ? 0 : dx > 0 ? 1 : dy > 0 ? 2 : 3;
-    thief = next;
+    thief = next; Sfx.play('step');
     if (heartsMode && e.lit[thief] && !wasLit) { damage(); if (caughtOn) return; }
     if (!walking.path.length) { walking = null; if (thief === L.E) win(); }
   }
@@ -310,7 +355,7 @@ function buildBar() {
   const bar = $('bar'), t = tr(); bar.innerHTML = '';
   const add = (label, fn, cls, dis) => { const b = document.createElement('button'); b.textContent = label; if (cls) b.className = cls; b.disabled = !!dis; b.onclick = fn; bar.appendChild(b); return b; };
   if (sel >= 0) {
-    options(sel).forEach(o => add(o.label, () => tryAction(o.dg), 'primary', !o.dg));
+    options(sel).forEach(o => add(o.label, () => tryAction(o.dg, o.kind), 'primary', !o.dg));
     const sep = document.createElement('span'); sep.className = 'sep'; bar.appendChild(sep);
   }
   add(t.undo, undo, '', !hist.length || !!walking); add(t.reset, () => load(li));
@@ -318,7 +363,7 @@ function buildBar() {
 }
 function undo() {
   if (!hist.length || walking) return;
-  const h = hist.pop(); dg = h.dg; thief = h.thief; moves = h.moves; hearts = h.hearts; lost = h.lost; thiefDir = h.thiefDir;
+  Sfx.play('undo'); const h = hist.pop(); dg = h.dg; thief = h.thief; moves = h.moves; hearts = h.hearts; lost = h.lost; thiefDir = h.thiefDir;
   hintWho = -1; caughtOn = false; setTip(''); syncUI(); buildBar();
 }
 function onHint() {
@@ -327,6 +372,7 @@ function onHint() {
   Ads.rewarded().then(ok => { if (ok) { doHint(); } });
 }
 function doHint() {
+  Sfx.play('hint');
   const r = P.solve(L, { digits: dg, thief, maxDepth: 40 });
   if (!r || !r.solvable) { setTip('—', 'warn'); return; }
   if (r.par === 0) { setTip(tr().pathClear, 'good'); return; }
@@ -353,7 +399,7 @@ function stars() {
   return s;
 }
 function win() {
-  const id = LEVELS[li].id, st = stars();
+  Sfx.play('win'); const id = LEVELS[li].id, st = stars();
   if (!best[id] || best[id].stars < st || (best[id].stars === st && best[id].moves > moves)) { best[id] = { stars: st, moves }; store.set('pb_best2', best); }
   $('winTitle').textContent = tr().escaped; $('winStars').textContent = '★'.repeat(st) + '☆'.repeat(3 - st); $('winText').textContent = tr().winText(moves, LEVELS[li].par, heartsMode ? lost : 0);
   const last = li === LEVELS.length - 1, ci = chapterOf(id), nextCi = last ? -1 : chapterOf(LEVELS[li + 1].id);
@@ -392,6 +438,9 @@ function openLevels() {
 $('btnLevels').onclick = openLevels;
 $('btnUnlock').onclick = () => { unlockAll = !unlockAll; store.set('pb_unlock', unlockAll); openLevels(); };
 $('lvClose').onclick = () => $('lvOv').classList.remove('on');
+function syncMute() { $('btnMute').textContent = Sfx.muted ? '🔇' : '🔊'; }
+$('btnMute').onclick = () => { Sfx.toggle(); syncMute(); }; syncMute();
+document.addEventListener('click', e => { const b = e.target.closest && e.target.closest('button'); if (b && !b.closest('#bar') && b.id !== 'btnMute') Sfx.play('click'); });
 $('btnHearts').onclick = () => { setHeartsMode(!heartsMode); load(li); };
 $('btnLang').onclick = () => { lang = lang === 'fa' ? 'en' : 'fa'; store.set('pb_lang', lang); setTip(heartsMode ? tr().heartsTip : (tr().tips[LEVELS[li].id] || tr().pick)); syncUI(); buildBar(); };
 
@@ -444,9 +493,24 @@ function camSprite(dir) {
   else { pxr(c, '#c9d2e6', 1, 1, 8, 6); pxr(c, '#7d889c', 1, 5, 8, 2); pxr(c, '#1a1420', 9, 2, 2, 4); pxr(c, '#ff3b52', 10, 3, 1, 2); if (dir === 3) { /* mirrored when drawn */ } }
   outline(cnv, '#16101f'); sprites.set(key, cnv); return cnv;
 }
-function drawSprite(cnv, cx, footY, scale, flip) {
+/* A coloured silhouette one sprite-pixel wider than the sprite, used as the selection highlight. */
+const glows = new Map();
+function glowOf(cnv, col) {
+  const key = col + cnv.toString() + cnv.width + 'x' + cnv.height + (cnv._id || (cnv._id = Math.random()));
+  if (glows.has(key)) return glows.get(key);
+  const g = document.createElement('canvas'); g.width = cnv.width + 4; g.height = cnv.height + 4; const c = g.getContext('2d');
+  for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) c.drawImage(cnv, 2 + dx, 2 + dy);
+  c.globalCompositeOperation = 'source-in'; c.fillStyle = col; c.fillRect(0, 0, g.width, g.height);
+  glows.set(key, g); return g;
+}
+function drawSprite(cnv, cx, footY, scale, flip, glow) {
   ctx.imageSmoothingEnabled = false; ctx.save(); ctx.translate(cx, footY);
   if (flip) ctx.scale(-1, 1);
+  if (glow) {                                                    // follows the sprite's own outline and breathes in and out
+    const g = glowOf(cnv, glow.col), k = 1 + .05 * glow.pulse;
+    ctx.save(); ctx.globalAlpha = .3 + .7 * glow.pulse; ctx.scale(k, k);
+    ctx.drawImage(g, -g.width * scale / 2, -(cnv.height + 1) * scale, g.width * scale, g.height * scale); ctx.restore();
+  }
   ctx.drawImage(cnv, -cnv.width * scale / 2, -(cnv.height - 1) * scale, cnv.width * scale, cnv.height * scale); ctx.restore();
 }
 function shadow(cx, cy, rx) { ctx.fillStyle = 'rgba(0,0,0,.35)'; ctx.beginPath(); ctx.ellipse(cx, cy, rx, rx * .38, 0, 0, 7); ctx.fill(); }
@@ -478,18 +542,27 @@ function drawWall(x, y) {
   ctx.fillStyle = 'rgba(0,0,0,.18)'; ctx.fillRect(px, py + cellH - 1, cs, 1);
   ctx.fillStyle = 'rgba(0,0,0,.28)'; ctx.fillRect(px, py + cellH + wallH - 2, cs, 2);
 }
-function ringAt(cx, cy, r, col, pulse) { ctx.strokeStyle = col; ctx.lineWidth = 2 + pulse * 2; ctx.beginPath(); ctx.ellipse(cx, cy, r, r * .5, 0, 0, 7); ctx.stroke(); }
-function coneOf(r, pulse) {
-  if (!r.cells.length) return;
-  const sx = r.src % L.w + .5, sy = ((r.src / L.w) | 0) + .5, d = r.d, n = r.cells.length;
-  const dx = DX[d], dy = DY[d], px = -dy, py = dx;
-  const pt = (t, w) => [FX(sx + dx * t + px * w), FY(sy + dy * t + py * w)];
-  const a = pt(.5, -.16), b = pt(.5, .16), c = pt(n + .5, .5), e = pt(n + .5, -.5);
-  const o = pt(.5, 0), f = pt(n + .5, 0);
+const glowFor = (k, pulse) => sel === k ? { col: hintWho === k ? '#ffc54a' : '#ffffff', pulse } : null;
+/* Beam geometry in floor space: t runs along the sight line from the source cell's centre, w across it. */
+function beamPts(r) {
+  const sx = r.src % L.w + .5, sy = ((r.src / L.w) | 0) + .5, d = r.d, n = r.cells.length, dx = DX[d], dy = DY[d], px = -dy, py = dx;
+  return { n, pt: (t, w) => [FX(sx + dx * t + px * w), FY(sy + dy * t + py * w)] };
+}
+function fillBeam(poly, o, f, pulse) {
   const g = ctx.createLinearGradient(o[0], o[1], f[0], f[1]);
-  g.addColorStop(0, `rgba(255,70,90,${.62 + .1 * pulse})`); g.addColorStop(1, `rgba(255,70,90,${.22 + .05 * pulse})`);
-  ctx.fillStyle = g; ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(e[0], e[1]); ctx.lineTo(c[0], c[1]); ctx.lineTo(b[0], b[1]); ctx.closePath(); ctx.fill();
+  g.addColorStop(0, `rgba(255,70,90,${.66 + .1 * pulse})`); g.addColorStop(1, `rgba(255,70,90,${.22 + .05 * pulse})`);
+  ctx.fillStyle = g; ctx.beginPath(); poly.forEach((q, i) => i ? ctx.lineTo(q[0], q[1]) : ctx.moveTo(q[0], q[1])); ctx.closePath(); ctx.fill();
   ctx.strokeStyle = 'rgba(255,170,176,.55)'; ctx.lineWidth = 1.2; ctx.stroke();
+}
+function guardBeam(r, pulse) {                       // starts in the guard's own cell
+  if (!r.cells.length) return;
+  const { n, pt } = beamPts(r);
+  fillBeam([pt(0, -.12), pt(n + .5, -.5), pt(n + .5, .5), pt(0, .12)], pt(0, 0), pt(n + .5, 0), pulse);
+}
+function cameraBeam(r, lx, ly, pulse) {              // starts at the camera lens, drawn after the wall so it sits on top of it
+  if (!r.cells.length) return;
+  const { n, pt } = beamPts(r);
+  fillBeam([[lx, ly], pt(.5, -.5), pt(n + .5, -.5), pt(n + .5, .5), pt(.5, .5)], [lx, ly], pt(n + .5, 0), pulse);
 }
 let last = performance.now();
 function frame(now) {
@@ -506,7 +579,7 @@ function draw(now) {
   for (let y = 0; y < L.h; y++) for (let x = 0; x < L.w; x++) if (!L.wall[y * L.w + x]) drawFloor(x, y);
   /* light on the floor: tinted cells, then the cones */
   for (let c = 0; c < L.w * L.h; c++) if (e.lit[c]) { ctx.fillStyle = `rgba(255,50,70,${.14 + .04 * pulse})`; ctx.fillRect(FX(c % L.w), FY((c / L.w) | 0), cs, cellH); }
-  e.rays.forEach(r => coneOf(r, pulse));
+  e.rays.forEach(r => { if (r.who >= nc()) guardBeam(r, pulse); });
   /* rails */
   L.guards.forEach(g => {
     ctx.strokeStyle = 'rgba(160,190,255,.28)'; ctx.lineWidth = Math.max(2, cs * .07); ctx.lineCap = 'round'; ctx.setLineDash([cs * .08, cs * .14]);
@@ -532,13 +605,12 @@ function draw(now) {
   const drawGuardsAt = y => L.guards.forEach((g, j) => {
     const q = gdraw[j]; if (Math.round(q.y) !== y) return;
     const cx = FX(q.x + .5), fy = FY(q.y) + cellH * .86, d = P.guardFacingDir(g, dg[nc() + j] & 1);
-    shadow(cx, fy, cs * .26); drawSprite(person('guard', d, 0), cx, fy, sc, d === 3);
-    if (sel === nc() + j) ringAt(cx, fy - cellH * .05, cs * (.42 + .03 * pulse), hintWho === sel ? '#ffc54a' : '#ffffff', pulse);
+    shadow(cx, fy, cs * .26); drawSprite(person('guard', d === 3 ? 1 : d, 0), cx, fy, sc, d === 3, glowFor(nc() + j, pulse));
   });
   const drawThiefAt = y => {
     if (thiefRow !== y) return;
     const cx = FX(tfx + .5), fy = FY(tfy) + cellH * .86, bob = frameIdx ? Math.abs(Math.sin(now / 110 * Math.PI)) * cs * .06 : 0;
-    shadow(cx, fy, cs * .26); drawSprite(person('thief', thiefDir, frameIdx), cx, fy - bob, sc, thiefDir === 3);
+    shadow(cx, fy, cs * .26); drawSprite(person('thief', thiefDir === 3 ? 1 : thiefDir, frameIdx), cx, fy - bob, sc, thiefDir === 3);
     if (heartsMode && e.lit[thief]) { ctx.fillStyle = '#ff3b52'; ctx.font = `900 ${cs * .38}px system-ui`; ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic'; ctx.fillText('!', cx, fy - cs * 1.18 - bob); }
   };
   /* walls, cameras and characters, back to front */
@@ -547,8 +619,8 @@ function draw(now) {
       drawWall(x, y);
       const k = L.cams.findIndex(q => q.c === y * L.w + x);
       if (k >= 0) { const d = dg[k], cx = FX(x + .5), cy = FY(y) - wallH + cellH * .72;
-        drawSprite(camSprite(d === 3 ? 1 : d), cx, cy, cs * .05, d === 3);
-        if (sel === k) ringAt(cx, cy - cs * .12, cs * (.4 + .03 * pulse), hintWho === sel ? '#ffc54a' : '#ffffff', pulse); }
+        drawSprite(camSprite(d === 3 ? 1 : d), cx, cy, cs * .05, d === 3, glowFor(k, pulse));
+        cameraBeam(e.rays[k], cx, cy - cs * .3, pulse); }
     }
     drawGuardsAt(y); drawThiefAt(y);
   }

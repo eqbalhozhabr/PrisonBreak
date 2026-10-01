@@ -6,6 +6,11 @@ const rd = f => fs.readFileSync(path.join(root, f), 'utf8');
 let html = rd('play/index.html');
 html = html.replace('<script src="../src/prison.js"></script>', () => '<script>\n' + rd('src/prison.js') + '\n</script>')
            .replace('<script src="levels.js"></script>', () => '<script>\n' + rd('play/levels.js') + '\n</script>');
+// inline the pixel fonts so the single file also works offline
+html = html.replace(/url\(fonts\/([^)]+)\)/g, (m, f) => {
+  const mime = f.endsWith('.woff2') ? 'font/woff2' : 'font/ttf';
+  return 'url(data:' + mime + ';base64,' + fs.readFileSync(path.join(root, 'play/fonts', f)).toString('base64') + ')';
+});
 fs.writeFileSync(path.join(root, 'play/prisonbreak.html'), html);
 const title = html.match(/<title>[\s\S]*?<\/title>/)[0];
 const style = html.match(/<style>[\s\S]*?<\/style>/)[0];

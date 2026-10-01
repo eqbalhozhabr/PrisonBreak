@@ -6,69 +6,95 @@
 <link rel="icon" href="data:,">
 <title>Blind Eye</title>
 <style>
-  :root { color-scheme:dark; --bg:#0d1017; --panel:#161b26; --ink:#e8ecf4; --mute:#8b94a8; --red:#ff3b52; --gold:#ffc54a; --ok:#41d392; --line:#262d3d; }
+  /* pixel UI: Silkscreen for labels, Press Start 2P for the title and numbers, paragraphs stay in the system font for reading.
+     Fonts are SIL OFL; tools/build-single.js inlines them. Boxes are drawn with stepped box-shadows, so corners are cut, not rounded. */
+  @font-face { font-family:'Silkscreen'; font-weight:400; font-display:swap; src:url(fonts/silkscreen-400.ttf) format('truetype'); }
+  @font-face { font-family:'Silkscreen'; font-weight:700; font-display:swap; src:url(fonts/silkscreen-700.ttf) format('truetype'); }
+  @font-face { font-family:'Press Start 2P'; font-weight:400; font-display:swap; src:url(fonts/press-start-2p.woff2) format('woff2'); }
+  :root { color-scheme:dark; --pf:'Silkscreen','Courier New',monospace; --tf:'Press Start 2P','Silkscreen','Courier New',monospace;
+    --bg:#0d1017; --panel:#1b2130; --panel2:#262e42; --edge:#06080d; --hi:#3d4863; --lo:#0f131c; --ink:#e8ecf4; --mute:#8b94a8;
+    --red:#ff3b52; --red-hi:#ff8795; --red-lo:#a81c30; --gold:#ffc54a; --ok:#41d392; --line:#2a3246; }
   * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
   html,body { height:100%; margin:0; background:var(--bg); color:var(--ink); font-family:system-ui,"Segoe UI",Tahoma,sans-serif; overscroll-behavior:none; -webkit-user-select:none; user-select:none; }
-  #app { height:100%; display:flex; flex-direction:column; max-width:760px; margin:0 auto; padding:env(safe-area-inset-top) 12px env(safe-area-inset-bottom); }
-  header { display:flex; align-items:center; gap:8px; padding:8px 0 4px; }
-  header .ttl { flex:1; min-width:0; font-size:13px; color:var(--mute); line-height:1.35; }
-  header .ttl b { color:var(--ink); font-size:15px; }
-  button { font:inherit; color:var(--ink); background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:8px 12px; cursor:pointer; min-height:42px; }
-  button:active { transform:translateY(1px); }
-  button:disabled { opacity:.38; cursor:default; }
-  button.primary { background:var(--red); border-color:var(--red); color:#fff; font-weight:600; }
-  button.on { border-color:var(--red); color:var(--red); }
-  button.big { width:100%; min-height:50px; font-size:17px; }
-  #stats { display:flex; gap:8px; font-size:13px; color:var(--mute); padding-bottom:2px; align-items:center; flex-wrap:wrap; }
-  #stats b { color:var(--ink); font-size:16px; }
-  #hearts { letter-spacing:2px; font-size:16px; direction:ltr; }
-  #hearts .off { color:#3a4052; } #hearts .on { color:var(--red); }
-  #tip { font-size:13px; color:var(--mute); min-height:36px; padding:2px 0 4px; line-height:1.5; }
-  #tip.warn { color:var(--red); } #tip.good { color:var(--ok); }
-  #stage { flex:1; min-height:0; position:relative; }
-  canvas { position:absolute; inset:0; width:100%; height:100%; touch-action:none; border-radius:12px; }
-  #bar { display:flex; flex-wrap:wrap; gap:8px; justify-content:center; padding:10px 0 12px; direction:ltr; }
-  #bar .sep { width:1px; background:var(--line); margin:0 4px; }
-  #bar button { min-width:48px; }
-  .overlay { position:fixed; inset:0; background:rgba(5,7,12,.86); display:none; align-items:center; justify-content:center; padding:16px; z-index:10; }
+  #app { height:100%; display:flex; flex-direction:column; max-width:760px; margin:0 auto; padding:env(safe-area-inset-top) 14px env(safe-area-inset-bottom); }
+  /* the pixel box: 3px edge without corners, light top, dark bottom */
+  button, .card, .hud, .pix { --h:var(--hi); --l:var(--lo); --e:var(--edge);
+    box-shadow:0 -3px 0 0 var(--e), 0 3px 0 0 var(--e), -3px 0 0 0 var(--e), 3px 0 0 0 var(--e), inset 0 3px 0 0 var(--h), inset 0 -3px 0 0 var(--l); border-radius:0; }
+  button { font-family:var(--pf); font-weight:700; font-size:12px; letter-spacing:.06em; text-transform:uppercase; color:var(--ink); background:var(--panel2); border:0; padding:10px 14px; min-height:44px; cursor:pointer; display:inline-flex; align-items:center; justify-content:center; gap:8px; margin:3px; }
+  button:active:not(:disabled) { transform:translateY(3px); box-shadow:0 -3px 0 0 var(--e), 0 3px 0 0 var(--e), -3px 0 0 0 var(--e), 3px 0 0 0 var(--e), inset 0 3px 0 0 var(--l), inset 0 -3px 0 0 var(--h); }
+  button:disabled { opacity:.4; cursor:default; }
+  button.primary { background:var(--red); color:#fff; --h:var(--red-hi); --l:var(--red-lo); }
+  button.on { color:var(--red-hi); --e:var(--red-lo); }
+  button.big { width:100%; min-height:54px; font-size:14px; margin:0; }
+  .ic { display:inline-block; flex:none; background:currentColor; -webkit-mask:var(--m) center/100% 100% no-repeat; mask:var(--m) center/100% 100% no-repeat; image-rendering:pixelated; }
+  .ic.rot90 { transform:rotate(90deg); } .ic.flipx { transform:scaleX(-1); } .ic.gold { color:var(--gold); } .ic.dim { color:#394156; } .ic.red { color:var(--red); }
+  /* HUD */
+  .hud { display:flex; flex-wrap:wrap; align-items:center; gap:8px 10px; margin:10px 4px 10px; padding:9px 10px; background:var(--panel); }
+  .hud button.sq { min-height:40px; width:40px; padding:0; margin:0; }
+  .hud .lv { flex:1; min-width:0; }
+  .hud .lv b { display:block; font-family:var(--pf); font-size:14px; letter-spacing:.08em; text-transform:uppercase; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .hud .lv span { display:block; font-family:var(--pf); font-size:10px; letter-spacing:.08em; text-transform:uppercase; color:var(--mute); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .hud .stat { text-align:center; min-width:46px; }
+  .hud .stat .k { display:block; font-family:var(--pf); font-size:9px; letter-spacing:.08em; text-transform:uppercase; color:var(--mute); }
+  .hud .stat b { font-family:var(--tf); font-size:15px; line-height:1.5; }
+  #heartsWrap { flex-basis:100%; display:flex; justify-content:flex-end; padding-top:2px; }
+  #hearts { display:inline-flex; gap:4px; direction:ltr; }
+  #tip { font-size:13px; color:var(--mute); min-height:38px; padding:2px 6px 6px; line-height:1.5; }
+  #tip.warn { color:var(--red-hi); } #tip.good { color:var(--ok); }
+  #stage { flex:1; min-height:0; position:relative; margin:3px 3px 6px; }
+  canvas#cv { position:absolute; inset:0; width:100%; height:100%; touch-action:none; background:#0a0d13; box-shadow:0 -3px 0 0 var(--edge), 0 3px 0 0 var(--edge), -3px 0 0 0 var(--edge), 3px 0 0 0 var(--edge); }
+  #bar { display:flex; flex-wrap:wrap; gap:8px; justify-content:center; padding:8px 0 14px; direction:ltr; }
+  #bar .sep { width:3px; background:var(--edge); margin:4px 4px; }
+  #bar button { min-width:50px; }
+  /* panels and overlays */
+  .overlay { position:fixed; inset:0; background:rgba(5,7,12,.88); display:none; align-items:center; justify-content:center; padding:20px; z-index:10; }
   .overlay.on { display:flex; }
-  .card { background:var(--panel); border:1px solid var(--line); border-radius:16px; padding:18px; max-width:460px; width:100%; text-align:center; max-height:94%; overflow:auto; }
-  .card h2 { margin:0 0 8px; }
-  .stars { font-size:34px; letter-spacing:6px; color:var(--gold); margin:6px 0 10px; }
-  .grid { display:grid; grid-template-columns:repeat(5,1fr); gap:6px; margin:6px 0 10px; direction:ltr; }
-  .grid button { padding:8px 0; min-height:46px; } .grid button small { display:block; color:var(--gold); font-size:10px; min-height:12px; }
-  .chap { font-size:13px; color:var(--mute); margin-top:10px; display:flex; justify-content:space-between; gap:8px; text-align:start; }
-  .chap b { color:var(--ink); }
-  .row { display:flex; gap:8px; justify-content:center; flex-wrap:wrap; margin-top:8px; }
-  .col { display:flex; flex-direction:column; gap:10px; margin-top:6px; }
-  .muted { color:var(--mute); font-size:12px; margin-top:8px; line-height:1.6; }
-  #adCount { font-size:34px; font-weight:700; margin:10px 0; }
+  .card { background:var(--panel); padding:20px 18px; max-width:460px; width:100%; text-align:center; max-height:92%; overflow:auto; }
+  .card h2 { margin:2px 0 14px; font-family:var(--tf); font-size:15px; line-height:1.6; letter-spacing:.04em; text-transform:uppercase; text-shadow:3px 3px 0 var(--edge); }
+  .stars { display:flex; gap:10px; justify-content:center; margin:6px 0 14px; }
+  .grid { display:grid; grid-template-columns:repeat(5,1fr); gap:10px; margin:10px 3px 14px; direction:ltr; }
+  .grid button { padding:6px 0; min-height:52px; flex-direction:column; gap:3px; margin:0; font-size:13px; }
+  .grid button .row2 { display:flex; gap:2px; min-height:12px; align-items:center; }
+  .chap { font-family:var(--pf); font-size:10px; letter-spacing:.05em; text-transform:uppercase; color:var(--mute); margin-top:16px; display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:4px 10px; text-align:start; }
+  .chap b { color:var(--ink); font-size:12px; white-space:nowrap; }
+  .chap span { display:inline-flex; align-items:center; gap:6px; }
+  .row { display:flex; gap:12px; justify-content:center; flex-wrap:wrap; margin-top:12px; }
+  .col { display:flex; flex-direction:column; gap:14px; margin-top:6px; }
+  .muted { color:var(--mute); font-size:13px; margin-top:8px; line-height:1.6; }
+  #adCount { font-family:var(--tf); font-size:26px; margin:14px 0; }
+  .set { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:10px 0; border-bottom:3px solid var(--edge); text-align:start; }
+  .set label { font-family:var(--pf); font-weight:700; font-size:13px; letter-spacing:.05em; text-transform:uppercase; } .set small { display:block; color:var(--mute); font-size:11px; margin-top:3px; font-family:system-ui,sans-serif; text-transform:none; letter-spacing:0; font-weight:400; }
+  .seg { display:flex; gap:8px; } .seg button { min-height:38px; padding:6px 12px; }
+  .seg button.sel { background:var(--red); color:#fff; --h:var(--red-hi); --l:var(--red-lo); }
+  .tog { min-width:68px; }
+  input[type=range] { -webkit-appearance:none; appearance:none; width:130px; height:14px; background:var(--lo); box-shadow:0 -3px 0 0 var(--edge), 0 3px 0 0 var(--edge), -3px 0 0 0 var(--edge), 3px 0 0 0 var(--edge); border-radius:0; }
+  input[type=range]::-webkit-slider-thumb { -webkit-appearance:none; width:14px; height:24px; background:var(--red); border:0; border-radius:0; box-shadow:0 0 0 3px var(--edge), inset 0 3px 0 0 var(--red-hi), inset 0 -3px 0 0 var(--red-lo); }
+  input[type=range]::-moz-range-thumb { width:14px; height:24px; background:var(--red); border:0; border-radius:0; box-shadow:0 0 0 3px var(--edge), inset 0 3px 0 0 var(--red-hi), inset 0 -3px 0 0 var(--red-lo); }
+  .howl { text-align:start; line-height:1.7; font-size:14px; padding-inline-start:20px; margin:8px 0; }
+  .howl li { margin-bottom:8px; }
   /* main menu */
-  #menu { position:fixed; inset:0; z-index:8; display:none; flex-direction:column; align-items:center; justify-content:center; gap:18px; padding:24px; background:radial-gradient(circle at 50% 28%, #1c2433 0%, #0d1017 62%); }
+  #menu { position:fixed; inset:0; z-index:8; display:none; flex-direction:column; align-items:center; justify-content:center; gap:14px; padding:24px 24px calc(34px + env(safe-area-inset-bottom)); overflow:hidden; background:#0d1017; }
   #menu.on { display:flex; }
-  #menu .logo { width:128px; height:128px; }
-  #menu h1 { margin:0; font-size:44px; letter-spacing:.14em; text-transform:uppercase; line-height:1; text-align:center; }
-  #menu h1 span { color:var(--red); }
-  #menu .tag { color:var(--mute); font-size:14px; text-align:center; max-width:300px; line-height:1.6; }
-  #menu .col { width:100%; max-width:320px; margin-top:6px; }
-  #menu .foot { color:#566079; font-size:11px; position:absolute; bottom:calc(10px + env(safe-area-inset-bottom)); }
-  /* settings */
-  .set { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:10px 0; border-bottom:1px solid var(--line); text-align:start; }
-  .set:last-of-type { border-bottom:0; }
-  .set label { font-size:15px; } .set small { display:block; color:var(--mute); font-size:11px; margin-top:2px; }
-  .seg { display:flex; gap:6px; } .seg button { min-height:38px; padding:6px 12px; }
-  .seg button.sel { background:var(--red); border-color:var(--red); color:#fff; }
-  .tog { min-width:64px; } input[type=range] { width:120px; accent-color:#ff3b52; }
-  .howl { text-align:start; line-height:1.7; font-size:14px; color:var(--ink); padding-inline-start:18px; margin:8px 0; }
-  .howl li { margin-bottom:6px; }
+  #menuBg { position:absolute; inset:0; width:100%; height:100%; image-rendering:pixelated; z-index:0; }
+  #menu::after { content:''; position:absolute; inset:0; z-index:1; pointer-events:none; background:radial-gradient(ellipse at 50% 38%, rgba(13,16,23,0) 0%, rgba(13,16,23,.4) 60%, rgba(6,8,13,.72) 100%); }
+  #menu > :not(#menuBg) { position:relative; z-index:2; }
+  #menu::after { z-index:1; }
+  #logo { width:min(80vw, 330px); aspect-ratio:128/84; image-rendering:pixelated; }
+  #menu h1 { margin:0; font-family:var(--tf); font-weight:400; font-size:min(8.6vw, 34px); line-height:1.25; letter-spacing:.02em; text-transform:uppercase; text-align:center; text-shadow:4px 4px 0 var(--edge); }
+  #menu h1 em { font-style:normal; color:var(--red); }
+  #menu .tag { color:#a9b2c6; font-size:14px; text-align:center; max-width:310px; line-height:1.6; text-shadow:0 2px 0 #06080d; }
+  #menu .col { width:100%; max-width:320px; margin-top:10px; }
+  #menu .foot { position:absolute; z-index:2; bottom:calc(12px + env(safe-area-inset-bottom)); font-family:var(--pf); font-size:10px; letter-spacing:.1em; text-transform:uppercase; color:#566079; }
 </style>
 </head>
 <body>
 <div id="app">
-  <header>
-    <button id="btnMenu" aria-label="menu">☰</button>
-    <div class="ttl"><b id="lvLabel"></b><br><span id="blockLabel"></span></div>
-    <div id="stats"><span id="movesLabel"></span> <b id="moves">0</b><span>·</span><span id="parLabel"></span> <b id="par">0</b><span id="heartsWrap"> · <span id="hearts"></span></span></div>
+  <header class="hud">
+    <button id="btnMenu" class="sq" aria-label="menu"></button>
+    <div class="lv"><b id="lvLabel"></b><span id="blockLabel"></span></div>
+    <div class="stat"><span class="k" id="movesLabel"></span><b id="moves">0</b></div>
+    <div class="stat"><span class="k" id="parLabel"></span><b id="par">0</b></div>
+    <div id="heartsWrap"><span id="hearts"></span></div>
   </header>
   <div id="tip"></div>
   <div id="stage"><canvas id="cv"></canvas></div>
@@ -76,8 +102,9 @@
 </div>
 
 <div id="menu" class="on">
-  <svg class="logo" viewBox="0 0 64 64" aria-hidden="true"><rect x="2" y="14" width="60" height="36" rx="18" fill="#161b26" stroke="#2c3550" stroke-width="2"/><circle cx="32" cy="32" r="13" fill="#0d1017" stroke="#ff3b52" stroke-width="3"/><circle cx="32" cy="32" r="6" fill="#ff3b52"/><circle cx="35" cy="29" r="2" fill="#fff"/><path d="M6 32 L58 32" stroke="#ff3b52" stroke-opacity=".25" stroke-width="2"/></svg>
-  <h1>Blind <span>Eye</span></h1>
+  <canvas id="menuBg"></canvas>
+  <canvas id="logo" width="128" height="84"></canvas>
+  <h1>Blind <em>Eye</em></h1>
   <div class="tag" id="menuTag"></div>
   <div class="col">
     <button class="primary big" id="mPlay"></button>
@@ -172,12 +199,12 @@ const T = {
     tag: 'Move the darkness. Slip the prisoner past cameras and guards.', foot: 'Playtest build',
     play: 'Play', cont: lv => 'Continue · Level ' + lv, levels: 'Levels', how: 'How to play', settings: 'Settings', close: 'Close', back: 'Back',
     pause: 'Paused', resume: 'Resume', restart: 'Restart level', mainMenu: 'Main menu',
-    level: 'Level', moves: 'Actions', best: 'Best', undo: '↶ Undo', hint: '💡 Hint', hintAd: '💡 ▶ Ad', toExit: '🚪 Go to exit',
+    level: 'Level', moves: 'Actions', best: 'Best', undo: 'Undo', hint: 'Hint', hintAd: 'Hint · Ad', toExit: 'Exit', turn: 'Turn', flip: 'Switch',
     pick: 'Tap a dark tile to walk. Tap a camera to turn it clockwise.',
     refused: 'Not allowed: that would expose the prisoner. Move him somewhere dark first.', unreach: 'The prisoner cannot get there from here.',
     pathClear: 'The way is clear. Send the prisoner to the exit.', hintWho: 'Try: ', hintCam: 'turn this camera', hintGuard: 'move this guard', hintDoor: 'use this door', hintMirror: 'flip this mirror',
     escaped: 'Escaped!', winText: (m, p, l) => `${m} actions · best ${p}` + (l ? ` · ${l} heart(s) lost` : ''), retry: 'Retry', next: 'Next level', done: 'All levels cleared!',
-    seen: 'Spotted! You lost a heart.', caught: 'Caught!', caughtText: 'You ran out of hearts.', revive: '▶ Ad: continue with 1 heart',
+    seen: 'Spotted! You lost a heart.', caught: 'Caught!', caughtText: 'You ran out of hearts.', revive: 'Ad: continue with 1 heart',
     locked: (n, h) => `Locked: needs ${n} stars (you have ${h})`, gate: (n, h) => `The next block needs ${n} stars. You have ${h}.`,
     adTitle: 'Placeholder ad', adText: 'In the real game a rewarded video plays here. This is only a stand-in; no real ad is shown.', adWait: s => `${s}s…`, adReady: 'Ready', adClaim: 'Claim reward', adCancel: 'Cancel',
     sLang: 'Language', sSfx: 'Sound effects', sVol: 'Volume', sVib: 'Vibration', sHearts: 'Hearts mode', sHeartsS: 'You may cross light, but each time you are spotted you lose a heart.',
@@ -205,12 +232,12 @@ const T = {
     tag: 'تاریکی را جابه‌جا کن و زندانی را از کنار دوربین‌ها و نگهبان‌ها رد کن.', foot: 'نسخهٔ آزمایشی',
     play: 'شروع بازی', cont: lv => 'ادامه · مرحلهٔ ' + lv, levels: 'مرحله‌ها', how: 'راهنمای بازی', settings: 'تنظیمات', close: 'بستن', back: 'بازگشت',
     pause: 'توقف', resume: 'ادامه', restart: 'شروع دوبارهٔ مرحله', mainMenu: 'منوی اصلی',
-    level: 'مرحله', moves: 'عمل', best: 'بهترین', undo: '↶ برگشت', hint: '💡 راهنما', hintAd: '💡 ▶ تبلیغ', toExit: '🚪 رفتن به خروج',
+    level: 'مرحله', moves: 'عمل', best: 'بهترین', undo: 'برگشت', hint: 'راهنما', hintAd: 'راهنما · تبلیغ', toExit: 'خروج', turn: 'چرخش', flip: 'تغییر',
     pick: 'یک خانهٔ تاریک را لمس کن تا دزد برود. یک دوربین را لمس کن تا ساعتگرد بچرخد.',
     refused: 'ممنوع! با این کار زندانی دیده می‌شود. اول او را به یک خانهٔ تاریک ببر.', unreach: 'زندانی از اینجا نمی‌تواند به آن خانه برود.',
     pathClear: 'راه باز است. زندانی را به خروج ببر.', hintWho: 'پیشنهاد: ', hintCam: 'این دوربین را بچرخان', hintGuard: 'این نگهبان را جابه‌جا کن', hintDoor: 'این در را باز/بسته کن', hintMirror: 'این آینه را بچرخان',
     escaped: 'فرار کرد!', winText: (m, p, l) => `${m} عمل · بهترین ${p}` + (l ? ` · ${l} جان از دست رفت` : ''), retry: 'دوباره', next: 'مرحلهٔ بعد', done: 'همهٔ مرحله‌ها تمام شد!',
-    seen: 'دیده شدی! یک جان کم شد.', caught: 'گرفتار شد!', caughtText: 'جان‌هایت تمام شد.', revive: '▶ تبلیغ و ادامه با ۱ جان',
+    seen: 'دیده شدی! یک جان کم شد.', caught: 'گرفتار شد!', caughtText: 'جان‌هایت تمام شد.', revive: 'تبلیغ و ادامه با ۱ جان',
     locked: (n, h) => `قفل: ${n} ستاره لازم است (داری ${h})`, gate: (n, h) => `برای بخش بعد ${n} ستاره لازم است. تا الان ${h} داری.`,
     adTitle: 'تبلیغ آزمایشی', adText: 'اینجا در بازی واقعی یک ویدیوی جایزه‌ای پخش می‌شود. این فقط یک نمونه است و تبلیغ واقعی ندارد.', adWait: s => `${s} ثانیه…`, adReady: 'آماده', adClaim: 'دریافت جایزه', adCancel: 'انصراف',
     sLang: 'زبان', sSfx: 'جلوه‌های صوتی', sVol: 'بلندی صدا', sVib: 'لرزش', sHearts: 'حالت جان', sHeartsS: 'می‌توانی از نور رد شوی، ولی هر بار دیده شدن یک جان می‌برد.',
@@ -236,6 +263,38 @@ const T = {
   },
 };
 const tr = () => T[settings.lang] || T.en;
+
+/* ---------------------------------------------------------- pixel icons */
+/* Icons are tiny bitmaps ('X' = filled) turned into CSS masks, so they take the colour of the text around them. */
+const ICONS = {
+  menu: ['XXXXXXXXX', '.........', 'XXXXXXXXX', '.........', 'XXXXXXXXX'],
+  heart: ['.XX.XX.', 'XXXXXXX', 'XXXXXXX', '.XXXXX.', '..XXX..', '...X...'],
+  star: ['...X...', '...X...', 'XXXXXXX', '.XXXXX.', '..XXX..', '.XX.XX.', '.X...X.'],
+  lock: ['.XXXXX.', '.X...X.', '.X...X.', 'XXXXXXX', 'XXX.XXX', 'XXX.XXX', 'XXXXXXX'],
+  undo: ['...X....', '..XX....', '.XXXXXX.', '..XX...X', '...X...X', '.......X', '..XXXXX.'],
+  bulb: ['.XXXXX.', 'XXXXXXX', 'XXXXXXX', 'XXXXXXX', '.XXXXX.', '..XXX..', '.......', '..XXX..', '...X...'],
+  door: ['XXXXXXX', 'X.....X', 'X.....X', 'X...X.X', 'X.....X', 'X.....X', 'X.....X', 'XXXXXXX'],
+  left: ['...X', '..XX', '.XXX', 'XXXX', '.XXX', '..XX', '...X'],
+  right: ['X...', 'XX..', 'XXX.', 'XXXX', 'XXX.', 'XX..', 'X...'],
+  turn: ['..X.....X..', '.XX.....XX.', 'XXXXXXXXXXX', '.XX.....XX.', '..X.....X..'],
+  swap: ['..X.....', '.XXXXXXX', '..X.....', '........', '.....X..', 'XXXXXXX.', '.....X..'],
+  play: ['XX....', 'XXXX..', 'XXXXXX', 'XXXXXX', 'XXXX..', 'XX....'],
+  levels: ['XXX.XXX', 'XXX.XXX', 'XXX.XXX', '.......', 'XXX.XXX', 'XXX.XXX', 'XXX.XXX'],
+  gear: ['..XXX..', 'X.XXX.X', 'XXX.XXX', 'XX...XX', 'XXX.XXX', 'X.XXX.X', '..XXX..'],
+  help: ['.XXXXX.', 'XX...XX', '.....XX', '...XXX.', '..XX...', '.......', '..XX...'],
+};
+const iconCache = {};
+function iconData(name) {
+  if (!iconCache[name]) {
+    const rows = ICONS[name], w = rows[0].length, h = rows.length, c = document.createElement('canvas'); c.width = w * 6; c.height = h * 6;
+    const x = c.getContext('2d'); x.fillStyle = '#000';
+    rows.forEach((r, yy) => [...r].forEach((ch, xx) => { if (ch === 'X') x.fillRect(xx * 6, yy * 6, 6, 6); }));
+    iconCache[name] = { url: c.toDataURL(), w, h };
+  }
+  return iconCache[name];
+}
+function icon(name, cell = 3, cls = '') { const d = iconData(name); return `<i class="ic ${cls}" style="--m:url(${d.url});width:${d.w * cell}px;height:${d.h * cell}px"></i>`; }
+const starsHTML = (n, total = 3, cell = 4) => Array.from({ length: total }, (_, i) => icon('star', cell, i < n ? 'gold' : 'dim')).join('');
 
 /* ---------------------------------------------------------------- sound */
 /* All sounds are synthesised with WebAudio (no audio files); the context starts on the first touch. See docs/sound-design.md. */
@@ -467,14 +526,15 @@ function applyLang() {
   const t = tr(), fa = settings.lang === 'fa';
   document.documentElement.lang = settings.lang; document.documentElement.dir = fa ? 'rtl' : 'ltr';
   const set = (id, v) => { $(id).textContent = v; };
-  set('menuTag', t.tag); set('menuFoot', t.foot); set('mLevels', t.levels); set('mHow', t.how); set('mSettings', t.settings);
+  set('menuTag', t.tag); set('menuFoot', t.foot);
+  $('mLevels').innerHTML = icon('levels', 3) + ' ' + t.levels; $('mHow').innerHTML = icon('help', 3) + ' ' + t.how; $('mSettings').innerHTML = icon('gear', 3) + ' ' + t.settings;
   set('pauseTitle', t.pause); set('pResume', t.resume); set('pRestart', t.restart); set('pLevels', t.levels); set('pSettings', t.settings); set('pMenu', t.mainMenu);
   set('winRetry', t.retry); set('winLevels', t.levels); set('lvTitle', t.levels); set('lvClose', t.close); set('howTitle', t.howTitle); set('howClose', t.close);
   set('setTitle', t.setTitle); set('setClose', t.close); set('sLangL', t.sLang); set('sSfxL', t.sSfx); set('sVolL', t.sVol); set('sVibL', t.sVib);
   set('sHeartsL', t.sHearts); set('sHeartsS', t.sHeartsS); set('sMotionL', t.sMotion); set('sMotionS', t.sMotionS); set('sUnlockL', t.sUnlock); set('sUnlockS', t.sUnlockS);
   set('adTitle', t.adTitle); set('adText', t.adText); set('adCancel', t.adCancel); set('adClaim', t.adClaim);
   $('howList').innerHTML = t.howList.map(s => `<li>${s}</li>`).join('');
-  set('mPlay', best[LEVELS[0].id] ? t.cont(LEVELS[firstOpenLevel()].id) : t.play);
+  $('mPlay').innerHTML = icon('play', 3, fa ? 'flipx' : '') + ' ' + (best[LEVELS[0].id] ? t.cont(LEVELS[firstOpenLevel()].id) : t.play);
   syncSettingsUI();
 }
 function syncSettingsUI() {
@@ -487,19 +547,24 @@ function syncUI() {
   const t = tr(), lv = LEVELS[li];
   $('lvLabel').textContent = t.level + ' ' + lv.id; $('blockLabel').textContent = CHAPTERS[chapterOf(li)][settings.lang];
   $('movesLabel').textContent = t.moves; $('parLabel').textContent = t.best; $('moves').textContent = moves; $('par').textContent = lv.par;
-  $('hearts').innerHTML = Array.from({ length: HEARTS_MAX }, (_, i) => `<span class="${i < hearts ? 'on' : 'off'}">♥</span>`).join('');
-  $('heartsWrap').style.display = heartsOn() ? '' : 'none';
+  $('hearts').innerHTML = Array.from({ length: HEARTS_MAX }, (_, i) => icon('heart', 3, i < hearts ? 'red' : 'dim')).join('');
+  $('btnMenu').innerHTML = icon('menu', 3);
+  $('heartsWrap').style.display = heartsOn() ? 'flex' : 'none';
 }
 function buildBar() {
   const bar = $('bar'), t = tr(); bar.innerHTML = '';
-  const add = (label, fn, cls, dis) => { const b = document.createElement('button'); b.textContent = label; if (cls) b.className = cls; b.disabled = !!dis; b.onclick = fn; bar.appendChild(b); return b; };
+  const add = (html, fn, cls, dis) => { const b = document.createElement('button'); b.innerHTML = html; if (cls) b.className = cls; b.disabled = !!dis; b.onclick = fn; bar.appendChild(b); return b; };
   if (sel >= 0) {
-    options(sel).forEach(o => add(o.label, () => tryAction(o.dg, o.kind), 'primary', !o.dg));
+    const kind = kindOf(sel);
+    options(sel).forEach(o => {
+      const html = o.kind === 'guardStep' ? icon(/[◀▲]/.test(o.label) ? 'left' : 'right', 3, /[▲▼]/.test(o.label) ? 'rot90' : '') : o.kind === 'turn' ? icon('turn', 2) : kind === 'cam' ? icon('right', 3) + ' ' + t.turn : icon('swap', 3) + ' ' + t.flip;
+      add(html, () => tryAction(o.dg, o.kind), 'primary', !o.dg);
+    });
     const sep = document.createElement('span'); sep.className = 'sep'; bar.appendChild(sep);
   }
-  add(t.undo, undo, '', !hist.length || !!walking);
-  add(t.toExit, () => { Sfx.play('click'); walkTo(L.E); }, '', !!walking);
-  add(hintsUsed < FREE_HINTS ? t.hint : t.hintAd, onHint);
+  add(icon('undo', 3) + ' ' + t.undo, undo, '', !hist.length || !!walking);
+  add(icon('door', 3) + ' ' + t.toExit, () => { Sfx.play('click'); walkTo(L.E); }, '', !!walking);
+  add(icon('bulb', 3) + ' ' + (hintsUsed < FREE_HINTS ? t.hint : t.hintAd), onHint);
 }
 function undo() {
   if (!hist.length || walking) return;
@@ -542,7 +607,7 @@ function starsNow() {
 function win() {
   Sfx.play('win'); const id = LEVELS[li].id, st = starsNow();
   if (!best[id] || best[id].stars < st || (best[id].stars === st && best[id].moves > moves)) { best[id] = { stars: st, moves }; store.set('pb_best3', best); }
-  $('winTitle').textContent = tr().escaped; $('winStars').textContent = '★'.repeat(st) + '☆'.repeat(3 - st); $('winText').textContent = tr().winText(moves, LEVELS[li].par, heartsOn() ? lost : 0);
+  $('winTitle').textContent = tr().escaped; $('winStars').innerHTML = starsHTML(st, 3, 6); $('winText').textContent = tr().winText(moves, LEVELS[li].par, heartsOn() ? lost : 0);
   const last = li === LEVELS.length - 1, nextCi = last ? -1 : chapterOf(li + 1), locked = !last && levelLocked(li + 1);
   $('winGate').textContent = locked ? tr().gate(chapNeed(nextCi), starsBefore(nextCi)) : '';
   $('winNext').textContent = last ? tr().done : tr().next; $('winNext').disabled = last || locked;
@@ -553,12 +618,12 @@ function openLevels() {
   for (let ci = 0; ci * 10 < LEVELS.length; ci++) {
     const locked = chapterLocked(ci), head = document.createElement('div'); head.className = 'chap';
     let got = 0; for (let i = ci * 10; i < Math.min(LEVELS.length, ci * 10 + 10); i++) got += (best[LEVELS[i].id] && best[LEVELS[i].id].stars) || 0;
-    head.innerHTML = `<b>${ci + 1}. ${CHAPTERS[ci][settings.lang]}</b><span>${locked ? '🔒 ' + tr().locked(chapNeed(ci), starsBefore(ci)) : '★ ' + got + '/30'}</span>`;
+    head.innerHTML = `<b>${ci + 1}. ${CHAPTERS[ci][settings.lang]}</b><span>${locked ? icon('lock', 2) + ' ' + tr().locked(chapNeed(ci), starsBefore(ci)) : icon('star', 2, 'gold') + ' ' + got + '/30'}</span>`;
     wrap.appendChild(head);
     const g = document.createElement('div'); g.className = 'grid';
     for (let i = ci * 10; i < Math.min(LEVELS.length, ci * 10 + 10); i++) {
-      const b = document.createElement('button'), id = LEVELS[i].id, s = best[id] ? '★'.repeat(best[id].stars) : '';
-      b.innerHTML = id + '<small>' + (locked ? '🔒' : s) + '</small>'; b.disabled = locked; b.onclick = () => load(i); g.appendChild(b);
+      const b = document.createElement('button'), id = LEVELS[i].id, bs = best[id] ? best[id].stars : 0;
+      b.innerHTML = id + '<span class="row2">' + (locked ? icon('lock', 2) : starsHTML(bs, 3, 2)) + '</span>'; b.disabled = locked; b.onclick = () => load(i); g.appendChild(b);
     }
     wrap.appendChild(g);
   }
@@ -750,11 +815,78 @@ function cameraBeam(r, lx, ly, pulse) {               // apex = the camera lens,
   const poly = side ? [[lx, ly], pt(n + .5, -.5), pt(n + .5, .5)] : [[lx, ly], pt(.5, -.5), pt(n + .5, -.5), pt(n + .5, .5), pt(.5, .5)];
   fillBeam(poly, [lx, ly], pt(n + .5, 0), pulse);
 }
+/* ------------------------------------------------------- menu scene */
+/* A brick wall, a thief pacing the floor and a camera whose beam sweeps. Everything is drawn at low resolution and scaled up without smoothing. */
+const MP = 3, mb = $('menuBg'), mctx = mb.getContext('2d'), logo = $('logo'), lctx = logo.getContext('2d');
+let mbW = 0, mbH = 0, wallCache = null;
+function buildWall() {
+  mbW = Math.ceil(innerWidth / MP); mbH = Math.ceil(innerHeight / MP); mb.width = mbW; mb.height = mbH;
+  wallCache = document.createElement('canvas'); wallCache.width = mbW; wallCache.height = mbH; const c = wallCache.getContext('2d');
+  c.fillStyle = '#121723'; c.fillRect(0, 0, mbW, mbH);
+  const bw = 12, bh = 6;
+  for (let r = 0; r * bh < mbH; r++) for (let k = -1; k * bw < mbW + bw; k++) {
+    const x = k * bw + (r % 2 ? bw / 2 : 0), y = r * bh, h = hash(k + 7, r, 3);
+    c.fillStyle = h < .3 ? '#1d2433' : h < .7 ? '#1a2130' : '#202839'; c.fillRect(x + 1, y + 1, bw - 1, bh - 1);
+    c.fillStyle = 'rgba(255,255,255,.04)'; c.fillRect(x + 1, y + 1, bw - 1, 1);
+  }
+  const fy = mbH - 22;                                                              // floor
+  c.fillStyle = '#2a3142'; c.fillRect(0, fy, mbW, mbH - fy); c.fillStyle = '#3a4560'; c.fillRect(0, fy, mbW, 1); c.fillStyle = '#0d1017'; c.fillRect(0, fy - 1, mbW, 1);
+  for (let x = 0; x < mbW; x += 14) { c.fillStyle = '#232a3b'; c.fillRect(x, fy + 6, 7, 1); c.fillRect(x + 7, fy + 14, 7, 1); }
+}
+function drawMenuBg(now) {
+  if (!wallCache || mbW !== Math.ceil(innerWidth / MP) || mbH !== Math.ceil(innerHeight / MP)) buildWall();
+  const calm = settings.reduceMotion, t = calm ? 0 : now;
+  mctx.drawImage(wallCache, 0, 0);
+  const fy = mbH - 22;
+  const bx = (Math.sin(t / 2600) * .5 + .5) * (mbW + 40) - 20;                       // a slow searchlight band across the wall
+  mctx.fillStyle = 'rgba(255,59,82,.07)'; mctx.beginPath(); mctx.moveTo(bx - 6, 0); mctx.lineTo(bx + 14, 0); mctx.lineTo(bx + 34, fy); mctx.lineTo(bx - 26, fy); mctx.closePath(); mctx.fill();
+  const span = mbW + 40, ph = (t / 70) % (span * 2), x = ph < span ? ph : span * 2 - ph, right = ph < span;   // the thief paces
+  const spr = person('thief', 1, calm ? 0 : 1 + (Math.floor(t / 160) % 2));
+  mctx.save(); mctx.translate(x - 20 + 10, fy - 14); if (!right) { mctx.translate(spr.width, 0); mctx.scale(-1, 1); } mctx.drawImage(spr, 0, 0); mctx.restore();
+}
+/* The logo is the in-game side camera drawn at 6x with a bigger lens: it blinks, its pupil follows the beam, the beam swings. */
+let logoBody = null;
+const LS = 6, LX = 10, LY = 6;
+const lg = (g, col, x, y, w, h) => pxr(g, col, LX + x * LS, LY + y * LS, w * LS, h * LS);        // game sprite units -> logo pixels
+function buildLogoBody() {
+  const c = document.createElement('canvas'); c.width = 128; c.height = 84; const g = c.getContext('2d');
+  pxr(g, '#232b3d', 0, 0, 7, 84); for (let y = 0; y < 84; y += 7) { pxr(g, '#161c2a', 0, y, 7, 1); pxr(g, '#161c2a', (y / 7) % 2 ? 3 : 5, y, 1, 7); }   // the wall it hangs on
+  lg(g, '#9aa5b8', -1, 3, 4, 2); lg(g, '#6b768b', -1, 4, 4, 1);                                   // arm
+  lg(g, '#9aa5b8', 3, 7, 7, 2); lg(g, '#6b768b', 3, 8, 7, 1);                                     // bracket
+  lg(g, '#c9d2e6', 2, 2, 8, 6); lg(g, '#e8ecf4', 2, 2, 8, 1); lg(g, '#aab4c8', 2, 3, 1, 3);        // body, highlight
+  lg(g, '#7d889c', 2, 6, 8, 2); lg(g, '#7d889c', 9, 3, 1, 3);                                      // shade
+  lg(g, '#7d889c', 4, 3, 1, 1); lg(g, '#7d889c', 4, 6, 1, 1);                                      // screws
+  outline(c, '#16101f'); logoBody = c;
+}
+function drawLogo(now) {
+  if (!logoBody) buildLogoBody();
+  const calm = settings.reduceMotion, t = calm ? 0 : now;
+  lctx.clearRect(0, 0, 128, 84);
+  const ang = .6 + Math.sin(t / 1100) * .42, ax = LX + 11.5 * LS, ay = LY + 5 * LS, len = 96, half = 24;     // beam from the lens
+  const dx = Math.cos(ang), dy = Math.sin(ang), nx = -dy, ny = dx, ex = ax + dx * len, ey = ay + dy * len;
+  lctx.fillStyle = 'rgba(255,59,82,.34)'; lctx.beginPath(); lctx.moveTo(ax - nx * 2, ay - ny * 2); lctx.lineTo(ax + nx * 2, ay + ny * 2); lctx.lineTo(ex + nx * half, ey + ny * half); lctx.lineTo(ex - nx * half, ey - ny * half); lctx.closePath(); lctx.fill();
+  lctx.drawImage(logoBody, 0, 0);
+  const blink = !calm && (t % 3600) > 3420;
+  pxr(lctx, '#16101f', 66, 20, 14, 30);                                                                      // lens
+  if (blink) { pxr(lctx, '#16101f', 68, 34, 12, 3); }
+  else {
+    const open = 1 + (calm ? 0 : Math.round(Math.sin(t / 700)));                                              // the pupil breathes
+    pxr(lctx, '#3a0d16', 68, 22, 10, 26); pxr(lctx, '#ff3b52', 69, 24, 9, 22); pxr(lctx, '#ff8795', 69, 24, 9, 3); pxr(lctx, '#a81c30', 69, 42, 9, 4);
+    pxr(lctx, '#16101f', 72 + Math.round(dx * 2), 31 - open, 4, 8 + open * 2); pxr(lctx, '#ffffff', 70, 26, 3, 3);
+  }
+  pxr(lctx, (calm || Math.floor(t / 500) % 2) ? '#41d392' : '#1d5c42', LX + 3 * LS + 1, LY + 4 * LS, 5, 5);   // status light
+}
+function setFavicon() {                                                              // a 16px version of the same camera
+  const c = document.createElement('canvas'); c.width = 16; c.height = 16; const g = c.getContext('2d');
+  pxr(g, '#16101f', 0, 3, 12, 9); pxr(g, '#c9d2e6', 1, 4, 10, 7); pxr(g, '#7d889c', 1, 9, 10, 2); pxr(g, '#e8ecf4', 1, 4, 10, 1);
+  pxr(g, '#16101f', 10, 4, 5, 7); pxr(g, '#ff3b52', 11, 5, 3, 5); pxr(g, '#ffffff', 11, 5, 1, 1);
+  const link = document.querySelector('link[rel=icon]'); if (link) { link.type = 'image/png'; link.href = c.toDataURL(); }
+}
 let last = performance.now();
 function frame(now) {
   const dt = Math.min(50, now - last); last = now; stepWalk(dt);
   flash = Math.max(0, flash - dt / 500); shake = Math.max(0, shake - dt / 350);
-  if (inGame) draw(now);
+  if (inGame) draw(now); else if ($('menu').classList.contains('on')) { drawMenuBg(now); drawLogo(now); }
   requestAnimationFrame(frame);
 }
 function draw(now) {
@@ -819,7 +951,7 @@ function draw(now) {
   L.guards.forEach((g, j) => drawGuard(j, true)); drawThief(true);     // a faint ghost so a wall in front never hides anyone completely
   ctx.restore();
 }
-applyLang(); syncSettingsUI();
+setFavicon(); applyLang(); syncSettingsUI();
 load(store.get('pb_last', 0)); toMenu(); requestAnimationFrame(frame);
 </script>
 </body>

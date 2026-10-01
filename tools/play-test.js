@@ -9,7 +9,7 @@ const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
   const pg = await b.newPage({ viewport: { width: 390, height: 800 }, deviceScaleFactor: 2, hasTouch: false });
   const errs = []; pg.on('pageerror', e => errs.push(String(e.stack || e).split('\n').slice(0, 4).join(' | '))); pg.on('console', m => m.type() === 'error' && errs.push(m.text()));
   await pg.goto(url); await pg.waitForTimeout(300);
-  await pg.evaluate(() => { settings.unlockAll = true; settings.hearts = false; settings.sfx = false; settings.music = false; settings.vibrate = false; introSeen = { cam: 1, guard: 1, door: 1, mirror: 1, all: 1 }; });
+  await pg.evaluate(() => { settings.unlockAll = true; settings.hearts = false; settings.sfx = false; settings.music = false; settings.vibrate = false; introSeen = { cam: 1, guard: 1, door: 1, mirror: 1, all: 1, dog: 1 }; });
   const n = await pg.evaluate(() => LEVELS.length);
   let idx = [];
   if (which === 'all') idx = [...Array(n).keys()];
@@ -37,15 +37,15 @@ const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
       if (target < 0) { err = 'no safe tile at step ' + s; break; }
       if (target !== await pg.evaluate(() => thief)) {
         // a selected guard would take a tap on its own rail; let go of it by tapping the prisoner, as a player would
-        if (await pg.evaluate(t => sel >= nCam() && sel < nCam() + nGuard() && L.guards[sel - nCam()].rail.includes(t), target)) await click(await pg.evaluate(() => thiefPoint()));
+        if (await pg.evaluate(t => sel >= nCam() && (sel < nCam() + nGuard() || sel >= dogBase()) && walkerRail(sel).rail.includes(t), target)) await click(await pg.evaluate(() => thiefPoint()));
         await click(await pg.evaluate(c => cellPoint(c), target)); await waitWalk();
         if (await pg.evaluate(() => thief) !== target) { err = `tap on tile ${target} did not walk there (step ${s})`; break; }
       }
       // 2. the action, by tapping the object (and the bar button for guards)
       const who = sol.who[s], info = await pg.evaluate(w => ({ kind: kindOf(w), tap: tapPoint(w) }), who);
-      if (info.kind === 'guard') { if (!(await pg.evaluate(w => sel === w, who))) await click(info.tap); }     // tapping an already selected guard would turn it round
+      if (info.kind === 'guard' || info.kind === 'dog') { if (!(await pg.evaluate(w => sel === w, who))) await click(info.tap); }     // tapping an already selected guard would turn it round
       else await click(info.tap);
-      if (info.kind === 'guard') {
+      if (info.kind === 'guard' || info.kind === 'dog') {
         const btn = await pg.evaluate(({ w, next }) => options(w).findIndex(o => o.dg && o.dg.join() === next.join()), { w: who, next: sol.configs[s] });
         if (btn < 0) { err = 'no guard button for step ' + s; break; }
         await pg.evaluate(k => document.querySelectorAll('#ctx button')[k].click(), btn);
@@ -100,7 +100,8 @@ const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
     settings.lang = 'en'; applyLang(); syncUI(); buildBar();
     // the middle slot of the context row holds the same kind of button for every object
     const slots = [];
-    for (const [name, idx] of [['guard', gi], ['camera', 0]]) { load(idx); sel = name === 'guard' ? nCam() : 0; buildBar(); await wait(80); const btns = [...document.querySelectorAll('#ctx button')], tops = new Set(btns.map(b => Math.round(b.getBoundingClientRect().top))); if (tops.size > 1) base.ctxRowSplit = 'x'; const cb = btns.map(b => b.style.gridColumn + ':' + Math.round(b.getBoundingClientRect().left)); slots.push(name + ' ' + cb.join(' ')); }
+    const dgi = LEVELS.findIndex(l => l.meta.dogs);
+    for (const [name, idx] of [['guard', gi], ['camera', 0], ['dog', dgi]]) { load(idx); sel = name === 'guard' ? nCam() : name === 'dog' ? dogBase() : 0; buildBar(); await wait(80); const btns = [...document.querySelectorAll('#ctx button')], tops = new Set(btns.map(b => Math.round(b.getBoundingClientRect().top))); if (tops.size > 1) base.ctxRowSplit = 'x'; const cb = btns.map(b => b.style.gridColumn + ':' + Math.round(b.getBoundingClientRect().left)); slots.push(name + ' ' + cb.join(' ')); }
     if (base.ctxRowSplit) bad.push('the context buttons are not all in one row');
     return { bad, slots };
   });
@@ -135,12 +136,29 @@ const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
   // item introductions: shown once at the level that brings the item, not again after "Got it"
   const intro = await pg.evaluate(() => {
     introSeen = {}; const out = [];
-    for (const idx of [0, 15, 45, 65, 85]) { load(idx); out.push([LEVELS[idx].id, introKind, document.getElementById('introOv').classList.contains('on')]); closeIntro(); }
+    for (const idx of [0, 15, 45, 65, 85, 105]) { load(idx); out.push([LEVELS[idx].id, introKind, document.getElementById('introOv').classList.contains('on')]); closeIntro(); }
     load(15); out.push(['again', introKind]);
-    introSeen = { cam: 1, guard: 1, door: 1, mirror: 1, all: 1 }; return out;
+    introSeen = { cam: 1, guard: 1, door: 1, mirror: 1, all: 1, dog: 1 }; return out;
   });
-  const introOk = JSON.stringify(intro) === JSON.stringify([[1, 'cam', true], [16, 'guard', true], [46, 'door', true], [66, 'mirror', true], [86, 'all', true], ['again', null]]);
+  const introOk = JSON.stringify(intro) === JSON.stringify([[1, 'cam', true], [16, 'guard', true], [46, 'door', true], [66, 'mirror', true], [86, 'all', true], [106, 'dog', true], ['again', null]]);
   console.log('introductions:', JSON.stringify(intro), introOk ? 'OK' : 'FAIL'); ok = ok && introOk;
+  // dogs: tap selects (no turning), tapping a rail tile walks the dog one action per step, a door cannot close on a dog in the doorway, scent is drawn
+  const dg1 = await pg.evaluate(async () => {
+    const di = LEVELS.findIndex(l => l.meta.dogs); load(di); const k = dogBase(), d = L.dogs[0], out = { level: di + 1 };
+    const p = tapPoint(k); onTap(p[0] - cv.getBoundingClientRect().left - ox, p[1] - cv.getBoundingClientRect().top - oy);
+    out.selected = sel === k; out.movesAfterSelect = moves;
+    out.buttons = [...document.querySelectorAll('#ctx button')].map(b => b.disabled ? 'x' : 'ok').join('');
+    out.scent = Array.from(ev().scent).reduce((a, b) => a + b, 0);
+    const start = dg[k];
+    let target = -1; for (let i = 0; i < d.rail.length; i++) { const o = options(k)[i > start ? 1 : 0]; if (i !== start && o && o.dg && !ev(o.dg).lit[thief] && !ev(o.dg).occ[thief]) { target = i; break; } }
+    if (target >= 0) { await guardGoTo(k, d.rail[target]); out.walked = { from: start, to: dg[k], steps: Math.abs(dg[k] - start), moves }; }
+    // a door standing under the dog: closing it is refused
+    load(di); const ti = L.toggles.findIndex(t => t.kind === 'door' && dogHere(dg, t.c));
+    if (ti >= 0) { const kk = nCam() + nGuard() + ti; out.doorStuck = options(kk)[0].dg === null; }
+    return out;
+  });
+  const dgOk = dg1.selected && dg1.movesAfterSelect === 0 && dg1.scent > 0 && (!dg1.walked || (dg1.walked.moves === dg1.walked.steps && dg1.walked.steps > 0)) && (dg1.doorStuck === undefined || dg1.doorStuck === true);
+  console.log('dog: select, rail walk, scent, door in the doorway:', JSON.stringify(dg1), dgOk ? 'OK' : 'FAIL'); ok = ok && !!dgOk;
   // hearts mode: crossing a beam costs a heart and the run still ends at the exit
   const hm = await pg.evaluate(async () => {
     settings.hearts = true;

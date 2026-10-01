@@ -136,10 +136,13 @@ function actions(L, dg) {
     }
     const d2 = dg.slice(); d2[k] = i * 2 + (1 - f); out.push([d2, k]);
   });
-  (L.toggles || []).forEach((t, j) => {
-    const k = nc + ng + j, d2 = dg.slice(); d2[k] = 1 - dg[k]; out.push([d2, k]);
-  });
   const nt = (L.toggles || []).length;
+  (L.toggles || []).forEach((t, j) => {
+    const k = nc + ng + j;
+    // a door cannot close on a dog standing in the doorway
+    if (t.kind === 'door' && dg[k] === 0 && (L.dogs || []).some((d, q) => d.rail[dg[nc + ng + nt + q]] === t.c)) return;
+    const d2 = dg.slice(); d2[k] = 1 - dg[k]; out.push([d2, k]);
+  });
   (L.dogs || []).forEach((d, j) => {
     const k = nc + ng + nt + j, i = dg[k];
     const taken = cell => L.guards.some((g, q) => g.rail[dg[nc + q] >> 1] === cell) || (L.dogs || []).some((o, q) => q !== j && o.rail[dg[nc + ng + nt + q]] === cell) ||

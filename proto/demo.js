@@ -1,4 +1,4 @@
-const P = require('./prison.js');
+const P = require('../src/prison.js');
 const [W, H, nc, ng, iters, ...seeds] = process.argv.slice(2).map(Number);
 for (const seed of seeds) {
   const t = Date.now();

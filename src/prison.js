@@ -11,6 +11,7 @@
  *    his dark region before each action).
  *  - Par = minimum number of watcher actions (exact, by BFS).
  */
+(function () {
 'use strict';
 const DX = [0, 1, 0, -1], DY = [-1, 0, 1, 0];
 
@@ -125,16 +126,17 @@ function solve(L, opts) {
     return out;
   };
 
-  const start = encode(initialDigits(L));
+  const start = encode((opts && opts.digits) || initialDigits(L));
+  const S0 = opts && opts.thief != null ? opts.thief : L.S;
   const c0 = comps(start);
-  if (c0.lab[L.S] < 0) return { solvable: false, reason: 'start lit' };
+  if (c0.lab[S0] < 0) return { solvable: false, reason: 'start lit' };
   const key = (id, k) => id * 16 + k;
   const dist = new Map(), par = new Map();
-  let frontier = [[start, c0.lab[L.S]]];
-  dist.set(key(start, c0.lab[L.S]), 0);
+  let frontier = [[start, c0.lab[S0]]];
+  dist.set(key(start, c0.lab[S0]), 0);
   let goal = null, depth = 0;
   const isGoal = (id, k) => comps(id).lab[L.E] === k;
-  if (isGoal(start, c0.lab[L.S])) goal = key(start, c0.lab[L.S]);
+  if (isGoal(start, c0.lab[S0])) goal = key(start, c0.lab[S0]);
   while (frontier.length && goal === null) {
     const next = [];
     depth++;
@@ -277,6 +279,7 @@ function mutate(L, rnd) {
   for (const q of M.cams) if (!M.wall[q.c]) return L;
   for (const g of M.guards) for (const c of g.rail) if (M.wall[c]) return L;
   if (M.wall[M.S] || M.wall[M.E] || M.S === M.E) return L;
+  for (const g of M.guards) if (g.rail.includes(M.S) || g.rail.includes(M.E)) return L;   // ASCII format cannot show S/E on a rail
   return M;
 }
 function generate(seed, W, H, nCam, nGuard, iters) {
@@ -293,4 +296,54 @@ function generate(seed, W, H, nCam, nGuard, iters) {
   return { level: best, result: bs.r, score: bs.s };
 }
 
-module.exports = { solve, draw, generate, mulberry32, initialDigits, evalConfig, prepare };
+/* ASCII level format: # wall, . floor, S start, E exit, ^ > v < camera (on a wall cell, facing that way),
+   a..d = rail cells of guard a..d (floor). meta.guards: {a:{i,f,range}} start index on rail and facing. */
+function parseLevel(map, meta) {
+  const h = map.length, w = map[0].length, wall = new Uint8Array(w * h);
+  const L = { w, h, wall, S: -1, E: -1, cams: [], guards: [] };
+  const rails = {};
+  map.forEach((row, y) => {
+    if (row.length !== w) throw new Error('ragged map row ' + y);
+    [...row].forEach((ch, x) => {
+      const c = y * w + x;
+      if (ch === '#') wall[c] = 1;
+      else if (ch === 'S') L.S = c;
+      else if (ch === 'E') L.E = c;
+      else if ('^>v<'.includes(ch)) { wall[c] = 1; L.cams.push({ c, d: '^>v<'.indexOf(ch) }); }
+      else if (/[a-d]/.test(ch)) (rails[ch] = rails[ch] || []).push(c);
+    });
+  });
+  Object.keys(rails).sort().forEach(k => {
+    const g = Object.assign({ i: 0, f: 0, range: 3 }, (meta && meta.guards || {})[k]);
+    g.rail = rails[k].sort((a, b) => a - b);
+    L.guards.push(g);
+  });
+  return L;
+}
+
+function toMap(L) {
+  const rows = [];
+  const ar = ['^', '>', 'v', '<'];
+  for (let y = 0; y < L.h; y++) {
+    let r = '';
+    for (let x = 0; x < L.w; x++) {
+      const c = y * L.w + x;
+      let ch = L.wall[c] ? '#' : '.';
+      if (c === L.S) ch = 'S';
+      if (c === L.E) ch = 'E';
+      const cam = L.cams.find(q => q.c === c);
+      if (cam) ch = ar[cam.d];
+      L.guards.forEach((g, k) => { if (g.rail.includes(c)) ch = 'abcd'[k]; });
+      r += ch;
+    }
+    rows.push(r);
+  }
+  const guards = {};
+  L.guards.forEach((g, k) => { guards['abcd'[k]] = { i: g.i, f: g.f, range: g.range }; });
+  return { map: rows, meta: { guards } };
+}
+
+const api = { toMap, solve, draw, generate, mulberry32, initialDigits, evalConfig, prepare, parseLevel, guardFacingDir, radices };
+if (typeof module !== 'undefined' && module.exports) module.exports = api;
+if (typeof window !== 'undefined') window.Prison = api;
+})();

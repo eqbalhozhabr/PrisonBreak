@@ -1,0 +1,320 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<link rel="icon" href="data:,">
+<title>PrisonBreak — Blind Spots (prototype)</title>
+<style>
+  :root { --bg:#0d1017; --panel:#161b26; --ink:#e8ecf4; --mute:#8b94a8; --red:#ff3b52; --gold:#ffc54a; --ok:#41d392; --line:#262d3d; }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html,body { height:100%; margin:0; background:var(--bg); color:var(--ink); font-family:system-ui,"Segoe UI",Tahoma,sans-serif; overscroll-behavior:none; }
+  #app { height:100%; display:flex; flex-direction:column; max-width:760px; margin:0 auto; padding:env(safe-area-inset-top) 12px env(safe-area-inset-bottom); }
+  header { display:flex; align-items:center; gap:8px; padding:10px 0; }
+  header h1 { font-size:16px; margin:0; flex:1; letter-spacing:.02em; }
+  header h1 small { display:block; font-weight:400; color:var(--mute); font-size:11px; }
+  button { font:inherit; color:var(--ink); background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:9px 12px; cursor:pointer; min-height:40px; }
+  button:active { transform:translateY(1px); }
+  button:disabled { opacity:.4; cursor:default; }
+  button.primary { background:var(--red); border-color:var(--red); color:#fff; font-weight:600; }
+  #stats { display:flex; gap:8px; font-size:13px; color:var(--mute); padding-bottom:6px; align-items:center; }
+  #stats b { color:var(--ink); font-size:16px; }
+  #tip { font-size:13px; color:var(--mute); min-height:34px; padding:2px 0 6px; line-height:1.5; }
+  #tip.warn { color:var(--red); } #tip.good { color:var(--ok); }
+  #stage { flex:1; min-height:0; position:relative; }
+  canvas { position:absolute; inset:0; width:100%; height:100%; touch-action:none; border-radius:12px; }
+  #bar { display:flex; flex-wrap:wrap; gap:8px; justify-content:center; padding:10px 0 12px; direction:ltr; }
+  #bar .sep { width:1px; background:var(--line); margin:0 4px; }
+  #bar button { min-width:48px; }
+  .overlay { position:fixed; inset:0; background:rgba(5,7,12,.82); display:none; align-items:center; justify-content:center; padding:20px; z-index:5; }
+  .overlay.on { display:flex; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:16px; padding:20px; max-width:420px; width:100%; text-align:center; }
+  .card h2 { margin:0 0 6px; } .stars { font-size:34px; letter-spacing:6px; color:var(--gold); margin:6px 0 10px; }
+  .grid { display:grid; grid-template-columns:repeat(5,1fr); gap:8px; margin:14px 0; }
+  .grid button { padding:10px 0; position:relative; } .grid button small { display:block; color:var(--gold); font-size:11px; min-height:14px; }
+  .row { display:flex; gap:8px; justify-content:center; flex-wrap:wrap; margin-top:8px; }
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <h1 id="title">Blind Spots<small id="subtitle"></small></h1>
+    <button id="btnLevels"></button>
+    <button id="btnLang">EN</button>
+  </header>
+  <div id="stats"><span id="lvLabel"></span><span>·</span><span id="movesLabel"></span> <b id="moves">0</b><span>·</span><span id="parLabel"></span> <b id="par">0</b></div>
+  <div id="tip"></div>
+  <div id="stage"><canvas id="cv"></canvas></div>
+  <div id="bar"></div>
+</div>
+
+<div class="overlay" id="winOv"><div class="card">
+  <h2 id="winTitle"></h2><div class="stars" id="winStars"></div><div id="winText"></div>
+  <div class="row"><button id="winRetry"></button><button class="primary" id="winNext"></button></div>
+</div></div>
+
+<div class="overlay" id="lvOv"><div class="card">
+  <h2 id="lvTitle"></h2><div class="grid" id="lvGrid"></div>
+  <div class="row"><button id="lvClose"></button></div>
+</div></div>
+
+<script src="../src/prison.js"></script>
+<script src="levels.js"></script>
+<script>
+'use strict';
+const P = window.Prison, LEVELS = window.PRISON_LEVELS;
+const DX = [0, 1, 0, -1], DY = [-1, 0, 1, 0];
+
+/* ---------------------------------------------------------------- text */
+const T = {
+  fa: {
+    sub: 'پروتوتایپ — تاریکی را جابه‌جا کن', level: 'مرحله', moves: 'عمل', par: 'بهترین', undo: '↶ برگشت', reset: '⟲ از اول', hint: '💡 راهنما',
+    levels: 'مرحله‌ها', close: 'بستن', pick: 'یک دوربین یا نگهبان را لمس کن، بعد دکمه‌های پایین را بزن. برای حرکت دزد، یک خانهٔ تاریک را لمس کن.',
+    refused: 'ممنوع! با این کار دزد دیده می‌شود. اول دزد را به جای امن ببر.', unreach: 'دزد از اینجا نمی‌تواند به آن خانه برود (قرمز یا مسدود).',
+    cam: 'دوربین', guard: 'نگهبان', pathClear: 'راه باز است؛ دزد را به سمت خروج ببر.', hintWho: 'پیشنهاد: ', hintCam: 'این دوربین را بچرخان', hintGuard: 'این نگهبان را جابه‌جا کن',
+    escaped: 'فرار کرد!', winText: (m, p) => `${m} عمل — بهترین ممکن ${p}`, retry: 'دوباره', next: 'مرحلهٔ بعد', done: 'همهٔ مرحله‌ها تمام شد 🎉',
+    tips: {
+      1: 'دوربین نور قرمز می‌اندازد و دزد نباید در آن باشد. دوربین را لمس کن، ↻ را بزن، بعد خانهٔ خروج (سبز) را لمس کن.',
+      2: 'شمارش فقط عمل‌های روی دوربین/نگهبان است؛ راه رفتن دزد رایگان است. عملی که دزد را روشن کند ممنوع است، پس اول دزد را جای امن ببر.',
+      4: 'نگهبان روی ریلش جلو و عقب می‌رود یا برمی‌گردد. فقط ۳ خانه جلوی خودش را می‌بیند و پشتش کور است.',
+      7: 'دیوار و نگهبان‌ها دید را می‌برند. نگهبان را جلوی دوربین بگذار تا سپر شود.',
+    },
+  },
+  en: {
+    sub: 'prototype — move the darkness', level: 'Level', moves: 'Actions', par: 'Best', undo: '↶ Undo', reset: '⟲ Restart', hint: '💡 Hint',
+    levels: 'Levels', close: 'Close', pick: 'Tap a camera or guard, then use the buttons. To move the thief, tap a dark cell.',
+    refused: 'Not allowed — that would expose the thief. Move him somewhere safe first.', unreach: 'The thief cannot get there from here (lit or blocked).',
+    cam: 'Camera', guard: 'Guard', pathClear: 'The way is clear — walk the thief to the exit.', hintWho: 'Try: ', hintCam: 'turn this camera', hintGuard: 'move this guard',
+    escaped: 'Escaped!', winText: (m, p) => `${m} actions — best possible ${p}`, retry: 'Retry', next: 'Next level', done: 'All levels cleared 🎉',
+    tips: {
+      1: 'Cameras throw red light and the thief must stay out of it. Tap the camera, press ↻, then tap the green exit.',
+      2: 'Only actions on cameras/guards are counted; walking is free. An action that would light the thief is refused, so move him to safety first.',
+      4: 'A guard walks back and forth on its rail, or turns around. It only sees 3 cells ahead and is blind behind.',
+      7: 'Walls and guards stop sight. Park a guard in front of a camera to use it as a shield.',
+    },
+  },
+};
+let lang = 'fa';
+try { lang = localStorage.getItem('pb_lang') || 'fa'; } catch (e) {}
+const tr = () => T[lang];
+
+/* ---------------------------------------------------------------- state */
+let li = 0, L, dg, thief, hist = [], moves = 0, sel = -1, hintWho = -1, walking = null, flash = 0, flashCell = -1, shake = 0;
+let best = {};
+try { best = JSON.parse(localStorage.getItem('pb_best') || '{}'); } catch (e) {}
+const saveBest = () => { try { localStorage.setItem('pb_best', JSON.stringify(best)); } catch (e) {} };
+
+function load(i) {
+  li = Math.max(0, Math.min(LEVELS.length - 1, i));
+  L = P.parseLevel(LEVELS[li].map, LEVELS[li].meta);
+  P.prepare(L);
+  dg = P.initialDigits(L); thief = L.S; hist = []; moves = 0; sel = -1; hintWho = -1; walking = null;
+  setTip(tr().tips[LEVELS[li].id] || tr().pick);
+  syncUI(); buildBar(); resize();
+}
+function ev(d) { P.prepare(L); return P.evalConfig(L, d || dg); }
+const nc = () => L.cams.length;
+function watcherCell(k) { return k < nc() ? L.cams[k].c : L.guards[k - nc()].rail[dg[k] >> 1]; }
+function watcherAt(c) { for (let k = 0; k < nc() + L.guards.length; k++) if (watcherCell(k) === c) return k; return -1; }
+
+/* ------------------------------------------------------------- actions */
+function guardOptions(k) {
+  const g = L.guards[k - nc()], v = dg[k], i = v >> 1, f = v & 1, out = [];
+  const blocked = ni => L.guards.some((o, q) => q !== k - nc() && o.rail[dg[nc() + q] >> 1] === g.rail[ni]);
+  const horiz = (g.rail[0] % L.w) !== (g.rail[g.rail.length - 1] % L.w);
+  for (const s of [-1, 1]) {
+    const ni = i + s;
+    out.push({ label: horiz ? (s < 0 ? '◀' : '▶') : (s < 0 ? '▲' : '▼'), dg: (ni >= 0 && ni < g.rail.length && !blocked(ni)) ? Object.assign(dg.slice(), { [k]: ni * 2 + (s === 1 ? 0 : 1) }) : null });
+  }
+  out.push({ label: '⟲', dg: Object.assign(dg.slice(), { [k]: i * 2 + (1 - f) }) });
+  return out;
+}
+function options(k) {
+  if (k < nc()) return [{ label: '↺', dg: Object.assign(dg.slice(), { [k]: (dg[k] + 3) % 4 }) }, { label: '↻', dg: Object.assign(dg.slice(), { [k]: (dg[k] + 1) % 4 }) }];
+  return guardOptions(k);
+}
+function push() { hist.push({ dg: dg.slice(), thief, moves }); }
+function tryAction(nd) {
+  if (!nd || walking) return;
+  const e = ev(nd);
+  if (e.lit[thief] || e.occ[thief]) { setTip(tr().refused, 'warn'); flashCell = thief; flash = 1; shake = 1; return; }
+  push(); dg = nd; moves++; hintWho = -1; setTip(''); syncUI(); buildBar();
+}
+
+function pathTo(target) {
+  const e = ev(), n = L.w * L.h, prev = new Int16Array(n).fill(-2);
+  const q = [thief]; prev[thief] = -1;
+  while (q.length) {
+    const c = q.shift(); if (c === target) break;
+    const x = c % L.w, y = (c / L.w) | 0;
+    for (let d = 0; d < 4; d++) {
+      const nx = x + DX[d], ny = y + DY[d]; if (nx < 0 || ny < 0 || nx >= L.w || ny >= L.h) continue;
+      const m = ny * L.w + nx;
+      if (prev[m] !== -2 || L.wall[m] || e.lit[m] || e.occ[m]) continue;
+      prev[m] = c; q.push(m);
+    }
+  }
+  if (prev[target] === -2) return null;
+  const path = []; for (let c = target; c !== thief; c = prev[c]) path.push(c);
+  return path.reverse();
+}
+function walkTo(c) {
+  const path = pathTo(c);
+  if (!path) { setTip(tr().unreach, 'warn'); flashCell = c; flash = 1; return; }
+  if (!path.length) return;
+  push(); setTip(''); hintWho = -1;
+  walking = { path, t: 0 };
+}
+function stepWalk(dt) {
+  if (!walking) return;
+  walking.t += dt;
+  while (walking && walking.t >= 85) {
+    walking.t -= 85; thief = walking.path.shift();
+    if (!walking.path.length) { walking = null; if (thief === L.E) win(); }
+  }
+}
+
+/* ---------------------------------------------------------------- input */
+const cv = document.getElementById('cv'), ctx = cv.getContext('2d');
+let cs = 40, ox = 0, oy = 0, W = 0, H = 0;
+function resize() {
+  const r = cv.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
+  W = r.width; H = r.height; cv.width = W * dpr; cv.height = H * dpr; ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  if (!L) return;
+  cs = Math.floor(Math.min(W / L.w, H / L.h)); ox = (W - cs * L.w) / 2; oy = (H - cs * L.h) / 2;
+}
+window.addEventListener('resize', resize);
+cv.addEventListener('pointerdown', ev0 => {
+  if (walking || document.querySelector('.overlay.on')) return;
+  const r = cv.getBoundingClientRect(), x = Math.floor((ev0.clientX - r.left - ox) / cs), y = Math.floor((ev0.clientY - r.top - oy) / cs);
+  if (x < 0 || y < 0 || x >= L.w || y >= L.h) return;
+  const c = y * L.w + x, k = watcherAt(c);
+  if (k >= 0) { sel = k; buildBar(); return; }
+  if (!L.wall[c]) { walkTo(c); }
+});
+window.addEventListener('keydown', e => {
+  const m = { ArrowUp: 0, ArrowRight: 1, ArrowDown: 2, ArrowLeft: 3 }[e.key]; if (m === undefined || walking) return;
+  e.preventDefault();
+  const x = thief % L.w + DX[m], y = ((thief / L.w) | 0) + DY[m];
+  if (x >= 0 && y >= 0 && x < L.w && y < L.h) walkTo(y * L.w + x);
+});
+
+/* ------------------------------------------------------------------- UI */
+const $ = id => document.getElementById(id);
+function setTip(t, cls) { const el = $('tip'); el.textContent = t; el.className = cls || ''; }
+function syncUI() {
+  const t = tr();
+  document.documentElement.lang = lang; document.documentElement.dir = lang === 'fa' ? 'rtl' : 'ltr';
+  $('subtitle').textContent = t.sub; $('btnLevels').textContent = t.levels; $('btnLang').textContent = lang === 'fa' ? 'EN' : 'فا';
+  $('lvLabel').textContent = t.level + ' ' + LEVELS[li].id; $('movesLabel').textContent = t.moves; $('parLabel').textContent = t.par;
+  $('moves').textContent = moves; $('par').textContent = LEVELS[li].par;
+  $('winRetry').textContent = t.retry; $('winNext').textContent = t.next; $('lvTitle').textContent = t.levels; $('lvClose').textContent = t.close;
+}
+function buildBar() {
+  const bar = $('bar'), t = tr(); bar.innerHTML = '';
+  const add = (label, fn, cls, dis) => { const b = document.createElement('button'); b.textContent = label; if (cls) b.className = cls; b.disabled = !!dis; b.onclick = fn; bar.appendChild(b); return b; };
+  if (sel >= 0) {
+    options(sel).forEach(o => add(o.label, () => tryAction(o.dg), 'primary', !o.dg));
+    const sep = document.createElement('span'); sep.className = 'sep'; bar.appendChild(sep);
+  }
+  add(t.undo, undo, '', !hist.length || !!walking); add(t.reset, () => load(li)); add(t.hint, hint);
+}
+function undo() { if (!hist.length || walking) return; const h = hist.pop(); dg = h.dg; thief = h.thief; moves = h.moves; hintWho = -1; setTip(''); syncUI(); buildBar(); }
+function hint() {
+  if (walking) return;
+  const r = P.solve(L, { digits: dg, thief, maxDepth: 40 });
+  if (!r || !r.solvable) { setTip('—', 'warn'); return; }
+  if (r.par === 0) { setTip(tr().pathClear, 'good'); return; }
+  hintWho = r.who[0]; sel = hintWho;
+  setTip(tr().hintWho + (hintWho < nc() ? tr().hintCam : tr().hintGuard), 'good'); buildBar();
+}
+function win() {
+  const p = LEVELS[li].par, stars = moves <= p ? 3 : moves <= p + 2 ? 2 : 1, id = LEVELS[li].id;
+  if (!best[id] || best[id].stars < stars || (best[id].stars === stars && best[id].moves > moves)) { best[id] = { stars, moves }; saveBest(); }
+  $('winTitle').textContent = tr().escaped; $('winStars').textContent = '★'.repeat(stars) + '☆'.repeat(3 - stars); $('winText').textContent = tr().winText(moves, p);
+  const last = li === LEVELS.length - 1; $('winNext').textContent = last ? tr().done : tr().next; $('winNext').disabled = last;
+  $('winOv').classList.add('on');
+}
+$('winRetry').onclick = () => { $('winOv').classList.remove('on'); load(li); };
+$('winNext').onclick = () => { $('winOv').classList.remove('on'); load(li + 1); };
+$('btnLevels').onclick = () => {
+  const g = $('lvGrid'); g.innerHTML = '';
+  LEVELS.forEach((l, i) => { const b = document.createElement('button'); const s = best[l.id] ? '★'.repeat(best[l.id].stars) : '';
+    b.innerHTML = l.id + '<small>' + s + '</small>'; b.onclick = () => { $('lvOv').classList.remove('on'); load(i); }; g.appendChild(b); });
+  $('lvOv').classList.add('on');
+};
+$('lvClose').onclick = () => $('lvOv').classList.remove('on');
+$('btnLang').onclick = () => { lang = lang === 'fa' ? 'en' : 'fa'; try { localStorage.setItem('pb_lang', lang); } catch (e) {} setTip(tr().tips[LEVELS[li].id] || tr().pick); syncUI(); buildBar(); };
+
+/* ----------------------------------------------------------------- draw */
+function rr(x, y, w, h, r) { ctx.beginPath(); ctx.roundRect ? ctx.roundRect(x, y, w, h, r) : ctx.rect(x, y, w, h); }
+let last = performance.now();
+function frame(now) {
+  const dt = Math.min(50, now - last); last = now; stepWalk(dt);
+  flash = Math.max(0, flash - dt / 500); shake = Math.max(0, shake - dt / 350);
+  draw(now); requestAnimationFrame(frame);
+}
+function draw(now) {
+  ctx.clearRect(0, 0, W, H); if (!L) return;
+  const e = ev(), sx = shake ? Math.sin(now / 25) * 4 * shake : 0;
+  ctx.save(); ctx.translate(ox + sx, oy);
+  const pulse = .5 + .5 * Math.sin(now / 280);
+  for (let y = 0; y < L.h; y++) for (let x = 0; x < L.w; x++) {
+    const c = y * L.w + x, px = x * cs, py = y * cs;
+    if (L.wall[c]) {
+      ctx.fillStyle = '#0a0d13'; ctx.fillRect(px, py, cs, cs);
+      ctx.strokeStyle = '#161c28'; ctx.lineWidth = 1; ctx.strokeRect(px + .5, py + .5, cs - 1, cs - 1);
+      ctx.beginPath(); ctx.moveTo(px, py + cs / 2); ctx.lineTo(px + cs, py + cs / 2); ctx.stroke();
+    } else {
+      ctx.fillStyle = (x + y) % 2 ? '#1a2130' : '#1d2536'; ctx.fillRect(px, py, cs, cs);
+    }
+  }
+  /* lit cells */
+  for (let c = 0; c < L.w * L.h; c++) if (e.lit[c]) {
+    const px = (c % L.w) * cs, py = ((c / L.w) | 0) * cs;
+    ctx.fillStyle = `rgba(255,59,82,${.30 + .08 * pulse})`; ctx.fillRect(px, py, cs, cs);
+    ctx.strokeStyle = 'rgba(255,120,130,.35)'; ctx.lineWidth = 1; ctx.strokeRect(px + 1.5, py + 1.5, cs - 3, cs - 3);
+  }
+  /* exit */
+  { const px = (L.E % L.w) * cs, py = ((L.E / L.w) | 0) * cs;
+    ctx.fillStyle = '#12452f'; ctx.fillRect(px + 2, py + 2, cs - 4, cs - 4);
+    ctx.strokeStyle = '#41d392'; ctx.lineWidth = 2; ctx.strokeRect(px + 4, py + 4, cs - 8, cs - 8);
+    ctx.fillStyle = '#41d392'; ctx.font = `700 ${cs * .24}px system-ui`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('EXIT', px + cs / 2, py + cs / 2); }
+  /* rails */
+  L.guards.forEach(g => {
+    ctx.strokeStyle = 'rgba(120,160,255,.22)'; ctx.lineWidth = cs * .12; ctx.lineCap = 'round'; ctx.setLineDash([cs * .1, cs * .16]);
+    ctx.beginPath(); g.rail.forEach((c, i) => { const px = (c % L.w + .5) * cs, py = (((c / L.w) | 0) + .5) * cs; i ? ctx.lineTo(px, py) : ctx.moveTo(px, py); }); ctx.stroke(); ctx.setLineDash([]);
+  });
+  /* flash on refused move */
+  if (flash > 0 && flashCell >= 0) { const px = (flashCell % L.w) * cs, py = ((flashCell / L.w) | 0) * cs; ctx.fillStyle = `rgba(255,255,255,${.5 * flash})`; ctx.fillRect(px, py, cs, cs); }
+  /* cameras */
+  L.cams.forEach((cm, k) => {
+    const cx = (cm.c % L.w + .5) * cs, cy = (((cm.c / L.w) | 0) + .5) * cs, d = dg[k];
+    ctx.fillStyle = '#2a3142'; ctx.beginPath(); ctx.arc(cx, cy, cs * .36, 0, 7); ctx.fill();
+    ctx.save(); ctx.translate(cx, cy); ctx.rotate(d * Math.PI / 2);
+    ctx.fillStyle = '#c9d2e6'; ctx.beginPath(); ctx.moveTo(0, -cs * .42); ctx.lineTo(cs * .2, -cs * .1); ctx.lineTo(-cs * .2, -cs * .1); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#ff3b52'; ctx.beginPath(); ctx.arc(0, -cs * .02, cs * .13, 0, 7); ctx.fill(); ctx.restore();
+  });
+  /* guards */
+  L.guards.forEach((g, j) => {
+    const k = nc() + j, c = g.rail[dg[k] >> 1], cx = (c % L.w + .5) * cs, cy = (((c / L.w) | 0) + .5) * cs, d = P.guardFacingDir(g, dg[k] & 1);
+    ctx.fillStyle = '#1d3a8a'; ctx.beginPath(); ctx.arc(cx, cy, cs * .34, 0, 7); ctx.fill();
+    ctx.fillStyle = '#ffd24a'; ctx.beginPath(); ctx.arc(cx, cy, cs * .14, 0, 7); ctx.fill();
+    ctx.save(); ctx.translate(cx, cy); ctx.rotate(d * Math.PI / 2); ctx.fillStyle = '#fff';
+    ctx.beginPath(); ctx.moveTo(0, -cs * .46); ctx.lineTo(cs * .13, -cs * .3); ctx.lineTo(-cs * .13, -cs * .3); ctx.closePath(); ctx.fill(); ctx.restore();
+  });
+  /* selection / hint ring */
+  if (sel >= 0) { const c = watcherCell(sel), cx = (c % L.w + .5) * cs, cy = (((c / L.w) | 0) + .5) * cs;
+    ctx.strokeStyle = hintWho === sel ? '#ffc54a' : '#ffffff'; ctx.lineWidth = 2 + pulse * 2; ctx.beginPath(); ctx.arc(cx, cy, cs * (.43 + .03 * pulse), 0, 7); ctx.stroke(); }
+  /* thief */
+  { const cx = (thief % L.w + .5) * cs, cy = (((thief / L.w) | 0) + .5) * cs;
+    ctx.fillStyle = 'rgba(0,0,0,.35)'; ctx.beginPath(); ctx.ellipse(cx, cy + cs * .28, cs * .26, cs * .09, 0, 0, 7); ctx.fill();
+    ctx.fillStyle = '#ff8a1f'; ctx.beginPath(); ctx.arc(cx, cy, cs * .27, 0, 7); ctx.fill();
+    ctx.strokeStyle = '#2b1a08'; ctx.lineWidth = cs * .07; for (const dy of [-.1, .08]) { ctx.beginPath(); ctx.moveTo(cx - cs * .24, cy + cs * dy); ctx.lineTo(cx + cs * .24, cy + cs * dy); ctx.stroke(); }
+    ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(cx - cs * .08, cy - cs * .16, cs * .035, 0, 7); ctx.arc(cx + cs * .08, cy - cs * .16, cs * .035, 0, 7); ctx.fill(); }
+  ctx.restore();
+}
+load(0); requestAnimationFrame(frame);
+</script>
+</body>
+</html>

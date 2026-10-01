@@ -42,28 +42,32 @@ function guardFacingDir(g, f) {            // direction index the guard looks
 }
 let L_W = 0;
 
-/* Lit cells + blocked cells for one configuration. */
-function evalConfig(L, digits) {
+/* Lit cells + blocked cells for one configuration. With wantRays it also returns, per watcher,
+   the cells its sight line covers (the renderer draws cones from these). */
+function evalConfig(L, digits, wantRays) {
   const { w, h, wall } = L, n = w * h;
   const lit = new Uint8Array(n), occ = new Uint8Array(n);
   const gpos = L.guards.map((g, k) => g.rail[digits[L.cams.length + k] >> 1]);
   for (const c of gpos) occ[c] = 1;
-  const cast = (start, d, range) => {
+  const rays = wantRays ? [] : null;
+  const cast = (start, d, range, who) => {
+    const cells = [];
     let x = start % w, y = (start / w) | 0;
     for (let s = 0; s < range; s++) {
       x += DX[d]; y += DY[d];
-      if (x < 0 || y < 0 || x >= w || y >= h) return;
+      if (x < 0 || y < 0 || x >= w || y >= h) break;
       const c = y * w + x;
-      if (wall[c] || occ[c]) return;
-      lit[c] = 1;
+      if (wall[c] || occ[c]) break;
+      lit[c] = 1; cells.push(c);
     }
+    if (rays) rays.push({ src: start, d, cells, who });
   };
-  L.cams.forEach((cm, k) => cast(cm.c, digits[k], 99));
+  L.cams.forEach((cm, k) => cast(cm.c, digits[k], 99, k));
   L.guards.forEach((g, k) => {
     const v = digits[L.cams.length + k];
-    cast(gpos[k], guardFacingDir(g, v & 1), g.range);
+    cast(gpos[k], guardFacingDir(g, v & 1), g.range, L.cams.length + k);
   });
-  return { lit, occ };
+  return { lit, occ, rays };
 }
 
 function prepare(L) { L_W = L.w; }

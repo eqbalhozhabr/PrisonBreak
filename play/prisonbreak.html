@@ -10,52 +10,70 @@
   * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
   html,body { height:100%; margin:0; background:var(--bg); color:var(--ink); font-family:system-ui,"Segoe UI",Tahoma,sans-serif; overscroll-behavior:none; }
   #app { height:100%; display:flex; flex-direction:column; max-width:760px; margin:0 auto; padding:env(safe-area-inset-top) 12px env(safe-area-inset-bottom); }
-  header { display:flex; align-items:center; gap:8px; padding:10px 0; }
+  header { display:flex; align-items:center; gap:6px; padding:8px 0; }
   header h1 { font-size:16px; margin:0; flex:1; letter-spacing:.02em; }
   header h1 small { display:block; font-weight:400; color:var(--mute); font-size:11px; }
-  button { font:inherit; color:var(--ink); background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:9px 12px; cursor:pointer; min-height:40px; }
+  button { font:inherit; color:var(--ink); background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:8px 11px; cursor:pointer; min-height:40px; }
   button:active { transform:translateY(1px); }
   button:disabled { opacity:.4; cursor:default; }
   button.primary { background:var(--red); border-color:var(--red); color:#fff; font-weight:600; }
-  #stats { display:flex; gap:8px; font-size:13px; color:var(--mute); padding-bottom:6px; align-items:center; }
+  button.on { border-color:var(--red); color:var(--red); }
+  #stats { display:flex; gap:8px; font-size:13px; color:var(--mute); padding-bottom:4px; align-items:center; flex-wrap:wrap; }
   #stats b { color:var(--ink); font-size:16px; }
-  #tip { font-size:13px; color:var(--mute); min-height:34px; padding:2px 0 6px; line-height:1.5; }
+  #hearts { letter-spacing:2px; font-size:16px; direction:ltr; }
+  #hearts .off { color:#3a4052; } #hearts .on { color:var(--red); }
+  #tip { font-size:13px; color:var(--mute); min-height:36px; padding:2px 0 4px; line-height:1.5; }
   #tip.warn { color:var(--red); } #tip.good { color:var(--ok); }
   #stage { flex:1; min-height:0; position:relative; }
   canvas { position:absolute; inset:0; width:100%; height:100%; touch-action:none; border-radius:12px; }
   #bar { display:flex; flex-wrap:wrap; gap:8px; justify-content:center; padding:10px 0 12px; direction:ltr; }
   #bar .sep { width:1px; background:var(--line); margin:0 4px; }
   #bar button { min-width:48px; }
-  .overlay { position:fixed; inset:0; background:rgba(5,7,12,.82); display:none; align-items:center; justify-content:center; padding:20px; z-index:5; }
+  .overlay { position:fixed; inset:0; background:rgba(5,7,12,.84); display:none; align-items:center; justify-content:center; padding:20px; z-index:5; }
   .overlay.on { display:flex; }
-  .card { background:var(--panel); border:1px solid var(--line); border-radius:16px; padding:20px; max-width:420px; width:100%; text-align:center; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:16px; padding:18px; max-width:440px; width:100%; text-align:center; max-height:92%; overflow:auto; }
   .card h2 { margin:0 0 6px; } .stars { font-size:34px; letter-spacing:6px; color:var(--gold); margin:6px 0 10px; }
-  .grid { display:grid; grid-template-columns:repeat(5,1fr); gap:8px; margin:14px 0; }
+  .grid { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin:8px 0 14px; }
   .grid button { padding:10px 0; position:relative; } .grid button small { display:block; color:var(--gold); font-size:11px; min-height:14px; }
+  .chap { text-align:start; font-size:13px; color:var(--mute); margin-top:10px; display:flex; justify-content:space-between; gap:8px; }
+  .chap b { color:var(--ink); }
   .row { display:flex; gap:8px; justify-content:center; flex-wrap:wrap; margin-top:8px; }
+  .muted { color:var(--mute); font-size:12px; margin-top:8px; line-height:1.6; }
+  #adCount { font-size:34px; font-weight:700; margin:10px 0; }
 </style>
 </head>
 <body>
 <div id="app">
   <header>
     <h1 id="title">Blind Spots<small id="subtitle"></small></h1>
+    <button id="btnHearts">♥</button>
     <button id="btnLevels"></button>
     <button id="btnLang">EN</button>
   </header>
-  <div id="stats"><span id="lvLabel"></span><span>·</span><span id="movesLabel"></span> <b id="moves">0</b><span>·</span><span id="parLabel"></span> <b id="par">0</b></div>
+  <div id="stats"><span id="lvLabel"></span><span>·</span><span id="movesLabel"></span> <b id="moves">0</b><span>·</span><span id="parLabel"></span> <b id="par">0</b><span id="heartsWrap">·</span><span id="hearts"></span></div>
   <div id="tip"></div>
   <div id="stage"><canvas id="cv"></canvas></div>
   <div id="bar"></div>
 </div>
 
 <div class="overlay" id="winOv"><div class="card">
-  <h2 id="winTitle"></h2><div class="stars" id="winStars"></div><div id="winText"></div>
+  <h2 id="winTitle"></h2><div class="stars" id="winStars"></div><div id="winText"></div><div class="muted" id="winGate"></div>
   <div class="row"><button id="winRetry"></button><button class="primary" id="winNext"></button></div>
 </div></div>
 
+<div class="overlay" id="caughtOv"><div class="card">
+  <h2 id="caughtTitle"></h2><div id="caughtText" class="muted"></div>
+  <div class="row"><button id="caughtRetry"></button><button class="primary" id="caughtRevive"></button></div>
+</div></div>
+
 <div class="overlay" id="lvOv"><div class="card">
-  <h2 id="lvTitle"></h2><div class="grid" id="lvGrid"></div>
-  <div class="row"><button id="lvClose"></button></div>
+  <h2 id="lvTitle"></h2><div id="lvChapters"></div>
+  <div class="row"><button id="btnUnlock"></button><button id="lvClose"></button></div>
+</div></div>
+
+<div class="overlay" id="adOv"><div class="card">
+  <h2 id="adTitle"></h2><div class="muted" id="adText"></div><div id="adCount"></div>
+  <div class="row"><button id="adCancel"></button><button class="primary" id="adClaim" disabled></button></div>
 </div></div>
 
 <script>
@@ -103,28 +121,32 @@ function guardFacingDir(g, f) {            // direction index the guard looks
 }
 let L_W = 0;
 
-/* Lit cells + blocked cells for one configuration. */
-function evalConfig(L, digits) {
+/* Lit cells + blocked cells for one configuration. With wantRays it also returns, per watcher,
+   the cells its sight line covers (the renderer draws cones from these). */
+function evalConfig(L, digits, wantRays) {
   const { w, h, wall } = L, n = w * h;
   const lit = new Uint8Array(n), occ = new Uint8Array(n);
   const gpos = L.guards.map((g, k) => g.rail[digits[L.cams.length + k] >> 1]);
   for (const c of gpos) occ[c] = 1;
-  const cast = (start, d, range) => {
+  const rays = wantRays ? [] : null;
+  const cast = (start, d, range, who) => {
+    const cells = [];
     let x = start % w, y = (start / w) | 0;
     for (let s = 0; s < range; s++) {
       x += DX[d]; y += DY[d];
-      if (x < 0 || y < 0 || x >= w || y >= h) return;
+      if (x < 0 || y < 0 || x >= w || y >= h) break;
       const c = y * w + x;
-      if (wall[c] || occ[c]) return;
-      lit[c] = 1;
+      if (wall[c] || occ[c]) break;
+      lit[c] = 1; cells.push(c);
     }
+    if (rays) rays.push({ src: start, d, cells, who });
   };
-  L.cams.forEach((cm, k) => cast(cm.c, digits[k], 99));
+  L.cams.forEach((cm, k) => cast(cm.c, digits[k], 99, k));
   L.guards.forEach((g, k) => {
     const v = digits[L.cams.length + k];
-    cast(gpos[k], guardFacingDir(g, v & 1), g.range);
+    cast(gpos[k], guardFacingDir(g, v & 1), g.range, L.cams.length + k);
   });
-  return { lit, occ };
+  return { lit, occ, rays };
 }
 
 function prepare(L) { L_W = L.w; }
@@ -603,14 +625,32 @@ window.PRISON_LEVELS = [
 const P = window.Prison, LEVELS = window.PRISON_LEVELS;
 const DX = [0, 1, 0, -1], DY = [-1, 0, 1, 0];
 
+/* ------------------------------------------------------- progression */
+/* Chapters group levels; the next chapter needs a minimum number of stars earned in the earlier ones. */
+const CHAPTERS = [
+  { name: { fa: 'بند ۱ · سلول', en: 'Block 1 · Cells' }, from: 1, to: 3, need: 0 },
+  { name: { fa: 'بند ۲ · حیاط', en: 'Block 2 · Yard' }, from: 4, to: 6, need: 5 },
+  { name: { fa: 'بند ۳ · اتاق کنترل', en: 'Block 3 · Control room' }, from: 7, to: 9, need: 11 },
+];
+const FREE_HINTS_PER_LEVEL = 1, HEARTS_MAX = 3;
+
 /* ---------------------------------------------------------------- text */
 const T = {
   fa: {
-    sub: 'پروتوتایپ — تاریکی را جابه‌جا کن', level: 'مرحله', moves: 'عمل', par: 'بهترین', undo: '↶ برگشت', reset: '⟲ از اول', hint: '💡 راهنما',
+    sub: 'پیش‌نمایش — تاریکی را جابه‌جا کن', level: 'مرحله', moves: 'عمل', par: 'بهترین',
+    undo: '↶ برگشت', reset: '⟲ از اول', hint: '💡 راهنما', hintAd: '💡 ▶ تبلیغ',
     levels: 'مرحله‌ها', close: 'بستن', pick: 'یک دوربین یا نگهبان را لمس کن، بعد دکمه‌های پایین را بزن. برای حرکت دزد، یک خانهٔ تاریک را لمس کن.',
-    refused: 'ممنوع! با این کار دزد دیده می‌شود. اول دزد را به جای امن ببر.', unreach: 'دزد از اینجا نمی‌تواند به آن خانه برود (قرمز یا مسدود).',
-    cam: 'دوربین', guard: 'نگهبان', pathClear: 'راه باز است؛ دزد را به سمت خروج ببر.', hintWho: 'پیشنهاد: ', hintCam: 'این دوربین را بچرخان', hintGuard: 'این نگهبان را جابه‌جا کن',
-    escaped: 'فرار کرد!', winText: (m, p) => `${m} عمل — بهترین ممکن ${p}`, retry: 'دوباره', next: 'مرحلهٔ بعد', done: 'همهٔ مرحله‌ها تمام شد 🎉',
+    refused: 'ممنوع! با این کار دزد دیده می‌شود. اول دزد را به جای امن ببر.', unreach: 'دزد از اینجا نمی‌تواند به آن خانه برود.',
+    pathClear: 'راه باز است؛ دزد را به سمت خروج ببر.', hintWho: 'پیشنهاد: ', hintCam: 'این دوربین را بچرخان', hintGuard: 'این نگهبان را جابه‌جا کن',
+    escaped: 'فرار کرد!', winText: (m, p, l) => `${m} عمل — بهترین ممکن ${p}` + (l ? ` — ${l} جان از دست رفت` : ''),
+    retry: 'دوباره', next: 'مرحلهٔ بعد', done: 'همهٔ مرحله‌ها تمام شد 🎉',
+    heartsOn: 'روشن', heartsOff: 'خاموش',
+    heartsTip: 'حالت جان: می‌توانی از نور رد شوی، ولی هر بار دیده شدن یک جان می‌برد. جان‌ها تمام شود دزد گرفتار می‌شود.',
+    seen: 'دیده شدی! یک جان کم شد.', caught: 'گرفتار شد!', caughtText: 'جان‌هایت تمام شد.', revive: '▶ تبلیغ و ادامه با ۱ جان',
+    chapter: 'بخش', lockedNeed: (n, h) => `قفل: ${n} ستاره لازم است (داری ${h})`, unlockAll: '🔓 باز کردن همه (تست)', lockAll: '🔒 قفل‌ها فعال',
+    gate: (n, h) => `برای بخش بعد ${n} ستاره لازم است. تا الان ${h} داری.`,
+    adTitle: 'تبلیغ آزمایشی', adText: 'اینجا در بازی واقعی یک ویدیوی جایزه‌ای پخش می‌شود. این فقط یک نمونه برای دیدن جریان بازی است و هیچ تبلیغ واقعی ندارد.',
+    adWait: s => `${s} ثانیه…`, adReady: 'آماده', adClaim: 'دریافت جایزه', adCancel: 'انصراف',
     tips: {
       1: 'دوربین نور قرمز می‌اندازد و دزد نباید در آن باشد. دوربین را لمس کن، ↻ را بزن، بعد خانهٔ خروج (سبز) را لمس کن.',
       2: 'شمارش فقط عمل‌های روی دوربین/نگهبان است؛ راه رفتن دزد رایگان است. عملی که دزد را روشن کند ممنوع است، پس اول دزد را جای امن ببر.',
@@ -619,11 +659,20 @@ const T = {
     },
   },
   en: {
-    sub: 'prototype — move the darkness', level: 'Level', moves: 'Actions', par: 'Best', undo: '↶ Undo', reset: '⟲ Restart', hint: '💡 Hint',
+    sub: 'preview — move the darkness', level: 'Level', moves: 'Actions', par: 'Best',
+    undo: '↶ Undo', reset: '⟲ Restart', hint: '💡 Hint', hintAd: '💡 ▶ Ad',
     levels: 'Levels', close: 'Close', pick: 'Tap a camera or guard, then use the buttons. To move the thief, tap a dark cell.',
-    refused: 'Not allowed — that would expose the thief. Move him somewhere safe first.', unreach: 'The thief cannot get there from here (lit or blocked).',
-    cam: 'Camera', guard: 'Guard', pathClear: 'The way is clear — walk the thief to the exit.', hintWho: 'Try: ', hintCam: 'turn this camera', hintGuard: 'move this guard',
-    escaped: 'Escaped!', winText: (m, p) => `${m} actions — best possible ${p}`, retry: 'Retry', next: 'Next level', done: 'All levels cleared 🎉',
+    refused: 'Not allowed — that would expose the thief. Move him somewhere safe first.', unreach: 'The thief cannot get there from here.',
+    pathClear: 'The way is clear — walk the thief to the exit.', hintWho: 'Try: ', hintCam: 'turn this camera', hintGuard: 'move this guard',
+    escaped: 'Escaped!', winText: (m, p, l) => `${m} actions — best possible ${p}` + (l ? ` — ${l} heart(s) lost` : ''),
+    retry: 'Retry', next: 'Next level', done: 'All levels cleared 🎉',
+    heartsOn: 'on', heartsOff: 'off',
+    heartsTip: 'Hearts mode: you may cross light, but every time you get spotted you lose a heart. At zero hearts the thief is caught.',
+    seen: 'Spotted! You lost a heart.', caught: 'Caught!', caughtText: 'You ran out of hearts.', revive: '▶ Ad: continue with 1 heart',
+    chapter: 'Block', lockedNeed: (n, h) => `Locked: needs ${n} stars (you have ${h})`, unlockAll: '🔓 Unlock all (testing)', lockAll: '🔒 Locks on',
+    gate: (n, h) => `The next block needs ${n} stars. You have ${h}.`,
+    adTitle: 'Placeholder ad', adText: 'In the real game a rewarded video plays here. This is only a stand-in to show the flow; no real ad is shown.',
+    adWait: s => `${s}s…`, adReady: 'Ready', adClaim: 'Claim reward', adCancel: 'Cancel',
     tips: {
       1: 'Cameras throw red light and the thief must stay out of it. Tap the camera, press ↻, then tap the green exit.',
       2: 'Only actions on cameras/guards are counted; walking is free. An action that would light the thief is refused, so move him to safety first.',
@@ -633,24 +682,39 @@ const T = {
   },
 };
 let lang = 'fa';
-try { lang = localStorage.getItem('pb_lang') || 'fa'; } catch (e) {}
+const store = {
+  get(k, d) { try { const v = localStorage.getItem(k); return v === null ? d : JSON.parse(v); } catch (e) { return d; } },
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} },
+};
+lang = store.get('pb_lang', 'fa');
 const tr = () => T[lang];
 
 /* ---------------------------------------------------------------- state */
-let li = 0, L, dg, thief, hist = [], moves = 0, sel = -1, hintWho = -1, walking = null, flash = 0, flashCell = -1, shake = 0;
-let best = {};
-try { best = JSON.parse(localStorage.getItem('pb_best') || '{}'); } catch (e) {}
-const saveBest = () => { try { localStorage.setItem('pb_best', JSON.stringify(best)); } catch (e) {} };
+let li = 0, L, dg, thief, thiefDir = 2, hist = [], moves = 0, sel = -1, hintWho = -1, walking = null;
+let flash = 0, flashCell = -1, shake = 0, hearts = HEARTS_MAX, lost = 0, hintsUsed = 0, caughtOn = false;
+let best = store.get('pb_best2', {}), heartsMode = store.get('pb_hearts', false), unlockAll = store.get('pb_unlock', false);
+const gdraw = [];   // eased drawn positions of guards
+function setHeartsMode(v) { heartsMode = !!v; store.set('pb_hearts', heartsMode); if (L) { hearts = HEARTS_MAX; lost = 0; } syncUI(); }
+
+function totalStars(upToChapterExclusive) {
+  let s = 0;
+  for (let c = 0; c < upToChapterExclusive; c++) for (let id = CHAPTERS[c].from; id <= CHAPTERS[c].to; id++) s += (best[id] && best[id].stars) || 0;
+  return s;
+}
+const chapterOf = id => CHAPTERS.findIndex(c => id >= c.from && id <= c.to);
+function chapterLocked(ci) { return !unlockAll && ci > 0 && totalStars(ci) < CHAPTERS[ci].need; }
 
 function load(i) {
   li = Math.max(0, Math.min(LEVELS.length - 1, i));
   L = P.parseLevel(LEVELS[li].map, LEVELS[li].meta);
   P.prepare(L);
-  dg = P.initialDigits(L); thief = L.S; hist = []; moves = 0; sel = -1; hintWho = -1; walking = null;
-  setTip(tr().tips[LEVELS[li].id] || tr().pick);
+  dg = P.initialDigits(L); thief = L.S; thiefDir = 2; hist = []; moves = 0; sel = -1; hintWho = -1; walking = null;
+  hearts = HEARTS_MAX; lost = 0; hintsUsed = 0; caughtOn = false; gdraw.length = 0;
+  document.querySelectorAll('.overlay.on').forEach(o => o.classList.remove('on'));
+  setTip(heartsMode ? tr().heartsTip : (tr().tips[LEVELS[li].id] || tr().pick));
   syncUI(); buildBar(); resize();
 }
-function ev(d) { P.prepare(L); return P.evalConfig(L, d || dg); }
+function ev(d) { P.prepare(L); return P.evalConfig(L, d || dg, false); }
 const nc = () => L.cams.length;
 function watcherCell(k) { return k < nc() ? L.cams[k].c : L.guards[k - nc()].rail[dg[k] >> 1]; }
 function watcherAt(c) { for (let k = 0; k < nc() + L.guards.length; k++) if (watcherCell(k) === c) return k; return -1; }
@@ -671,25 +735,43 @@ function options(k) {
   if (k < nc()) return [{ label: '↺', dg: Object.assign(dg.slice(), { [k]: (dg[k] + 3) % 4 }) }, { label: '↻', dg: Object.assign(dg.slice(), { [k]: (dg[k] + 1) % 4 }) }];
   return guardOptions(k);
 }
-function push() { hist.push({ dg: dg.slice(), thief, moves }); }
+function push() { hist.push({ dg: dg.slice(), thief, moves, hearts, lost, thiefDir }); }
+function damage() {
+  hearts--; lost++; flash = 1; flashCell = thief; shake = 1; setTip(tr().seen, 'warn');
+  if (hearts <= 0) caught();
+  syncUI();
+}
+function caught() {
+  walking = null; caughtOn = true;
+  $('caughtTitle').textContent = tr().caught; $('caughtText').textContent = tr().caughtText;
+  $('caughtRetry').textContent = tr().retry; $('caughtRevive').textContent = tr().revive;
+  $('caughtOv').classList.add('on');
+}
 function tryAction(nd) {
-  if (!nd || walking) return;
-  const e = ev(nd);
-  if (e.lit[thief] || e.occ[thief]) { setTip(tr().refused, 'warn'); flashCell = thief; flash = 1; shake = 1; return; }
-  push(); dg = nd; moves++; hintWho = -1; setTip(''); syncUI(); buildBar();
+  if (!nd || walking || caughtOn) return;
+  const e = ev(nd), wasLit = ev().lit[thief];
+  if (e.occ[thief]) { setTip(tr().refused, 'warn'); flashCell = thief; flash = 1; shake = 1; return; }
+  if (e.lit[thief] && !heartsMode) { setTip(tr().refused, 'warn'); flashCell = thief; flash = 1; shake = 1; return; }
+  push(); dg = nd; moves++; hintWho = -1; setTip('');
+  if (e.lit[thief] && !wasLit) damage();
+  syncUI(); buildBar();
 }
 
+/* Walking: free in the puzzle. In hearts mode a lit cell may be crossed, at a price that
+   makes the search prefer shadows. */
 function pathTo(target) {
-  const e = ev(), n = L.w * L.h, prev = new Int16Array(n).fill(-2);
-  const q = [thief]; prev[thief] = -1;
-  while (q.length) {
-    const c = q.shift(); if (c === target) break;
+  const e = ev(), n = L.w * L.h, cost = new Float64Array(n).fill(Infinity), prev = new Int16Array(n).fill(-2);
+  const open = [thief]; cost[thief] = 0; prev[thief] = -1;
+  while (open.length) {
+    let bi = 0; for (let i = 1; i < open.length; i++) if (cost[open[i]] < cost[open[bi]]) bi = i;
+    const c = open.splice(bi, 1)[0]; if (c === target) break;
     const x = c % L.w, y = (c / L.w) | 0;
     for (let d = 0; d < 4; d++) {
       const nx = x + DX[d], ny = y + DY[d]; if (nx < 0 || ny < 0 || nx >= L.w || ny >= L.h) continue;
       const m = ny * L.w + nx;
-      if (prev[m] !== -2 || L.wall[m] || e.lit[m] || e.occ[m]) continue;
-      prev[m] = c; q.push(m);
+      if (L.wall[m] || e.occ[m] || (e.lit[m] && !heartsMode)) continue;
+      const nc2 = cost[c] + (e.lit[m] ? 6 : 1);
+      if (nc2 < cost[m]) { cost[m] = nc2; prev[m] = c; open.push(m); }
     }
   }
   if (prev[target] === -2) return null;
@@ -697,6 +779,7 @@ function pathTo(target) {
   return path.reverse();
 }
 function walkTo(c) {
+  if (caughtOn) return;
   const path = pathTo(c);
   if (!path) { setTip(tr().unreach, 'warn'); flashCell = c; flash = 1; return; }
   if (!path.length) return;
@@ -706,29 +789,42 @@ function walkTo(c) {
 function stepWalk(dt) {
   if (!walking) return;
   walking.t += dt;
-  while (walking && walking.t >= 85) {
-    walking.t -= 85; thief = walking.path.shift();
+  while (walking && walking.t >= 110) {
+    walking.t -= 110;
+    const next = walking.path.shift(), e = ev(), wasLit = e.lit[thief];
+    const dx = next % L.w - thief % L.w, dy = ((next / L.w) | 0) - ((thief / L.w) | 0);
+    thiefDir = dy < 0 ? 0 : dx > 0 ? 1 : dy > 0 ? 2 : 3;
+    thief = next;
+    if (heartsMode && e.lit[thief] && !wasLit) { damage(); if (caughtOn) return; }
     if (!walking.path.length) { walking = null; if (thief === L.E) win(); }
   }
 }
 
 /* ---------------------------------------------------------------- input */
 const cv = document.getElementById('cv'), ctx = cv.getContext('2d');
-let cs = 40, ox = 0, oy = 0, W = 0, H = 0;
+let cs = 40, cellH = 30, wallH = 18, ox = 0, oy = 0, W = 0, H = 0;
+const KY = 0.78, KW = 0.46;
 function resize() {
   const r = cv.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
   W = r.width; H = r.height; cv.width = W * dpr; cv.height = H * dpr; ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   if (!L) return;
-  cs = Math.floor(Math.min(W / L.w, H / L.h)); ox = (W - cs * L.w) / 2; oy = (H - cs * L.h) / 2;
+  cs = Math.floor(Math.min(W / L.w, H / (L.h * KY + KW + 0.2))); cellH = cs * KY; wallH = cs * KW;
+  ox = (W - cs * L.w) / 2; oy = (H - (L.h * cellH + wallH)) / 2;
 }
 window.addEventListener('resize', resize);
-cv.addEventListener('pointerdown', ev0 => {
-  if (walking || document.querySelector('.overlay.on')) return;
-  const r = cv.getBoundingClientRect(), x = Math.floor((ev0.clientX - r.left - ox) / cs), y = Math.floor((ev0.clientY - r.top - oy) / cs);
-  if (x < 0 || y < 0 || x >= L.w || y >= L.h) return;
-  const c = y * L.w + x, k = watcherAt(c);
-  if (k >= 0) { sel = k; buildBar(); return; }
-  if (!L.wall[c]) { walkTo(c); }
+const FX = x => x * cs, FY = y => wallH + y * cellH;
+cv.addEventListener('pointerdown', e0 => {
+  if (walking || caughtOn || document.querySelector('.overlay.on')) return;
+  const r = cv.getBoundingClientRect(), px = e0.clientX - r.left - ox, py = e0.clientY - r.top - oy;
+  for (let k = 0; k < nc() + L.guards.length; k++) {                    // watchers first (they stand taller than their tile)
+    const c = watcherCell(k), x = c % L.w, y = (c / L.w) | 0;
+    const top = k < nc() ? FY(y) - wallH : FY(y) - cs * .75;
+    if (px >= FX(x) && px < FX(x) + cs && py >= top && py < FY(y) + cellH) { sel = k; buildBar(); return; }
+  }
+  const gx = Math.floor(px / cs), gy = Math.floor((py - wallH) / cellH);
+  if (gx < 0 || gy < 0 || gx >= L.w || gy >= L.h) return;
+  const c = gy * L.w + gx;
+  if (!L.wall[c]) walkTo(c);
 });
 window.addEventListener('keydown', e => {
   const m = { ArrowUp: 0, ArrowRight: 1, ArrowDown: 2, ArrowLeft: 3 }[e.key]; if (m === undefined || walking) return;
@@ -746,7 +842,11 @@ function syncUI() {
   $('subtitle').textContent = t.sub; $('btnLevels').textContent = t.levels; $('btnLang').textContent = lang === 'fa' ? 'EN' : 'فا';
   $('lvLabel').textContent = t.level + ' ' + LEVELS[li].id; $('movesLabel').textContent = t.moves; $('parLabel').textContent = t.par;
   $('moves').textContent = moves; $('par').textContent = LEVELS[li].par;
-  $('winRetry').textContent = t.retry; $('winNext').textContent = t.next; $('lvTitle').textContent = t.levels; $('lvClose').textContent = t.close;
+  $('btnHearts').textContent = '♥ ' + (heartsMode ? t.heartsOn : t.heartsOff); $('btnHearts').className = heartsMode ? 'on' : '';
+  $('hearts').innerHTML = heartsMode ? Array.from({ length: HEARTS_MAX }, (_, i) => `<span class="${i < hearts ? 'on' : 'off'}">♥</span>`).join('') : '';
+  $('heartsWrap').style.display = heartsMode ? '' : 'none';
+  $('winRetry').textContent = t.retry; $('lvTitle').textContent = t.levels; $('lvClose').textContent = t.close;
+  $('adTitle').textContent = t.adTitle; $('adText').textContent = t.adText; $('adCancel').textContent = t.adCancel; $('adClaim').textContent = t.adClaim;
 }
 function buildBar() {
   const bar = $('bar'), t = tr(); bar.innerHTML = '';
@@ -755,37 +855,184 @@ function buildBar() {
     options(sel).forEach(o => add(o.label, () => tryAction(o.dg), 'primary', !o.dg));
     const sep = document.createElement('span'); sep.className = 'sep'; bar.appendChild(sep);
   }
-  add(t.undo, undo, '', !hist.length || !!walking); add(t.reset, () => load(li)); add(t.hint, hint);
+  add(t.undo, undo, '', !hist.length || !!walking); add(t.reset, () => load(li));
+  add(hintsUsed < FREE_HINTS_PER_LEVEL ? t.hint : t.hintAd, onHint);
 }
-function undo() { if (!hist.length || walking) return; const h = hist.pop(); dg = h.dg; thief = h.thief; moves = h.moves; hintWho = -1; setTip(''); syncUI(); buildBar(); }
-function hint() {
-  if (walking) return;
+function undo() {
+  if (!hist.length || walking) return;
+  const h = hist.pop(); dg = h.dg; thief = h.thief; moves = h.moves; hearts = h.hearts; lost = h.lost; thiefDir = h.thiefDir;
+  hintWho = -1; caughtOn = false; setTip(''); syncUI(); buildBar();
+}
+function onHint() {
+  if (walking || caughtOn) return;
+  if (hintsUsed < FREE_HINTS_PER_LEVEL) { hintsUsed++; doHint(); buildBar(); return; }
+  Ads.rewarded().then(ok => { if (ok) { doHint(); } });
+}
+function doHint() {
   const r = P.solve(L, { digits: dg, thief, maxDepth: 40 });
   if (!r || !r.solvable) { setTip('—', 'warn'); return; }
   if (r.par === 0) { setTip(tr().pathClear, 'good'); return; }
   hintWho = r.who[0]; sel = hintWho;
   setTip(tr().hintWho + (hintWho < nc() ? tr().hintCam : tr().hintGuard), 'good'); buildBar();
 }
+
+/* Stand-in for a real rewarded-ad SDK. Ads are only ever shown after the player asks for a hint or a revive. */
+const Ads = {
+  rewarded() {
+    return new Promise(resolve => {
+      let s = 3, timer = null;
+      const done = ok => { clearInterval(timer); $('adOv').classList.remove('on'); resolve(ok); };
+      $('adClaim').disabled = true; $('adCount').textContent = tr().adWait(s); $('adOv').classList.add('on');
+      timer = setInterval(() => { s--; if (s <= 0) { clearInterval(timer); $('adCount').textContent = tr().adReady; $('adClaim').disabled = false; } else $('adCount').textContent = tr().adWait(s); }, 1000);
+      $('adClaim').onclick = () => done(true); $('adCancel').onclick = () => done(false);
+    });
+  },
+};
+
+function stars() {
+  const p = LEVELS[li].par; let s = moves <= p ? 3 : moves <= p + 2 ? 2 : 1;
+  if (heartsMode && lost > 0) s = Math.max(1, s - 1);
+  return s;
+}
 function win() {
-  const p = LEVELS[li].par, stars = moves <= p ? 3 : moves <= p + 2 ? 2 : 1, id = LEVELS[li].id;
-  if (!best[id] || best[id].stars < stars || (best[id].stars === stars && best[id].moves > moves)) { best[id] = { stars, moves }; saveBest(); }
-  $('winTitle').textContent = tr().escaped; $('winStars').textContent = '★'.repeat(stars) + '☆'.repeat(3 - stars); $('winText').textContent = tr().winText(moves, p);
-  const last = li === LEVELS.length - 1; $('winNext').textContent = last ? tr().done : tr().next; $('winNext').disabled = last;
+  const id = LEVELS[li].id, st = stars();
+  if (!best[id] || best[id].stars < st || (best[id].stars === st && best[id].moves > moves)) { best[id] = { stars: st, moves }; store.set('pb_best2', best); }
+  $('winTitle').textContent = tr().escaped; $('winStars').textContent = '★'.repeat(st) + '☆'.repeat(3 - st); $('winText').textContent = tr().winText(moves, LEVELS[li].par, heartsMode ? lost : 0);
+  const last = li === LEVELS.length - 1, ci = chapterOf(id), nextCi = last ? -1 : chapterOf(LEVELS[li + 1].id);
+  const locked = !last && nextCi !== ci && chapterLocked(nextCi);
+  $('winGate').textContent = locked ? tr().gate(CHAPTERS[nextCi].need, totalStars(nextCi)) : '';
+  $('winNext').textContent = last ? tr().done : tr().next; $('winNext').disabled = last || locked;
   $('winOv').classList.add('on');
 }
-$('winRetry').onclick = () => { $('winOv').classList.remove('on'); load(li); };
-$('winNext').onclick = () => { $('winOv').classList.remove('on'); load(li + 1); };
-$('btnLevels').onclick = () => {
-  const g = $('lvGrid'); g.innerHTML = '';
-  LEVELS.forEach((l, i) => { const b = document.createElement('button'); const s = best[l.id] ? '★'.repeat(best[l.id].stars) : '';
-    b.innerHTML = l.id + '<small>' + s + '</small>'; b.onclick = () => { $('lvOv').classList.remove('on'); load(i); }; g.appendChild(b); });
+$('winRetry').onclick = () => load(li);
+$('winNext').onclick = () => load(li + 1);
+$('caughtRetry').onclick = () => load(li);
+$('caughtRevive').onclick = () => Ads.rewarded().then(ok => {
+  if (!ok) return;
+  const h = hist.pop(); if (h) { dg = h.dg; thief = h.thief; moves = h.moves; lost = h.lost; thiefDir = h.thiefDir; }
+  hearts = 1; caughtOn = false; $('caughtOv').classList.remove('on'); setTip(''); syncUI(); buildBar();
+});
+function openLevels() {
+  const wrap = $('lvChapters'); wrap.innerHTML = '';
+  CHAPTERS.forEach((ch, ci) => {
+    const locked = chapterLocked(ci), have = totalStars(ci);
+    const head = document.createElement('div'); head.className = 'chap';
+    const maxS = (ch.to - ch.from + 1) * 3; let got = 0; for (let id = ch.from; id <= ch.to; id++) got += (best[id] && best[id].stars) || 0;
+    head.innerHTML = `<b>${ch.name[lang]}</b><span>${locked ? '🔒 ' + tr().lockedNeed(ch.need, have) : '★ ' + got + '/' + maxS}</span>`;
+    wrap.appendChild(head);
+    const g = document.createElement('div'); g.className = 'grid';
+    for (let id = ch.from; id <= ch.to; id++) {
+      const i = LEVELS.findIndex(l => l.id === id); if (i < 0) continue;
+      const b = document.createElement('button'), s = best[id] ? '★'.repeat(best[id].stars) : '';
+      b.innerHTML = id + '<small>' + (locked ? '🔒' : s) + '</small>'; b.disabled = locked; b.onclick = () => load(i); g.appendChild(b);
+    }
+    wrap.appendChild(g);
+  });
+  $('btnUnlock').textContent = unlockAll ? tr().lockAll : tr().unlockAll;
   $('lvOv').classList.add('on');
-};
+}
+$('btnLevels').onclick = openLevels;
+$('btnUnlock').onclick = () => { unlockAll = !unlockAll; store.set('pb_unlock', unlockAll); openLevels(); };
 $('lvClose').onclick = () => $('lvOv').classList.remove('on');
-$('btnLang').onclick = () => { lang = lang === 'fa' ? 'en' : 'fa'; try { localStorage.setItem('pb_lang', lang); } catch (e) {} setTip(tr().tips[LEVELS[li].id] || tr().pick); syncUI(); buildBar(); };
+$('btnHearts').onclick = () => { setHeartsMode(!heartsMode); load(li); };
+$('btnLang').onclick = () => { lang = lang === 'fa' ? 'en' : 'fa'; store.set('pb_lang', lang); setTip(heartsMode ? tr().heartsTip : (tr().tips[LEVELS[li].id] || tr().pick)); syncUI(); buildBar(); };
+
+/* ---------------------------------------------------- pixel sprites */
+/* Characters are painted from rectangles onto a 16x20 canvas, outlined automatically, then scaled up
+   without smoothing. They are placeholders for the real sprite sheets (docs/art-spec.md). */
+const sprites = new Map();
+function pxr(c, col, x, y, w, h) { c.fillStyle = col; c.fillRect(x, y, w, h); }
+function outline(cnv, col) {
+  const c = cnv.getContext('2d'), w = cnv.width, h = cnv.height, id = c.getImageData(0, 0, w, h), d = id.data, src = new Uint8Array(d.length / 4);
+  for (let i = 0; i < src.length; i++) src[i] = d[i * 4 + 3] > 0 ? 1 : 0;
+  c.fillStyle = col;
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) if (!src[y * w + x]) {
+    if ((x > 0 && src[y * w + x - 1]) || (x < w - 1 && src[y * w + x + 1]) || (y > 0 && src[(y - 1) * w + x]) || (y < h - 1 && src[(y + 1) * w + x])) c.fillRect(x, y, 1, 1);
+  }
+}
+function person(kind, dir, frame) {
+  const key = kind + dir + frame; if (sprites.has(key)) return sprites.get(key);
+  const cnv = document.createElement('canvas'); cnv.width = 18; cnv.height = 22; const c = cnv.getContext('2d'); c.translate(1, 1);
+  const th = kind === 'thief';
+  const shirt = th ? '#ff8a1f' : '#2f56c8', shirtD = th ? '#d86a0c' : '#213f9c', pants = th ? '#e07412' : '#1c2a66', skin = '#f3c6a0', hair = th ? '#2b2230' : '#1c2a66';
+  const side = dir === 1 || dir === 3, back = dir === 0, bob = frame === 1 ? 1 : 0;
+  // legs
+  if (side) { pxr(c, pants, 5, 16, 3, 4 - (frame === 1 ? 1 : 0)); pxr(c, pants, 8, 16, 3, 4 - (frame === 2 ? 1 : 0)); }
+  else { pxr(c, pants, 4, 16, 3, 4 - (frame === 1 ? 1 : 0)); pxr(c, pants, 9, 16, 3, 4 - (frame === 2 ? 1 : 0)); }
+  // body
+  if (side) { pxr(c, shirt, 4, 9 + bob, 8, 7); pxr(c, shirtD, 4, 9 + bob, 2, 7); pxr(c, shirt, 7, 10 + bob, 3, 5); pxr(c, skin, 7, 14 + bob, 3, 2); }
+  else { pxr(c, shirt, 3, 9 + bob, 10, 7); pxr(c, shirtD, 3, 9 + bob, 1, 7); pxr(c, shirt, 1, 10 + bob, 2, 5); pxr(c, shirt, 13, 10 + bob, 2, 5); pxr(c, skin, 1, 14 + bob, 2, 2); pxr(c, skin, 13, 14 + bob, 2, 2);
+    if (!th) pxr(c, '#111827', 3, 14 + bob, 10, 1); else { pxr(c, '#ffd9a0', 7, 11 + bob, 2, 1); } }
+  // head
+  const hx = side ? 4 : 4, hy = 1 + bob;
+  pxr(c, skin, hx, hy + 1, 8, 8);
+  if (back) pxr(c, hair, hx, hy + 1, 8, 6);
+  else if (side) { pxr(c, skin, dir === 1 ? 12 : 3, hy + 5, 1, 1); pxr(c, '#1a1420', dir === 1 ? 10 : 5, hy + 4, 1, 2); }
+  else { pxr(c, '#1a1420', 6, hy + 4, 1, 2); pxr(c, '#1a1420', 9, hy + 4, 1, 2); if (th) pxr(c, '#a56b4a', 7, hy + 7, 2, 1); }
+  if (th) { pxr(c, hair, hx - 1, hy, 10, 3); if (side) pxr(c, hair, dir === 1 ? 4 : 5, hy, 8, 4); }       // beanie
+  else {                                                                                                // cap
+    pxr(c, '#16224f', hx - 1, hy, 10, 3); pxr(c, '#0f1738', hx - 1, hy + 3, 10, 1);
+    if (!back && !side) pxr(c, '#ffd24a', 7, hy + 1, 2, 2);
+    if (side) pxr(c, '#0f1738', dir === 1 ? 12 : 2, hy + 3, 3, 1);
+  }
+  outline(cnv, '#16101f'); sprites.set(key, cnv); return cnv;
+}
+function camSprite(dir) {
+  const key = 'cam' + dir; if (sprites.has(key)) return sprites.get(key);
+  const cnv = document.createElement('canvas'); cnv.width = 14; cnv.height = 12; const c = cnv.getContext('2d'); c.translate(1, 1);
+  pxr(c, '#9aa5b8', 2, 6, 8, 2);                                   // bracket
+  if (dir === 2) { pxr(c, '#c9d2e6', 1, 1, 10, 6); pxr(c, '#7d889c', 1, 5, 10, 2); pxr(c, '#1a1420', 4, 2, 4, 4); pxr(c, '#ff3b52', 5, 3, 2, 2); }
+  else if (dir === 0) { pxr(c, '#aab4c8', 1, 1, 10, 6); pxr(c, '#7d889c', 1, 5, 10, 2); pxr(c, '#41d392', 9, 2, 1, 1); }
+  else { pxr(c, '#c9d2e6', 1, 1, 8, 6); pxr(c, '#7d889c', 1, 5, 8, 2); pxr(c, '#1a1420', 9, 2, 2, 4); pxr(c, '#ff3b52', 10, 3, 1, 2); if (dir === 3) { /* mirrored when drawn */ } }
+  outline(cnv, '#16101f'); sprites.set(key, cnv); return cnv;
+}
+function drawSprite(cnv, cx, footY, scale, flip) {
+  ctx.imageSmoothingEnabled = false; ctx.save(); ctx.translate(cx, footY);
+  if (flip) ctx.scale(-1, 1);
+  ctx.drawImage(cnv, -cnv.width * scale / 2, -(cnv.height - 1) * scale, cnv.width * scale, cnv.height * scale); ctx.restore();
+}
+function shadow(cx, cy, rx) { ctx.fillStyle = 'rgba(0,0,0,.35)'; ctx.beginPath(); ctx.ellipse(cx, cy, rx, rx * .38, 0, 0, 7); ctx.fill(); }
 
 /* ----------------------------------------------------------------- draw */
-function rr(x, y, w, h, r) { ctx.beginPath(); ctx.roundRect ? ctx.roundRect(x, y, w, h, r) : ctx.rect(x, y, w, h); }
+const hash = (x, y, s) => { let h = (x * 374761393 + y * 668265263 + s * 2147483647) | 0; h = (h ^ (h >>> 13)) * 1274126177 | 0; return ((h ^ (h >>> 16)) >>> 0) / 4294967296; };
+function drawFloor(x, y) {
+  const px = FX(x), py = FY(y);
+  ctx.fillStyle = (x + y) % 2 ? '#3b4252' : '#363d4d'; ctx.fillRect(px, py, cs, cellH);
+  ctx.fillStyle = 'rgba(255,255,255,.04)'; ctx.fillRect(px, py, cs, 1); ctx.fillRect(px, py, 1, cellH);
+  for (let i = 0; i < 3; i++) { const h = hash(x, y, i + 1); ctx.fillStyle = h > .5 ? 'rgba(255,255,255,.05)' : 'rgba(0,0,0,.12)'; ctx.fillRect(px + hash(x, y, i + 9) * (cs - 3), py + hash(x, y, i + 17) * (cellH - 3), 2, 2); }
+}
+function drawWall(x, y) {
+  const px = FX(x), py = FY(y) - wallH, brick = hash(x, y, 5) < .38;
+  const topC = brick ? '#b4604a' : '#a3adbd', frontC = brick ? '#8a4332' : '#6c7587', lineC = brick ? '#5e2a1f' : '#4c5466';
+  ctx.fillStyle = frontC; ctx.fillRect(px, py + cellH, cs, wallH);
+  ctx.strokeStyle = lineC; ctx.lineWidth = 1;
+  if (brick) {
+    const rows = 3, rh = wallH / rows;
+    for (let r = 0; r < rows; r++) { const yy = py + cellH + r * rh; ctx.beginPath(); ctx.moveTo(px, yy + .5); ctx.lineTo(px + cs, yy + .5); ctx.stroke();
+      for (let k = (r % 2) * .5; k < 3; k += 1) { const xx = px + (k + .0) * cs / 3 + (r % 2 ? cs / 6 : 0); ctx.beginPath(); ctx.moveTo(xx + .5, yy); ctx.lineTo(xx + .5, yy + rh); ctx.stroke(); } }
+  } else {
+    ctx.beginPath(); ctx.moveTo(px, py + cellH + wallH * .5); ctx.lineTo(px + cs, py + cellH + wallH * .5); ctx.stroke();
+    ctx.fillStyle = 'rgba(255,255,255,.08)'; ctx.fillRect(px + cs * .15, py + cellH + wallH * .15, cs * .12, wallH * .2);
+    ctx.fillStyle = 'rgba(0,0,0,.12)'; ctx.fillRect(px + cs * .6, py + cellH + wallH * .62, cs * .2, wallH * .15);
+  }
+  ctx.fillStyle = topC; ctx.fillRect(px, py, cs, cellH);
+  ctx.fillStyle = 'rgba(255,255,255,.18)'; ctx.fillRect(px, py, cs, 2);
+  ctx.fillStyle = 'rgba(0,0,0,.18)'; ctx.fillRect(px, py + cellH - 1, cs, 1);
+  ctx.fillStyle = 'rgba(0,0,0,.28)'; ctx.fillRect(px, py + cellH + wallH - 2, cs, 2);
+}
+function ringAt(cx, cy, r, col, pulse) { ctx.strokeStyle = col; ctx.lineWidth = 2 + pulse * 2; ctx.beginPath(); ctx.ellipse(cx, cy, r, r * .5, 0, 0, 7); ctx.stroke(); }
+function coneOf(r, pulse) {
+  if (!r.cells.length) return;
+  const sx = r.src % L.w + .5, sy = ((r.src / L.w) | 0) + .5, d = r.d, n = r.cells.length;
+  const dx = DX[d], dy = DY[d], px = -dy, py = dx;
+  const pt = (t, w) => [FX(sx + dx * t + px * w), FY(sy + dy * t + py * w)];
+  const a = pt(.5, -.16), b = pt(.5, .16), c = pt(n + .5, .5), e = pt(n + .5, -.5);
+  const o = pt(.5, 0), f = pt(n + .5, 0);
+  const g = ctx.createLinearGradient(o[0], o[1], f[0], f[1]);
+  g.addColorStop(0, `rgba(255,70,90,${.62 + .1 * pulse})`); g.addColorStop(1, `rgba(255,70,90,${.22 + .05 * pulse})`);
+  ctx.fillStyle = g; ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(e[0], e[1]); ctx.lineTo(c[0], c[1]); ctx.lineTo(b[0], b[1]); ctx.closePath(); ctx.fill();
+  ctx.strokeStyle = 'rgba(255,170,176,.55)'; ctx.lineWidth = 1.2; ctx.stroke();
+}
 let last = performance.now();
 function frame(now) {
   const dt = Math.min(50, now - last); last = now; stepWalk(dt);
@@ -794,62 +1041,59 @@ function frame(now) {
 }
 function draw(now) {
   ctx.clearRect(0, 0, W, H); if (!L) return;
-  const e = ev(), sx = shake ? Math.sin(now / 25) * 4 * shake : 0;
+  P.prepare(L);
+  const e = P.evalConfig(L, dg, true), sx = shake ? Math.sin(now / 25) * 4 * shake : 0, pulse = .5 + .5 * Math.sin(now / 280);
   ctx.save(); ctx.translate(ox + sx, oy);
-  const pulse = .5 + .5 * Math.sin(now / 280);
-  for (let y = 0; y < L.h; y++) for (let x = 0; x < L.w; x++) {
-    const c = y * L.w + x, px = x * cs, py = y * cs;
-    if (L.wall[c]) {
-      ctx.fillStyle = '#0a0d13'; ctx.fillRect(px, py, cs, cs);
-      ctx.strokeStyle = '#161c28'; ctx.lineWidth = 1; ctx.strokeRect(px + .5, py + .5, cs - 1, cs - 1);
-      ctx.beginPath(); ctx.moveTo(px, py + cs / 2); ctx.lineTo(px + cs, py + cs / 2); ctx.stroke();
-    } else {
-      ctx.fillStyle = (x + y) % 2 ? '#1a2130' : '#1d2536'; ctx.fillRect(px, py, cs, cs);
-    }
-  }
-  /* lit cells */
-  for (let c = 0; c < L.w * L.h; c++) if (e.lit[c]) {
-    const px = (c % L.w) * cs, py = ((c / L.w) | 0) * cs;
-    ctx.fillStyle = `rgba(255,59,82,${.30 + .08 * pulse})`; ctx.fillRect(px, py, cs, cs);
-    ctx.strokeStyle = 'rgba(255,120,130,.35)'; ctx.lineWidth = 1; ctx.strokeRect(px + 1.5, py + 1.5, cs - 3, cs - 3);
-  }
-  /* exit */
-  { const px = (L.E % L.w) * cs, py = ((L.E / L.w) | 0) * cs;
-    ctx.fillStyle = '#12452f'; ctx.fillRect(px + 2, py + 2, cs - 4, cs - 4);
-    ctx.strokeStyle = '#41d392'; ctx.lineWidth = 2; ctx.strokeRect(px + 4, py + 4, cs - 8, cs - 8);
-    ctx.fillStyle = '#41d392'; ctx.font = `700 ${cs * .24}px system-ui`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('EXIT', px + cs / 2, py + cs / 2); }
+  /* floor */
+  for (let y = 0; y < L.h; y++) for (let x = 0; x < L.w; x++) if (!L.wall[y * L.w + x]) drawFloor(x, y);
+  /* light on the floor: tinted cells, then the cones */
+  for (let c = 0; c < L.w * L.h; c++) if (e.lit[c]) { ctx.fillStyle = `rgba(255,50,70,${.14 + .04 * pulse})`; ctx.fillRect(FX(c % L.w), FY((c / L.w) | 0), cs, cellH); }
+  e.rays.forEach(r => coneOf(r, pulse));
   /* rails */
   L.guards.forEach(g => {
-    ctx.strokeStyle = 'rgba(120,160,255,.22)'; ctx.lineWidth = cs * .12; ctx.lineCap = 'round'; ctx.setLineDash([cs * .1, cs * .16]);
-    ctx.beginPath(); g.rail.forEach((c, i) => { const px = (c % L.w + .5) * cs, py = (((c / L.w) | 0) + .5) * cs; i ? ctx.lineTo(px, py) : ctx.moveTo(px, py); }); ctx.stroke(); ctx.setLineDash([]);
+    ctx.strokeStyle = 'rgba(160,190,255,.28)'; ctx.lineWidth = Math.max(2, cs * .07); ctx.lineCap = 'round'; ctx.setLineDash([cs * .08, cs * .14]);
+    ctx.beginPath(); g.rail.forEach((c, i) => { const px = FX(c % L.w + .5), py = FY(((c / L.w) | 0) + .5); i ? ctx.lineTo(px, py) : ctx.moveTo(px, py); }); ctx.stroke(); ctx.setLineDash([]);
   });
-  /* flash on refused move */
-  if (flash > 0 && flashCell >= 0) { const px = (flashCell % L.w) * cs, py = ((flashCell / L.w) | 0) * cs; ctx.fillStyle = `rgba(255,255,255,${.5 * flash})`; ctx.fillRect(px, py, cs, cs); }
-  /* cameras */
-  L.cams.forEach((cm, k) => {
-    const cx = (cm.c % L.w + .5) * cs, cy = (((cm.c / L.w) | 0) + .5) * cs, d = dg[k];
-    ctx.fillStyle = '#2a3142'; ctx.beginPath(); ctx.arc(cx, cy, cs * .36, 0, 7); ctx.fill();
-    ctx.save(); ctx.translate(cx, cy); ctx.rotate(d * Math.PI / 2);
-    ctx.fillStyle = '#c9d2e6'; ctx.beginPath(); ctx.moveTo(0, -cs * .42); ctx.lineTo(cs * .2, -cs * .1); ctx.lineTo(-cs * .2, -cs * .1); ctx.closePath(); ctx.fill();
-    ctx.fillStyle = '#ff3b52'; ctx.beginPath(); ctx.arc(0, -cs * .02, cs * .13, 0, 7); ctx.fill(); ctx.restore();
-  });
-  /* guards */
+  /* exit */
+  { const x = L.E % L.w, y = (L.E / L.w) | 0, px = FX(x), py = FY(y);
+    ctx.fillStyle = `rgba(65,211,146,${.20 + .12 * pulse})`; ctx.fillRect(px, py, cs, cellH);
+    ctx.fillStyle = '#0f3d2a'; ctx.fillRect(px + cs * .18, py + cellH * .08, cs * .64, cellH * .84);
+    ctx.fillStyle = '#41d392'; for (let i = 0; i < 4; i++) ctx.fillRect(px + cs * .22 + i * cs * .15, py + cellH * .14, cs * .07, cellH * .72);
+    ctx.fillStyle = '#d9fff0'; ctx.font = `800 ${cs * .2}px system-ui`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('EXIT', px + cs / 2, py + cellH / 2); }
+  /* refused-move flash on the tile */
+  if (flash > 0 && flashCell >= 0) { ctx.fillStyle = `rgba(255,255,255,${.5 * flash})`; ctx.fillRect(FX(flashCell % L.w), FY((flashCell / L.w) | 0), cs, cellH); }
+  /* guards ease toward their cells */
   L.guards.forEach((g, j) => {
-    const k = nc() + j, c = g.rail[dg[k] >> 1], cx = (c % L.w + .5) * cs, cy = (((c / L.w) | 0) + .5) * cs, d = P.guardFacingDir(g, dg[k] & 1);
-    ctx.fillStyle = '#1d3a8a'; ctx.beginPath(); ctx.arc(cx, cy, cs * .34, 0, 7); ctx.fill();
-    ctx.fillStyle = '#ffd24a'; ctx.beginPath(); ctx.arc(cx, cy, cs * .14, 0, 7); ctx.fill();
-    ctx.save(); ctx.translate(cx, cy); ctx.rotate(d * Math.PI / 2); ctx.fillStyle = '#fff';
-    ctx.beginPath(); ctx.moveTo(0, -cs * .46); ctx.lineTo(cs * .13, -cs * .3); ctx.lineTo(-cs * .13, -cs * .3); ctx.closePath(); ctx.fill(); ctx.restore();
+    const c = g.rail[dg[nc() + j] >> 1], tx = c % L.w, ty = (c / L.w) | 0, q = gdraw[j] || (gdraw[j] = { x: tx, y: ty });
+    q.x += (tx - q.x) * .3; q.y += (ty - q.y) * .3; if (Math.abs(tx - q.x) < .01) q.x = tx; if (Math.abs(ty - q.y) < .01) q.y = ty;
   });
-  /* selection / hint ring */
-  if (sel >= 0) { const c = watcherCell(sel), cx = (c % L.w + .5) * cs, cy = (((c / L.w) | 0) + .5) * cs;
-    ctx.strokeStyle = hintWho === sel ? '#ffc54a' : '#ffffff'; ctx.lineWidth = 2 + pulse * 2; ctx.beginPath(); ctx.arc(cx, cy, cs * (.43 + .03 * pulse), 0, 7); ctx.stroke(); }
-  /* thief */
-  { const cx = (thief % L.w + .5) * cs, cy = (((thief / L.w) | 0) + .5) * cs;
-    ctx.fillStyle = 'rgba(0,0,0,.35)'; ctx.beginPath(); ctx.ellipse(cx, cy + cs * .28, cs * .26, cs * .09, 0, 0, 7); ctx.fill();
-    ctx.fillStyle = '#ff8a1f'; ctx.beginPath(); ctx.arc(cx, cy, cs * .27, 0, 7); ctx.fill();
-    ctx.strokeStyle = '#2b1a08'; ctx.lineWidth = cs * .07; for (const dy of [-.1, .08]) { ctx.beginPath(); ctx.moveTo(cx - cs * .24, cy + cs * dy); ctx.lineTo(cx + cs * .24, cy + cs * dy); ctx.stroke(); }
-    ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(cx - cs * .08, cy - cs * .16, cs * .035, 0, 7); ctx.arc(cx + cs * .08, cy - cs * .16, cs * .035, 0, 7); ctx.fill(); }
+  /* thief position (animated while walking) */
+  let tfx = thief % L.w, tfy = (thief / L.w) | 0, frameIdx = 0;
+  if (walking && walking.path.length) { const nx = walking.path[0], k = Math.min(1, walking.t / 110); tfx += (nx % L.w - tfx) * k; tfy += (((nx / L.w) | 0) - tfy) * k; frameIdx = 1 + (Math.floor(now / 110) % 2); }
+  const sc = cs * .047, thiefRow = Math.round(tfy);
+  const drawGuardsAt = y => L.guards.forEach((g, j) => {
+    const q = gdraw[j]; if (Math.round(q.y) !== y) return;
+    const cx = FX(q.x + .5), fy = FY(q.y) + cellH * .86, d = P.guardFacingDir(g, dg[nc() + j] & 1);
+    shadow(cx, fy, cs * .26); drawSprite(person('guard', d, 0), cx, fy, sc, d === 3);
+    if (sel === nc() + j) ringAt(cx, fy - cellH * .05, cs * (.42 + .03 * pulse), hintWho === sel ? '#ffc54a' : '#ffffff', pulse);
+  });
+  const drawThiefAt = y => {
+    if (thiefRow !== y) return;
+    const cx = FX(tfx + .5), fy = FY(tfy) + cellH * .86, bob = frameIdx ? Math.abs(Math.sin(now / 110 * Math.PI)) * cs * .06 : 0;
+    shadow(cx, fy, cs * .26); drawSprite(person('thief', thiefDir, frameIdx), cx, fy - bob, sc, thiefDir === 3);
+    if (heartsMode && e.lit[thief]) { ctx.fillStyle = '#ff3b52'; ctx.font = `900 ${cs * .38}px system-ui`; ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic'; ctx.fillText('!', cx, fy - cs * 1.18 - bob); }
+  };
+  /* walls, cameras and characters, back to front */
+  for (let y = 0; y < L.h; y++) {
+    for (let x = 0; x < L.w; x++) if (L.wall[y * L.w + x]) {
+      drawWall(x, y);
+      const k = L.cams.findIndex(q => q.c === y * L.w + x);
+      if (k >= 0) { const d = dg[k], cx = FX(x + .5), cy = FY(y) - wallH + cellH * .72;
+        drawSprite(camSprite(d === 3 ? 1 : d), cx, cy, cs * .05, d === 3);
+        if (sel === k) ringAt(cx, cy - cs * .12, cs * (.4 + .03 * pulse), hintWho === sel ? '#ffc54a' : '#ffffff', pulse); }
+    }
+    drawGuardsAt(y); drawThiefAt(y);
+  }
   ctx.restore();
 }
 load(0); requestAnimationFrame(frame);

@@ -199,6 +199,7 @@ const CHAPTERS = [
   { en: 'Kennel I', fa: 'لانهٔ سگ ۱', size: 10 }, { en: 'Kennel II', fa: 'لانهٔ سگ ۲', size: 10 },
   { en: 'Night Shift I', fa: 'شیفت شب ۱', size: 10 }, { en: 'Night Shift II', fa: 'شیفت شب ۲', size: 10 },
   { en: 'Fuse Box I', fa: 'تابلو برق ۱', size: 10 }, { en: 'Fuse Box II', fa: 'تابلو برق ۲', size: 10 },
+  { en: 'Glass House I', fa: 'خانهٔ شیشه‌ای ۱', size: 10 }, { en: 'Glass House II', fa: 'خانهٔ شیشه‌ای ۲', size: 10 },
 ];
 const chapStart = CHAPTERS.map((_, i) => CHAPTERS.slice(0, i).reduce((n, c) => n + c.size, 0));
 const chapterOf = i => { let ci = 0; while (ci + 1 < CHAPTERS.length && i >= chapStart[ci + 1]) ci++; return ci; };    // level index -> chapter index
@@ -215,7 +216,7 @@ const T = {
     tag: 'Move the darkness. Slip the prisoner past cameras and guards.', foot: 'Playtest build',
     play: 'Play', cont: lv => 'Continue · Level ' + lv, levels: 'Levels', how: 'How to play', settings: 'Settings', close: 'Close', back: 'Back',
     dogTip: 'Dog selected: tap a tile of its rail to send it there, tap the prisoner to let go.', doorBlocked: 'The dog is standing in the doorway.',
-    guardTip: 'Guard selected: tap it again to turn, tap a rail tile to send it, tap the prisoner to let go.', gotIt: 'Got it', itemsL: 'Items', itemNames: { cam: 'Camera', guard: 'Guard', door: 'Door', mirror: 'Mirror', dog: 'Dog', light: 'Searchlight', panel: 'Power panel' },
+    guardTip: 'Guard selected: tap it again to turn, tap a rail tile to send it, tap the prisoner to let go.', gotIt: 'Got it', itemsL: 'Items', itemNames: { cam: 'Camera', guard: 'Guard', door: 'Door', mirror: 'Mirror', dog: 'Dog', light: 'Searchlight', panel: 'Power panel', glass: 'Glass wall' },
     intro: {
       cam: { title: 'New: Camera', list: ['A camera throws red light along a line. The prisoner can never stand in it.', 'Tap a camera to turn it a quarter turn clockwise.', 'Walking is free. Only your taps on cameras count.'] },
       guard: { title: 'New: Guard', list: ['A guard walks back and forth on its rail and sees 3 tiles ahead. Behind it is a blind spot.', 'Tap it to select it, tap again to turn it round, or tap a tile of its rail to send it there.', 'Every step is one action.'] },
@@ -224,13 +225,14 @@ const T = {
       dog: { title: 'New: Guard dog', list: ['A dog smells every tile it can walk to. The prisoner can never stand on a smelly tile.', 'Tap the dog, then a tile of its rail to send it there. Every step is one action.', 'A closed door stops the smell. Shut the dog into another room!', 'A door cannot be closed while the dog stands in it.'] },
       light: { title: 'New: Searchlight', list: ['A searchlight throws red light like a camera, but you cannot turn it. After EVERY action you take, it swings a quarter turn clockwise by itself.', 'Tap the searchlight to wait: an action that changes nothing else, so only the lights swing.', 'The dashed outline shows where the light will point after your next action.', 'An action is refused if the swing would light the prisoner.'] },
       panel: { title: 'New: Power panel', list: ['A power panel is wired to two or three cameras, doors or mirrors. The coloured wires show which.', 'Wired things have no controls of their own. Tap the panel and ALL of them change at once: cameras turn a quarter turn, doors and mirrors switch.', 'One action, several changes. Look for the order that leaves the prisoner in the dark.'] },
+      glass: { title: 'New: Glass wall', list: ['Light shines straight through glass, so a camera can light a room it is not even in.', 'Nobody can walk through glass, and a dog cannot smell through it either.', 'You cannot change glass. Use doors, guards and turns of the cameras to keep the beam off the prisoner.'] },
       all: { title: 'Everything together', list: ['Cameras, guards, doors and mirrors work as you know them.', 'Some levels need several rounds: move the prisoner on, then change the room again.'] },
     },
     pause: 'Paused', resume: 'Resume', restart: 'Restart level', mainMenu: 'Main menu',
     level: 'Level', moves: 'Actions', best: 'Best', undo: 'Undo', hint: 'Hint', hintAd: 'Hint · Ad', toExit: 'Escape', turn: 'Turn', flip: 'Switch',
     pick: 'Tap a dark tile to walk. Tap a camera to turn it clockwise.',
     refused: 'Not allowed: that would expose the prisoner. Move him somewhere dark first.', unreach: 'The prisoner cannot get there from here.',
-    pathClear: 'The way is clear. Send the prisoner to the exit.', hintWho: 'Try: ', hintCam: 'turn this camera', hintGuard: 'move this guard', hintDoor: 'use this door', hintMirror: 'flip this mirror', hintDog: 'move this dog', hintLight: 'wait: tap the searchlight', hintPanel: 'use this power panel', wiredTip: 'This one is wired to a power panel. Tap the panel instead.', wait: 'Wait',
+    pathClear: 'The way is clear. Send the prisoner to the exit.', hintWho: 'Try: ', hintCam: 'turn this camera', hintGuard: 'move this guard', hintDoor: 'use this door', hintMirror: 'flip this mirror', hintDog: 'move this dog', hintLight: 'wait: tap the searchlight', hintPanel: 'use this power panel', glassTip: 'Glass: you can see through it, but you cannot walk through it.', wiredTip: 'This one is wired to a power panel. Tap the panel instead.', wait: 'Wait',
     escaped: 'Escaped!', winText: (m, p, l) => `${m} actions · best ${p}` + (l ? ` · ${l} heart(s) lost` : ''), retry: 'Retry', next: 'Next level', done: 'All levels cleared!',
     seen: 'Spotted! You lost a heart.', caught: 'Caught!', caughtText: 'You ran out of hearts.', revive: 'Ad: continue with 1 heart',
     locked: (n, h) => `Locked: needs ${n} stars (you have ${h})`, gate: (n, h) => `The next block needs ${n} stars. You have ${h}.`,
@@ -240,7 +242,7 @@ const T = {
     on: 'On', off: 'Off', setTitle: 'Settings', howTitle: 'How to play',
     howList: [
       'Tap a dark tile to walk the prisoner there. Walking is free.',
-      'Only your actions count: tap a camera to turn it clockwise (three taps turn it left). Tap a guard to select it, tap it again to turn it round, or tap a tile of its rail to send it there (each step is one action). Tap a door or a mirror to switch it. Tap a dog, then a tile of its rail, to send it there. Searchlights swing a quarter turn after every action; tap one to wait. A power panel changes everything wired to it at once; wired things cannot be tapped themselves.',
+      'Only your actions count: tap a camera to turn it clockwise (three taps turn it left). Tap a guard to select it, tap it again to turn it round, or tap a tile of its rail to send it there (each step is one action). Tap a door or a mirror to switch it. Tap a dog, then a tile of its rail, to send it there. Searchlights swing a quarter turn after every action; tap one to wait. A power panel changes everything wired to it at once; wired things cannot be tapped themselves. Light passes through glass walls, people and smells do not.',
       'The prisoner must never stand in red light. An action that would light him is refused, so move him to a dark tile first.',
       'Walls, guards and closed doors stop sight. Mirrors bend a sight line by 90 degrees. A dog smells every tile it can walk to (green): trap it behind a closed door.',
       'Reach the green exit with as few actions as the best solution to earn three stars. Stars open the next block.',
@@ -255,6 +257,8 @@ const T = {
       66: 'New: mirrors. Tap a mirror to flip it. Light that hits it bends by 90 degrees.',
       86: 'Everything together. Take your time.',
       106: 'New: the guard dog. The prisoner may not stand where the dog can smell him. Shut the dog into another room with a door.',
+      166: 'New: glass walls. Light goes straight through them, the prisoner cannot. Find out which camera now sees into which room.',
+      167: 'A glass wall stops a dog\'s smell and the prisoner, but not a beam. A closed door stops all three.',
       146: 'New: the power panel. Wired cameras, doors and mirrors only change through it, all at once. Follow the coloured wires.',
       147: 'A panel turns every camera it is wired to by a quarter turn, so a camera that needs three turns takes three taps, and its door flips each time.',
       126: 'New: the searchlight. It swings a quarter turn clockwise after every action you take. Tap it to wait. The dashed outline shows where it will point next.',
@@ -266,7 +270,7 @@ const T = {
     tag: 'تاریکی را جابه‌جا کن و زندانی را از کنار دوربین‌ها و نگهبان‌ها رد کن.', foot: 'نسخهٔ آزمایشی',
     play: 'شروع بازی', cont: lv => 'ادامه · مرحلهٔ ' + lv, levels: 'مرحله‌ها', how: 'راهنمای بازی', settings: 'تنظیمات', close: 'بستن', back: 'بازگشت',
     dogTip: 'سگ انتخاب شد: خانهٔ ریلش را لمس کن تا برود، زندانی را لمس کن تا رها شود.', doorBlocked: 'سگ توی چارچوب در ایستاده است.',
-    guardTip: 'نگهبان انتخاب شد: دوباره لمسش کن تا برگردد، خانهٔ ریل را لمس کن تا برود، زندانی را لمس کن تا رها شود.', gotIt: 'فهمیدم', itemsL: 'آیتم‌ها', itemNames: { cam: 'دوربین', guard: 'نگهبان', door: 'در', mirror: 'آینه', dog: 'سگ', light: 'نورافکن', panel: 'تابلو برق' },
+    guardTip: 'نگهبان انتخاب شد: دوباره لمسش کن تا برگردد، خانهٔ ریل را لمس کن تا برود، زندانی را لمس کن تا رها شود.', gotIt: 'فهمیدم', itemsL: 'آیتم‌ها', itemNames: { cam: 'دوربین', guard: 'نگهبان', door: 'در', mirror: 'آینه', dog: 'سگ', light: 'نورافکن', panel: 'تابلو برق', glass: 'دیوار شیشه‌ای' },
     intro: {
       cam: { title: 'تازه: دوربین', list: ['دوربین روی یک خط نور قرمز می‌اندازد. زندانی هرگز نباید در آن بایستد.', 'دوربین را لمس کن تا یک‌چهارم دور ساعتگرد بچرخد.', 'راه رفتن رایگان است. فقط لمس‌هایت روی دوربین‌ها شمرده می‌شود.'] },
       guard: { title: 'تازه: نگهبان', list: ['نگهبان روی ریلش جلو و عقب می‌رود و ۳ خانه جلویش را می‌بیند. پشتش نقطهٔ کور است.', 'لمسش کن تا انتخاب شود، دوباره لمس کن تا برگردد، یا یک خانهٔ ریلش را لمس کن تا به آنجا برود.', 'هر قدم یک عمل است.'] },
@@ -275,13 +279,14 @@ const T = {
       dog: { title: 'تازه: سگ نگهبان', list: ['سگ هر خانه‌ای را که بتواند به آن برسد بو می‌کند. زندانی هرگز نباید روی خانهٔ بودار بایستد.', 'سگ را لمس کن، بعد یک خانهٔ ریلش را لمس کن تا به آنجا برود. هر قدم یک عمل است.', 'در بسته بو را می‌بندد. سگ را پشت یک در در اتاق دیگر گیر بینداز!', 'تا سگ در چارچوب در ایستاده، نمی‌شود آن در را بست.'] },
       light: { title: 'تازه: نورافکن', list: ['نورافکن مثل دوربین نور قرمز می‌اندازد، ولی تو نمی‌توانی آن را بچرخانی. بعد از هر عملی که انجام بدهی، خودش یک‌چهارم دور ساعتگرد می‌چرخد.', 'نورافکن را لمس کن تا صبر کنی: عملی که چیز دیگری را عوض نمی‌کند و فقط نورافکن‌ها می‌چرخند.', 'خط‌چین نشان می‌دهد بعد از عمل بعدی‌ات نور به کجا می‌افتد.', 'اگر چرخش نور زندانی را روشن کند، آن عمل رد می‌شود.'] },
       panel: { title: 'تازه: تابلو برق', list: ['تابلو برق به دو یا سه دوربین، در یا آینه سیم‌کشی شده است. سیم‌های رنگی نشان می‌دهند به کدام‌ها.', 'چیزهای سیم‌کشی‌شده کنترل جداگانه ندارند. تابلو را لمس کن تا همه‌شان با هم عوض شوند: دوربین‌ها یک‌چهارم می‌چرخند، در و آینه عوض می‌شوند.', 'یک عمل، چند تغییر. ترتیبی پیدا کن که زندانی در تاریکی بماند.'] },
+      glass: { title: 'تازه: دیوار شیشه‌ای', list: ['نور از شیشه مستقیم رد می‌شود، پس دوربین می‌تواند اتاقی را که در آن نیست هم روشن کند.', 'هیچ‌کس نمی‌تواند از شیشه رد شود و بوی سگ هم رد نمی‌شود.', 'شیشه را نمی‌شود تغییر داد. با در، نگهبان و چرخاندن دوربین‌ها نور را از زندانی دور نگه دار.'] },
       all: { title: 'همه با هم', list: ['دوربین، نگهبان، در و آینه همان‌طور که می‌شناسی کار می‌کنند.', 'بعضی مرحله‌ها چند دور می‌خواهند: زندانی را جلو ببر، بعد اتاق را دوباره عوض کن.'] },
     },
     pause: 'توقف', resume: 'ادامه', restart: 'شروع دوبارهٔ مرحله', mainMenu: 'منوی اصلی',
     level: 'مرحله', moves: 'عمل', best: 'بهترین', undo: 'برگشت', hint: 'راهنما', hintAd: 'راهنما · تبلیغ', toExit: 'فرار', turn: 'چرخش', flip: 'تغییر',
     pick: 'یک خانهٔ تاریک را لمس کن تا دزد برود. یک دوربین را لمس کن تا ساعتگرد بچرخد.',
     refused: 'ممنوع! با این کار زندانی دیده می‌شود. اول او را به یک خانهٔ تاریک ببر.', unreach: 'زندانی از اینجا نمی‌تواند به آن خانه برود.',
-    pathClear: 'راه باز است. زندانی را به خروج ببر.', hintWho: 'پیشنهاد: ', hintCam: 'این دوربین را بچرخان', hintGuard: 'این نگهبان را جابه‌جا کن', hintDoor: 'این در را باز/بسته کن', hintMirror: 'این آینه را بچرخان', hintDog: 'این سگ را جابه‌جا کن', hintLight: 'صبر کن: نورافکن را لمس کن', hintPanel: 'این تابلو برق را بزن', wiredTip: 'این یکی به تابلو برق وصل است. به‌جایش تابلو را لمس کن.', wait: 'صبر',
+    pathClear: 'راه باز است. زندانی را به خروج ببر.', hintWho: 'پیشنهاد: ', hintCam: 'این دوربین را بچرخان', hintGuard: 'این نگهبان را جابه‌جا کن', hintDoor: 'این در را باز/بسته کن', hintMirror: 'این آینه را بچرخان', hintDog: 'این سگ را جابه‌جا کن', hintLight: 'صبر کن: نورافکن را لمس کن', hintPanel: 'این تابلو برق را بزن', glassTip: 'شیشه: از آن می‌شود دید، ولی نمی‌شود رد شد.', wiredTip: 'این یکی به تابلو برق وصل است. به‌جایش تابلو را لمس کن.', wait: 'صبر',
     escaped: 'فرار کرد!', winText: (m, p, l) => `${m} عمل · بهترین ${p}` + (l ? ` · ${l} جان از دست رفت` : ''), retry: 'دوباره', next: 'مرحلهٔ بعد', done: 'همهٔ مرحله‌ها تمام شد!',
     seen: 'دیده شدی! یک جان کم شد.', caught: 'گرفتار شد!', caughtText: 'جان‌هایت تمام شد.', revive: 'تبلیغ و ادامه با ۱ جان',
     locked: (n, h) => `قفل: ${n} ستاره لازم است (داری ${h})`, gate: (n, h) => `برای بخش بعد ${n} ستاره لازم است. تا الان ${h} داری.`,
@@ -291,7 +296,7 @@ const T = {
     on: 'روشن', off: 'خاموش', setTitle: 'تنظیمات', howTitle: 'راهنمای بازی',
     howList: [
       'یک خانهٔ تاریک را لمس کن تا زندانی به آنجا برود. راه رفتن رایگان است.',
-      'فقط عمل‌های تو شمرده می‌شوند: دوربین را لمس کن تا ساعتگرد بچرخد (برای چرخش به چپ سه بار). نگهبان را لمس کن تا انتخاب شود، دوباره لمسش کن تا برگردد، یا یک خانهٔ ریلش را لمس کن تا به آنجا برود (هر قدم یک عمل). در یا آینه را لمس کن تا عوض شود. سگ را لمس کن و بعد یک خانهٔ ریلش را لمس کن تا برود. نورافکن بعد از هر عمل یک‌چهارم می‌چرخد؛ لمسش کن تا صبر کنی. تابلو برق همهٔ چیزهای وصل‌شده به خودش را با هم عوض می‌کند؛ خودِ آن‌ها را نمی‌شود لمس کرد.',
+      'فقط عمل‌های تو شمرده می‌شوند: دوربین را لمس کن تا ساعتگرد بچرخد (برای چرخش به چپ سه بار). نگهبان را لمس کن تا انتخاب شود، دوباره لمسش کن تا برگردد، یا یک خانهٔ ریلش را لمس کن تا به آنجا برود (هر قدم یک عمل). در یا آینه را لمس کن تا عوض شود. سگ را لمس کن و بعد یک خانهٔ ریلش را لمس کن تا برود. نورافکن بعد از هر عمل یک‌چهارم می‌چرخد؛ لمسش کن تا صبر کنی. تابلو برق همهٔ چیزهای وصل‌شده به خودش را با هم عوض می‌کند؛ خودِ آن‌ها را نمی‌شود لمس کرد. نور از دیوار شیشه‌ای رد می‌شود، آدم و بو نه.',
       'زندانی هرگز نباید در نور قرمز بایستد. عملی که او را روشن کند ممنوع است؛ اول او را به خانهٔ تاریک ببر.',
       'دیوار، نگهبان و در بسته دید را می‌برند. آینه خط دید را ۹۰ درجه می‌شکند. سگ هر خانه‌ای را که بتواند به آن برسد بو می‌کند (سبز): او را پشت یک در بسته گیر بینداز.',
       'با کمترین تعداد عمل به خروج سبز برس تا سه ستاره بگیری. ستاره‌ها بخش بعد را باز می‌کنند.',
@@ -306,6 +311,8 @@ const T = {
       66: 'تازه: آینه. آینه را لمس کن تا بچرخد. نوری که به آن بخورد ۹۰ درجه می‌شکند.',
       86: 'همه‌چیز با هم. با حوصله.',
       106: 'تازه: سگ نگهبان. زندانی نباید جایی بایستد که سگ بتواند او را بو کند. سگ را با یک در در اتاق دیگری حبس کن.',
+      166: 'تازه: دیوار شیشه‌ای. نور مستقیم از آن رد می‌شود ولی زندانی نه. ببین حالا کدام دوربین به کدام اتاق می‌بیند.',
+      167: 'دیوار شیشه‌ای جلوی بوی سگ و زندانی را می‌گیرد ولی پرتو را نه. در بسته هر سه را می‌گیرد.',
       146: 'تازه: تابلو برق. دوربین، در و آینهٔ سیم‌کشی‌شده فقط با تابلو و همه با هم عوض می‌شوند. سیم‌های رنگی را دنبال کن.',
       147: 'تابلو هر دوربین وصل‌شده را یک‌چهارم می‌چرخاند؛ پس دوربینی که سه چرخش می‌خواهد سه لمس می‌خواهد و درِ وصل هر بار عوض می‌شود.',
       126: 'تازه: نورافکن. بعد از هر عملی که می‌کنی یک‌چهارم ساعتگرد می‌چرخد. لمسش کن تا صبر کنی. خط‌چین نشان می‌دهد بعدش کجا می‌افتد.',
@@ -476,7 +483,7 @@ const Music = (() => {
 
 /* ---------------------------------------------------- item introductions */
 /* A card with a small looping demonstration appears the first time a level introduces a new item (and can be replayed from How to play). */
-const INTROS = { 1: 'cam', 16: 'guard', 46: 'door', 66: 'mirror', 86: 'all', 106: 'dog', 126: 'light', 146: 'panel' };
+const INTROS = { 1: 'cam', 16: 'guard', 46: 'door', 66: 'mirror', 86: 'all', 106: 'dog', 126: 'light', 146: 'panel', 166: 'glass' };
 let introSeen = store.get('pb_intro', {}), introKind = null, introMark = false;
 function showIntro(kind, mark) {
   introKind = kind; introMark = mark; const t = tr().intro[kind];
@@ -519,6 +526,18 @@ function drawIntro(now) {
     spr(w.img, w.x, w.y, false);
     spr(person('guard', 1, 0), 12, 45, face === 3);
     if (t > 1.8 && t < 2.8) { ix.strokeStyle = `rgba(255,255,255,${.4 + .6 * Math.abs(Math.sin(t * 8))})`; ix.lineWidth = 2; ix.strokeRect(3, 21, 18, 26); }
+  } else if (introKind === 'glass') {
+    // the camera's beam goes straight through the pane and lights the exit side; the prisoner walks up to the pane and stops
+    wall(48, 0, 24, 24); wall(48, 48, 24, 24);
+    for (let c = 1; c < 5; c++) if (c !== 2) lit(c, 1);
+    R('rgba(255,59,82,.5)', 14, 33, 106, 6);
+    R('rgba(150,210,255,.35)', 48, 24, 24, 24); ix.strokeStyle = 'rgba(225,245,255,.9)'; ix.lineWidth = 2; ix.strokeRect(49, 25, 22, 22);
+    ix.strokeStyle = 'rgba(255,255,255,.7)'; ix.lineWidth = 3; ix.beginPath(); ix.moveTo(54, 42); ix.lineTo(60, 30); ix.stroke();
+    exit(4, 1); spr(camSprite(1), 10, 42, false);
+    const tt = t % 8, p = Math.min(1, Math.max(0, tt - 1) / 2.5), tx = 100 - p * 22;
+    spr(person('thief', 1, p > 0 && p < 1 ? 1 + (Math.floor(t * 6) % 2) : 0), tx, 45, p > 0);
+    if (tt > 1) bang(tx, 14);
+    if (p >= 1 && tt < 5.5) ring(72, 36, (tt - 3.5) / 2);
   } else if (introKind === 'panel') {
     // the panel in the corner is wired to the camera and the door: one tap turns the camera away and opens the door
     const done = t >= 2.4, col = '#5ad1ff';
@@ -807,6 +826,7 @@ function onTap(px, py) {
     buildBar(); return;
   }
   if (sel >= nCam() && (sel < nCam() + nGuard() || (sel >= dogBase() && sel < lightBase())) && walkerRail(sel).rail.includes(h.cell)) { guardGoTo(sel, h.cell); return; }
+  if (L.glass[h.cell]) { setTip(tr().glassTip, 'warn'); flashCell = h.cell; flash = 1; Sfx.play('refuse'); return; }
   if (!L.wall[h.cell]) walkTo(h.cell);
 }
 cv.addEventListener('pointerdown', e0 => {
@@ -832,7 +852,7 @@ function applyLang() {
   set('winRetry', t.retry); set('winLevels', t.levels); set('lvTitle', t.levels); set('lvClose', t.close); set('howTitle', t.howTitle); set('howClose', t.close);
   set('setTitle', t.setTitle); set('setClose', t.close); set('sLangL', t.sLang); set('sSfxL', t.sSfx); set('sVolL', t.sVol); set('sMusL', t.sMus); set('sMusVolL', t.sMusVol); set('sVibL', t.sVib);
   set('sHeartsL', t.sHearts); set('sHeartsS', t.sHeartsS); set('sMotionL', t.sMotion); set('sMotionS', t.sMotionS); set('sUnlockL', t.sUnlock); set('sUnlockS', t.sUnlockS);
-  set('howItemsL', t.itemsL); $('howItems').innerHTML = ''; ['cam', 'guard', 'door', 'mirror', 'dog', 'light', 'panel'].forEach(k => { const b = document.createElement('button'); b.textContent = t.itemNames[k]; b.onclick = () => showIntro(k, false); $('howItems').appendChild(b); });
+  set('howItemsL', t.itemsL); $('howItems').innerHTML = ''; ['cam', 'guard', 'door', 'mirror', 'dog', 'light', 'panel', 'glass'].forEach(k => { const b = document.createElement('button'); b.textContent = t.itemNames[k]; b.onclick = () => showIntro(k, false); $('howItems').appendChild(b); });
   set('introOk', t.gotIt);
   set('adTitle', t.adTitle); set('adText', t.adText); set('adCancel', t.adCancel); set('adClaim', t.adClaim);
   $('howList').innerHTML = t.howList.map(s => `<li>${s}</li>`).join('');
@@ -1103,6 +1123,15 @@ function block(x, y, topC, frontC, lineC, brick) {
   ctx.fillStyle = 'rgba(0,0,0,.18)'; ctx.fillRect(px, py + cellH - 1, cs, 1);
   ctx.fillStyle = 'rgba(0,0,0,.28)'; ctx.fillRect(px, py + cellH + wallH - 2, cs, 2);
 }
+function drawGlass(x, y, pulse) {                       // a pane: pale blue, see-through, with glints
+  const px = FX(x), py = FY(y) - wallH;
+  ctx.fillStyle = 'rgba(150,210,255,.30)'; ctx.fillRect(px, py + cellH, cs, wallH);
+  ctx.fillStyle = 'rgba(190,235,255,.24)'; ctx.fillRect(px, py, cs, cellH);
+  ctx.strokeStyle = 'rgba(225,245,255,.85)'; ctx.lineWidth = Math.max(1.5, cs * .04); ctx.strokeRect(px + .5, py + .5, cs - 1, cellH + wallH - 1);
+  ctx.beginPath(); ctx.moveTo(px, py + cellH); ctx.lineTo(px + cs, py + cellH); ctx.stroke();
+  ctx.strokeStyle = 'rgba(255,255,255,.55)'; ctx.lineWidth = Math.max(2, cs * .06); ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(px + cs * .22, py + cellH * .78); ctx.lineTo(px + cs * .42, py + cellH * .3); ctx.moveTo(px + cs * .55, py + cellH * .8); ctx.lineTo(px + cs * .66, py + cellH * .52); ctx.stroke();
+}
 function drawWall(x, y) { const brick = hash(x, y, 5) < .38; block(x, y, brick ? '#b4604a' : '#a3adbd', brick ? '#8a4332' : '#6c7587', brick ? '#5e2a1f' : '#4c5466', brick); }
 function blockGlow(x, y, k, pulse) {
   if (sel !== k) return;
@@ -1315,6 +1344,8 @@ function draw(now) {
           const lens = d === 1 ? 4.5 : d === 3 ? -4.5 : 0, ly = cy - cs * .3;
           cameraBeam(camOf.get(k), cx + lens * cs * .05, ly, pulse);
           const nr = nextRays.get(k); if (nr) ghostBeam(nr, cx + (nr.d === 1 ? 4.5 : nr.d === 3 ? -4.5 : 0) * cs * .05, ly); }
+      } else if (L.glass[c]) {
+        drawGlass(x, y, pulse);
       } else if (togAt.has(c)) {
         const k = togAt.get(c), t = L.toggles[k - nCam() - nGuard()];
         if (t.kind === 'mirror') { drawMirror(x, y, dg[k], k, pulse); blockGlow(x, y, k, pulse); }

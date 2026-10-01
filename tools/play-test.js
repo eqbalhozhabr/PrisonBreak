@@ -9,7 +9,7 @@ const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
   const pg = await b.newPage({ viewport: { width: 390, height: 800 }, deviceScaleFactor: 2, hasTouch: false });
   const errs = []; pg.on('pageerror', e => errs.push(String(e.stack || e).split('\n').slice(0, 4).join(' | '))); pg.on('console', m => m.type() === 'error' && errs.push(m.text()));
   await pg.goto(url); await pg.waitForTimeout(300);
-  await pg.evaluate(() => { settings.unlockAll = true; settings.hearts = false; settings.sfx = false; settings.music = false; settings.vibrate = false; introSeen = { cam: 1, guard: 1, door: 1, mirror: 1, all: 1, dog: 1, light: 1, panel: 1 }; });
+  await pg.evaluate(() => { settings.unlockAll = true; settings.hearts = false; settings.sfx = false; settings.music = false; settings.vibrate = false; introSeen = { cam: 1, guard: 1, door: 1, mirror: 1, all: 1, dog: 1, light: 1, panel: 1, glass: 1 }; });
   const n = await pg.evaluate(() => LEVELS.length);
   let idx = [];
   if (which === 'all') idx = [...Array(n).keys()];
@@ -136,11 +136,11 @@ const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
   // item introductions: shown once at the level that brings the item, not again after "Got it"
   const intro = await pg.evaluate(() => {
     introSeen = {}; const out = [];
-    for (const idx of [0, 15, 45, 65, 85, 105, 125, 145]) { load(idx); out.push([LEVELS[idx].id, introKind, document.getElementById('introOv').classList.contains('on')]); closeIntro(); }
+    for (const idx of [0, 15, 45, 65, 85, 105, 125, 145, 165]) { load(idx); out.push([LEVELS[idx].id, introKind, document.getElementById('introOv').classList.contains('on')]); closeIntro(); }
     load(15); out.push(['again', introKind]);
-    introSeen = { cam: 1, guard: 1, door: 1, mirror: 1, all: 1, dog: 1, light: 1, panel: 1 }; return out;
+    introSeen = { cam: 1, guard: 1, door: 1, mirror: 1, all: 1, dog: 1, light: 1, panel: 1, glass: 1 }; return out;
   });
-  const introOk = JSON.stringify(intro) === JSON.stringify([[1, 'cam', true], [16, 'guard', true], [46, 'door', true], [66, 'mirror', true], [86, 'all', true], [106, 'dog', true], [126, 'light', true], [146, 'panel', true], ['again', null]]);
+  const introOk = JSON.stringify(intro) === JSON.stringify([[1, 'cam', true], [16, 'guard', true], [46, 'door', true], [66, 'mirror', true], [86, 'all', true], [106, 'dog', true], [126, 'light', true], [146, 'panel', true], [166, 'glass', true], ['again', null]]);
   console.log('introductions:', JSON.stringify(intro), introOk ? 'OK' : 'FAIL'); ok = ok && introOk;
   // dogs: tap selects (no turning), tapping a rail tile walks the dog one action per step, a door cannot close on a dog in the doorway, scent is drawn
   const dg1 = await pg.evaluate(async () => {
@@ -184,6 +184,19 @@ const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
   });
   const ptOk = (pt.moves === 0 || (pt.moves === 1 && pt.allChanged === true)) && pt.wiredTapMoves === 0 && pt.wiredSelectsPanel;
   console.log('panel: one tap changes all wired things, wired things are not tappable:', JSON.stringify(pt), ptOk ? 'OK' : 'FAIL'); ok = ok && !!ptOk;
+  // glass: nobody walks through it (the path search and a tap both refuse) while light does pass
+  const gl = await pg.evaluate(() => {
+    const li = LEVELS.findIndex(l => l.map.some(r => r.includes('G'))); load(li);
+    const c = L.glass.findIndex(v => v), out = { level: li + 1, pane: c >= 0, notWall: !L.wall[c] };
+    const e = ev(); out.blocksBody = !!e.occ[c];
+    const before = thief; walkTo(c); out.stayed = thief === before && !walking;
+    const p = cellPoint(c); onTap(p[0] - cv.getBoundingClientRect().left - ox, p[1] - cv.getBoundingClientRect().top - oy); out.tapRefused = !walking && thief === before;
+    // a beam must reach a cell behind a pane: find a lit cell whose straight neighbour on the far side of a pane is lit
+    out.lightThrough = e.lit[c] === 1 || [...Array(L.w * L.h).keys()].some(i => e.lit[i] && L.glass[i]);
+    return out;
+  });
+  const glOk = gl.pane && gl.notWall && gl.blocksBody && gl.stayed && gl.tapRefused;
+  console.log('glass: blocks walking, light passes:', JSON.stringify(gl), glOk ? 'OK' : 'FAIL'); ok = ok && !!glOk;
   // hearts mode: crossing a beam costs a heart and the run still ends at the exit
   const hm = await pg.evaluate(async () => {
     settings.hearts = true;

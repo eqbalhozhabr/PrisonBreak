@@ -3,8 +3,8 @@
  * Rules
  *  - Grid with walls. The thief starts on S and must reach E.
  *  - Cameras sit in wall cells and face N/E/S/W. One action turns a camera 90 degrees either way.
- *  - Guards stand on a straight rail of floor cells. One action steps a guard along its rail (it keeps
- *    facing the way it faced) or flips it around. A guard sees `range` cells ahead.
+ *  - Guards stand on a straight rail of floor cells. One action steps a guard one cell along its rail (it turns
+ *    to face the way it walks) or flips it around. A guard sees `range` cells ahead.
  *  - Doors (floor cells) open or close with one action. A closed door blocks movement and sight.
  *  - Mirrors (floor cells, pillars) flip between "/" and "\" with one action and bend any sight line
  *    that reaches them by 90 degrees.
@@ -14,7 +14,8 @@
  *    before each action).
  *  - Par = the fewest actions, by exact search.
  *
- * Cameras only turn clockwise (a 270 degree turn costs 3). Every other action can be undone by one action.
+ * Cameras only turn clockwise (a 270 degree turn costs 3). Doors, mirrors and guard turns undo themselves in one action;
+ * a guard step is undone by the opposite step.
  * The generator searches backwards from "the exit is reachable" over the whole state graph, which gives the
  * par of every possible starting state at once.
  */
@@ -114,10 +115,10 @@ function actions(L, dg) {
   L.guards.forEach((g, j) => {
     const k = nc + j, v = dg[k], i = v >> 1, f = v & 1;
     const taken = ni => L.guards.some((o, q) => q !== j && o.rail[dg[nc + q] >> 1] === g.rail[ni]);
-    for (const s of [1, -1]) {
+    for (const s of [1, -1]) {                       // a step also turns the guard to face the way it walks
       const ni = i + s;
       if (ni < 0 || ni >= g.rail.length || taken(ni)) continue;
-      const d2 = dg.slice(); d2[k] = ni * 2 + f; out.push([d2, k]);
+      const d2 = dg.slice(); d2[k] = ni * 2 + (s === 1 ? 0 : 1); out.push([d2, k]);
     }
     const d2 = dg.slice(); d2[k] = i * 2 + (1 - f); out.push([d2, k]);
   });

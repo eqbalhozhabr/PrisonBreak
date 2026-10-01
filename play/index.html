@@ -39,12 +39,12 @@
   .hud .stat b { font-family:var(--tf); font-size:15px; line-height:1.5; }
   #heartsWrap { flex-basis:100%; display:flex; justify-content:flex-end; padding-top:2px; }
   #hearts { display:inline-flex; gap:4px; direction:ltr; }
-  #tip { font-size:13px; color:var(--mute); min-height:38px; padding:2px 6px 6px; line-height:1.5; }
+  #tip { font-size:13px; color:var(--mute); height:70px; overflow:hidden; padding:2px 6px 6px; line-height:1.5; }
   #tip.warn { color:var(--red-hi); } #tip.good { color:var(--ok); }
   #stage { flex:1; min-height:0; position:relative; margin:3px 3px 6px; }
   canvas#cv { position:absolute; inset:0; width:100%; height:100%; touch-action:none; background:#0a0d13; box-shadow:0 -3px 0 0 var(--edge), 0 3px 0 0 var(--edge), -3px 0 0 0 var(--edge), 3px 0 0 0 var(--edge); }
+  #ctx { display:flex; gap:8px; justify-content:center; align-items:center; height:60px; direction:ltr; flex:none; }
   #bar { display:flex; flex-wrap:wrap; gap:8px; justify-content:center; padding:8px 0 14px; direction:ltr; }
-  #bar .sep { width:3px; background:var(--edge); margin:4px 4px; }
   #bar button { min-width:50px; }
   /* panels and overlays */
   .overlay { position:fixed; inset:0; background:rgba(5,7,12,.88); display:none; align-items:center; justify-content:center; padding:20px; z-index:10; }
@@ -98,6 +98,7 @@
   </header>
   <div id="tip"></div>
   <div id="stage"><canvas id="cv"></canvas></div>
+  <div id="ctx"></div>
   <div id="bar"></div>
 </div>
 
@@ -146,6 +147,8 @@
   <div class="set"><div><label id="sLangL"></label></div><div class="seg"><button id="langEn">English</button><button id="langFa">فارسی</button></div></div>
   <div class="set"><div><label id="sSfxL"></label></div><button class="tog" id="sSfx"></button></div>
   <div class="set"><div><label id="sVolL"></label></div><input type="range" id="sVol" min="0" max="100" step="5"></div>
+  <div class="set"><div><label id="sMusL"></label></div><button class="tog" id="sMus"></button></div>
+  <div class="set"><div><label id="sMusVolL"></label></div><input type="range" id="sMusVol" min="0" max="100" step="5"></div>
   <div class="set"><div><label id="sVibL"></label></div><button class="tog" id="sVib"></button></div>
   <div class="set"><div><label id="sHeartsL"></label><small id="sHeartsS"></small></div><button class="tog" id="sHearts"></button></div>
   <div class="set"><div><label id="sMotionL"></label><small id="sMotionS"></small></div><button class="tog" id="sMotion"></button></div>
@@ -172,23 +175,24 @@ const store = {
 };
 
 /* ------------------------------------------------------------ settings */
-const DEFAULTS = { lang: 'en', sfx: true, vol: 70, vibrate: true, hearts: false, reduceMotion: false, unlockAll: false };
+const DEFAULTS = { lang: 'en', sfx: true, vol: 70, music: true, musicVol: 60, vibrate: true, hearts: false, reduceMotion: false, unlockAll: false };
 const settings = Object.assign({}, DEFAULTS, store.get('pb_settings', {}));
 const saveSettings = () => store.set('pb_settings', settings);
 
 /* ----------------------------------------------------------- progression */
-const HEARTS_MAX = 3, FREE_HINTS = 1, STARS_PER_BLOCK = 12;
+const HEARTS_MAX = 3, FREE_HINTS = 1, STARS_FRACTION = 0.4;
 const CHAPTERS = [
-  { en: 'Cells I', fa: 'سلول‌ها ۱' }, { en: 'Cells II', fa: 'سلول‌ها ۲' }, { en: 'Cells III', fa: 'سلول‌ها ۳' },
-  { en: 'Yard I', fa: 'حیاط ۱' }, { en: 'Yard II', fa: 'حیاط ۲' }, { en: 'Yard III', fa: 'حیاط ۳' },
-  { en: 'Gates I', fa: 'دروازه‌ها ۱' }, { en: 'Gates II', fa: 'دروازه‌ها ۲' },
-  { en: 'Mirrors I', fa: 'آینه‌ها ۱' }, { en: 'Mirrors II', fa: 'آینه‌ها ۲' },
-  { en: 'Control I', fa: 'کنترل ۱' }, { en: 'Control II', fa: 'کنترل ۲' },
+  { en: 'Cells', fa: 'سلول‌ها', size: 15 },
+  { en: 'Yard I', fa: 'حیاط ۱', size: 10 }, { en: 'Yard II', fa: 'حیاط ۲', size: 10 }, { en: 'Yard III', fa: 'حیاط ۳', size: 10 },
+  { en: 'Gates I', fa: 'دروازه‌ها ۱', size: 10 }, { en: 'Gates II', fa: 'دروازه‌ها ۲', size: 10 },
+  { en: 'Mirrors I', fa: 'آینه‌ها ۱', size: 10 }, { en: 'Mirrors II', fa: 'آینه‌ها ۲', size: 10 },
+  { en: 'Control I', fa: 'کنترل ۱', size: 10 }, { en: 'Control II', fa: 'کنترل ۲', size: 10 },
 ];
-const chapterOf = i => Math.floor(i / 10);                       // level index -> chapter index
-const chapNeed = ci => ci * STARS_PER_BLOCK;                     // stars (from earlier chapters) needed to enter
+const chapStart = CHAPTERS.map((_, i) => CHAPTERS.slice(0, i).reduce((n, c) => n + c.size, 0));
+const chapterOf = i => { let ci = 0; while (ci + 1 < CHAPTERS.length && i >= chapStart[ci + 1]) ci++; return ci; };    // level index -> chapter index
+const chapNeed = ci => Math.round(chapStart[ci] * 3 * STARS_FRACTION);                                                 // stars from earlier chapters needed to enter
 let best = store.get('pb_best3', {});
-function starsBefore(ci) { let s = 0; for (let i = 0; i < ci * 10; i++) s += (best[LEVELS[i] && LEVELS[i].id] && best[LEVELS[i].id].stars) || 0; return s; }
+function starsBefore(ci) { let s = 0; for (let i = 0; i < chapStart[ci] && i < LEVELS.length; i++) s += (best[LEVELS[i].id] && best[LEVELS[i].id].stars) || 0; return s; }
 const chapterLocked = ci => !settings.unlockAll && ci > 0 && starsBefore(ci) < chapNeed(ci);
 const levelLocked = i => chapterLocked(chapterOf(i));
 function firstOpenLevel() { for (let i = 0; i < LEVELS.length; i++) if (!levelLocked(i) && !best[LEVELS[i].id]) return i; return Math.max(0, LEVELS.length - 1); }
@@ -198,8 +202,8 @@ const T = {
   en: {
     tag: 'Move the darkness. Slip the prisoner past cameras and guards.', foot: 'Playtest build',
     play: 'Play', cont: lv => 'Continue · Level ' + lv, levels: 'Levels', how: 'How to play', settings: 'Settings', close: 'Close', back: 'Back',
-    pause: 'Paused', resume: 'Resume', restart: 'Restart level', mainMenu: 'Main menu',
-    level: 'Level', moves: 'Actions', best: 'Best', undo: 'Undo', hint: 'Hint', hintAd: 'Hint · Ad', toExit: 'Exit', turn: 'Turn', flip: 'Switch',
+    guardTip: 'Guard selected: tap it again to turn, tap a rail tile to send it, tap the prisoner to let go.', pause: 'Paused', resume: 'Resume', restart: 'Restart level', mainMenu: 'Main menu',
+    level: 'Level', moves: 'Actions', best: 'Best', undo: 'Undo', hint: 'Hint', hintAd: 'Hint · Ad', toExit: 'Escape', turn: 'Turn', flip: 'Switch',
     pick: 'Tap a dark tile to walk. Tap a camera to turn it clockwise.',
     refused: 'Not allowed: that would expose the prisoner. Move him somewhere dark first.', unreach: 'The prisoner cannot get there from here.',
     pathClear: 'The way is clear. Send the prisoner to the exit.', hintWho: 'Try: ', hintCam: 'turn this camera', hintGuard: 'move this guard', hintDoor: 'use this door', hintMirror: 'flip this mirror',
@@ -207,12 +211,12 @@ const T = {
     seen: 'Spotted! You lost a heart.', caught: 'Caught!', caughtText: 'You ran out of hearts.', revive: 'Ad: continue with 1 heart',
     locked: (n, h) => `Locked: needs ${n} stars (you have ${h})`, gate: (n, h) => `The next block needs ${n} stars. You have ${h}.`,
     adTitle: 'Placeholder ad', adText: 'In the real game a rewarded video plays here. This is only a stand-in; no real ad is shown.', adWait: s => `${s}s…`, adReady: 'Ready', adClaim: 'Claim reward', adCancel: 'Cancel',
-    sLang: 'Language', sSfx: 'Sound effects', sVol: 'Volume', sVib: 'Vibration', sHearts: 'Hearts mode', sHeartsS: 'You may cross light, but each time you are spotted you lose a heart.',
+    sLang: 'Language', sSfx: 'Sound effects', sVol: 'Effects volume', sMus: 'Music', sMusVol: 'Music volume', sVib: 'Vibration', sHearts: 'Hearts mode', sHeartsS: 'You may cross light, but each time you are spotted you lose a heart.',
     sMotion: 'Reduce motion', sMotionS: 'Less shaking and pulsing.', sUnlock: 'Unlock all levels', sUnlockS: 'For testing.', sReset: 'Reset progress', sResetSure: 'Tap again to erase', sResetDone: 'Progress erased',
     on: 'On', off: 'Off', setTitle: 'Settings', howTitle: 'How to play',
     howList: [
       'Tap a dark tile to walk the prisoner there. Walking is free.',
-      'Only your actions count: tap a camera to turn it clockwise (three taps turn it left). Tap a guard, then use the arrows to walk it along its rail or the turn button to face the other way. Tap a door or a mirror to switch it.',
+      'Only your actions count: tap a camera to turn it clockwise (three taps turn it left). Tap a guard to select it, tap it again to turn it round, or tap a tile of its rail to send it there (each step is one action). Tap a door or a mirror to switch it.',
       'The prisoner must never stand in red light. An action that would light him is refused, so move him to a dark tile first.',
       'Walls, guards and closed doors stop sight. Mirrors bend a sight line by 90 degrees.',
       'Reach the green exit with as few actions as the best solution to earn three stars. Stars open the next block.',
@@ -221,18 +225,18 @@ const T = {
       1: 'Cameras throw red light and the prisoner must stay out of it. Tap the camera to turn it, then tap the green exit.',
       2: 'A camera only turns clockwise, so turning it left takes three taps. Walking costs nothing; only actions are counted.',
       4: 'Move the prisoner to a dark tile before you turn a camera onto the tile he stands on.',
-      31: 'New: a guard walks along its rail. Tap it, then use the arrows to move or the turn button to face the other way. It sees only 3 tiles ahead and is blind behind.',
-      35: 'Walls and guards stop sight. Park a guard in front of a camera to use it as a shield.',
-      61: 'New: doors. Tap a door to open or close it. A closed door blocks sight and movement.',
-      81: 'New: mirrors. Tap a mirror to flip it. Light that hits it bends by 90 degrees.',
-      101: 'Everything together. Take your time.',
+      16: 'New: guards walk their rail, facing the way they go. Tap to select, tap again to turn, tap a rail tile to send it there. It sees 3 tiles ahead and is blind behind.',
+      20: 'Walls and guards stop sight. Park a guard in front of a camera to use it as a shield.',
+      46: 'New: doors. Tap a door to open or close it. A closed door blocks sight and movement.',
+      66: 'New: mirrors. Tap a mirror to flip it. Light that hits it bends by 90 degrees.',
+      86: 'Everything together. Take your time.',
     },
   },
   fa: {
     tag: 'تاریکی را جابه‌جا کن و زندانی را از کنار دوربین‌ها و نگهبان‌ها رد کن.', foot: 'نسخهٔ آزمایشی',
     play: 'شروع بازی', cont: lv => 'ادامه · مرحلهٔ ' + lv, levels: 'مرحله‌ها', how: 'راهنمای بازی', settings: 'تنظیمات', close: 'بستن', back: 'بازگشت',
-    pause: 'توقف', resume: 'ادامه', restart: 'شروع دوبارهٔ مرحله', mainMenu: 'منوی اصلی',
-    level: 'مرحله', moves: 'عمل', best: 'بهترین', undo: 'برگشت', hint: 'راهنما', hintAd: 'راهنما · تبلیغ', toExit: 'خروج', turn: 'چرخش', flip: 'تغییر',
+    guardTip: 'نگهبان انتخاب شد: دوباره لمسش کن تا برگردد، خانهٔ ریل را لمس کن تا برود، زندانی را لمس کن تا رها شود.', pause: 'توقف', resume: 'ادامه', restart: 'شروع دوبارهٔ مرحله', mainMenu: 'منوی اصلی',
+    level: 'مرحله', moves: 'عمل', best: 'بهترین', undo: 'برگشت', hint: 'راهنما', hintAd: 'راهنما · تبلیغ', toExit: 'فرار', turn: 'چرخش', flip: 'تغییر',
     pick: 'یک خانهٔ تاریک را لمس کن تا دزد برود. یک دوربین را لمس کن تا ساعتگرد بچرخد.',
     refused: 'ممنوع! با این کار زندانی دیده می‌شود. اول او را به یک خانهٔ تاریک ببر.', unreach: 'زندانی از اینجا نمی‌تواند به آن خانه برود.',
     pathClear: 'راه باز است. زندانی را به خروج ببر.', hintWho: 'پیشنهاد: ', hintCam: 'این دوربین را بچرخان', hintGuard: 'این نگهبان را جابه‌جا کن', hintDoor: 'این در را باز/بسته کن', hintMirror: 'این آینه را بچرخان',
@@ -240,12 +244,12 @@ const T = {
     seen: 'دیده شدی! یک جان کم شد.', caught: 'گرفتار شد!', caughtText: 'جان‌هایت تمام شد.', revive: 'تبلیغ و ادامه با ۱ جان',
     locked: (n, h) => `قفل: ${n} ستاره لازم است (داری ${h})`, gate: (n, h) => `برای بخش بعد ${n} ستاره لازم است. تا الان ${h} داری.`,
     adTitle: 'تبلیغ آزمایشی', adText: 'اینجا در بازی واقعی یک ویدیوی جایزه‌ای پخش می‌شود. این فقط یک نمونه است و تبلیغ واقعی ندارد.', adWait: s => `${s} ثانیه…`, adReady: 'آماده', adClaim: 'دریافت جایزه', adCancel: 'انصراف',
-    sLang: 'زبان', sSfx: 'جلوه‌های صوتی', sVol: 'بلندی صدا', sVib: 'لرزش', sHearts: 'حالت جان', sHeartsS: 'می‌توانی از نور رد شوی، ولی هر بار دیده شدن یک جان می‌برد.',
+    sLang: 'زبان', sSfx: 'جلوه‌های صوتی', sVol: 'بلندی جلوه‌ها', sMus: 'موسیقی', sMusVol: 'بلندی موسیقی', sVib: 'لرزش', sHearts: 'حالت جان', sHeartsS: 'می‌توانی از نور رد شوی، ولی هر بار دیده شدن یک جان می‌برد.',
     sMotion: 'کاهش حرکت', sMotionS: 'لرزش و چشمک کمتر.', sUnlock: 'باز کردن همهٔ مرحله‌ها', sUnlockS: 'برای تست.', sReset: 'پاک کردن پیشرفت', sResetSure: 'برای پاک کردن دوباره لمس کن', sResetDone: 'پیشرفت پاک شد',
     on: 'روشن', off: 'خاموش', setTitle: 'تنظیمات', howTitle: 'راهنمای بازی',
     howList: [
       'یک خانهٔ تاریک را لمس کن تا زندانی به آنجا برود. راه رفتن رایگان است.',
-      'فقط عمل‌های تو شمرده می‌شوند: دوربین را لمس کن تا ساعتگرد بچرخد (برای چرخش به چپ سه بار). نگهبان را لمس کن، بعد با فلش‌ها روی ریلش حرکت بده یا با دکمهٔ چرخش برگردانش. در یا آینه را لمس کن تا عوض شود.',
+      'فقط عمل‌های تو شمرده می‌شوند: دوربین را لمس کن تا ساعتگرد بچرخد (برای چرخش به چپ سه بار). نگهبان را لمس کن تا انتخاب شود، دوباره لمسش کن تا برگردد، یا یک خانهٔ ریلش را لمس کن تا به آنجا برود (هر قدم یک عمل). در یا آینه را لمس کن تا عوض شود.',
       'زندانی هرگز نباید در نور قرمز بایستد. عملی که او را روشن کند ممنوع است؛ اول او را به خانهٔ تاریک ببر.',
       'دیوار، نگهبان و در بسته دید را می‌برند. آینه خط دید را ۹۰ درجه می‌شکند.',
       'با کمترین تعداد عمل به خروج سبز برس تا سه ستاره بگیری. ستاره‌ها بخش بعد را باز می‌کنند.',
@@ -254,11 +258,11 @@ const T = {
       1: 'دوربین نور قرمز می‌اندازد و زندانی نباید در آن باشد. دوربین را لمس کن تا بچرخد، بعد خروج سبز را لمس کن.',
       2: 'دوربین فقط ساعتگرد می‌چرخد، پس چرخش به چپ سه لمس می‌خواهد. راه رفتن رایگان است؛ فقط عمل‌ها شمرده می‌شوند.',
       4: 'قبل از اینکه دوربین را روی خانه‌ای بچرخانی که زندانی در آن است، او را به خانهٔ تاریک دیگری ببر.',
-      31: 'تازه: نگهبان روی ریلش حرکت می‌کند. لمسش کن، بعد با فلش‌ها جابه‌جایش کن یا با دکمهٔ چرخش برگردانش. فقط ۳ خانه جلویش را می‌بیند و پشتش کور است.',
-      35: 'دیوار و نگهبان دید را می‌برند. نگهبان را جلوی دوربین بگذار تا سپر شود.',
-      61: 'تازه: در. در را لمس کن تا باز یا بسته شود. در بسته دید و حرکت را می‌بندد.',
-      81: 'تازه: آینه. آینه را لمس کن تا بچرخد. نوری که به آن بخورد ۹۰ درجه می‌شکند.',
-      101: 'همه‌چیز با هم. با حوصله.',
+      16: 'تازه: نگهبان روی ریلش راه می‌رود و رو به مسیر حرکتش می‌ایستد. لمس = انتخاب، لمس دوباره = برگشتن، لمس خانهٔ ریل = رفتن به آنجا. ۳ خانه جلویش را می‌بیند و پشتش کور است.',
+      20: 'دیوار و نگهبان دید را می‌برند. نگهبان را جلوی دوربین بگذار تا سپر شود.',
+      46: 'تازه: در. در را لمس کن تا باز یا بسته شود. در بسته دید و حرکت را می‌بندد.',
+      66: 'تازه: آینه. آینه را لمس کن تا بچرخد. نوری که به آن بخورد ۹۰ درجه می‌شکند.',
+      86: 'همه‌چیز با هم. با حوصله.',
     },
   },
 };
@@ -339,11 +343,83 @@ const Sfx = (() => {
       if (settings.vibrate && BUZZ[name] && navigator.vibrate) { try { navigator.vibrate(BUZZ[name]); } catch (e) {} }
       if (!settings.sfx) return; const a = get(); if (!a) return; try { S[name](a, a.currentTime); } catch (e) {}
     },
-    unlock() { if (settings.sfx) get(); },
+    unlock() { get(); },
+    context() { return get(); },
     volume() { if (master) master.gain.value = settings.vol / 100 * .8; },
   };
 })();
-window.addEventListener('pointerdown', () => Sfx.unlock());
+window.addEventListener('pointerdown', () => { Sfx.unlock(); Music.sync(); });
+
+/* ---------------------------------------------------------------- music */
+/* A tiptoe loop played by the same synth: a plucked bass, a creeping chromatic lead with an echo, wood-block ticks and a soft kick.
+   16 bars of 8 eighth-notes in A minor at 112 BPM (about 34 seconds), then it loops. It is original, written for this game.
+   The pattern is plain data below; schedule() is also used to render a preview file offline. */
+const Music = (() => {
+  const BPM = 112, STEP = 60 / BPM / 2;
+  const midi = n => { const m = /^([A-G])([#b]?)(\d)$/.exec(n); return { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 }[m[1]] + (m[2] === '#' ? 1 : m[2] === 'b' ? -1 : 0) + (Number(m[3]) + 1) * 12; };
+  const hz = n => 440 * Math.pow(2, (midi(n) - 69) / 12);
+  const R = null;
+  const LEAD = [
+    ['E4', R, 'F4', R, 'F#4', R, 'G4', R], ['A4', R, R, 'G4', 'F4', R, 'E4', R], ['E4', R, 'F4', R, 'F#4', R, 'G#4', R], ['A4', R, 'C5', 'B4', 'A4', R, R, R],
+    ['E4', R, 'F4', R, 'F#4', R, 'G4', R], ['A4', R, R, 'G4', 'F4', R, 'D4', R], ['G#4', R, 'B4', R, 'D5', R, 'B4', R], ['C5', R, 'B4', R, 'A4', R, R, R],
+    ['A4', R, 'C5', R, 'A4', R, 'F4', R], ['G4', R, 'E4', R, 'G4', R, 'C5', R], ['B4', R, 'D5', R, 'B4', R, 'G4', R], ['G#4', R, 'B4', R, 'E5', R, 'D5', 'B4'],
+    ['F4', R, 'A4', R, 'D5', R, 'A4', R], ['E4', R, 'A4', R, 'C5', R, 'A4', R], ['E4', R, 'F4', R, 'F#4', R, 'G#4', R], ['A4', R, R, R, R, R, R, R],
+  ];
+  const CH = ['Am', 'Am', 'E', 'Am', 'Am', 'Dm', 'E', 'Am', 'F', 'C', 'G', 'E', 'Dm', 'Am', 'E', 'Am'];
+  const BASS = { Am: ['A2', R, 'E3', R, 'A2', R, 'C3', 'E3'], E: ['E2', R, 'B2', R, 'E2', R, 'G#2', 'B2'], Dm: ['D2', R, 'A2', R, 'D2', R, 'F2', 'A2'],
+    F: ['F2', R, 'C3', R, 'F2', R, 'A2', 'C3'], G: ['G2', R, 'D3', R, 'G2', R, 'B2', 'D3'], C: ['C2', R, 'G2', R, 'C2', R, 'E2', 'G2'] };
+  const STEPS = LEAD.length * 8;
+  const osc = (a, dest, t, f0, f1, dur, type, vol, lp) => {
+    const o = a.createOscillator(), g = a.createGain(); let out = o;
+    o.type = type; o.frequency.setValueAtTime(f0, t); if (f1 !== f0) o.frequency.exponentialRampToValueAtTime(Math.max(20, f1), t + dur);
+    if (lp) { const f = a.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = lp; o.connect(f); out = f; }
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + .006); g.gain.exponentialRampToValueAtTime(.0001, t + dur);
+    out.connect(g); g.connect(dest); o.start(t); o.stop(t + dur + .02);
+  };
+  const tick = (a, dest, t, dur, vol, hp) => {
+    const n = Math.max(1, Math.floor(a.sampleRate * dur)), buf = a.createBuffer(1, n, a.sampleRate), d = buf.getChannelData(0);
+    for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / n);
+    const s = a.createBufferSource(), f = a.createBiquadFilter(), g = a.createGain(); s.buffer = buf; f.type = 'highpass'; f.frequency.value = hp; g.gain.value = vol;
+    s.connect(f); f.connect(g); g.connect(dest); s.start(t);
+  };
+  function schedule(a, dest, step, t) {
+    const bar = Math.floor(step / 8) % LEAD.length, pos = step % 8, swing = (pos & 1) ? STEP * .1 : 0, tt = t + swing;
+    const lead = LEAD[bar][pos], bass = BASS[CH[bar]][pos];
+    if (bass) osc(a, dest, tt, hz(bass), hz(bass) * .98, .2, 'triangle', .16);                               // plucked bass
+    if (lead) { osc(a, dest, tt, hz(lead), hz(lead), .12, 'square', .045, 2200); osc(a, dest, tt + STEP * 1.5, hz(lead), hz(lead), .1, 'square', .018, 1800); }   // staccato lead and its echo
+    if (pos === 0 || pos === 4) osc(a, dest, t, 130, 48, .13, 'sine', .22);                                    // soft kick on 1 and 3
+    if (pos === 2 || pos === 6) osc(a, dest, t, 1050, 760, .035, 'triangle', .07);                             // wood block on 2 and 4
+    tick(a, dest, tt, .02, (pos & 1) ? .05 : .025, 6500);                                                      // hat ticks, stronger off the beat
+  }
+  let ctx_ = null, gain = null, timer = null, nextTime = 0, step = 0, on = false;
+  function want() { return settings.music && settings.musicVol > 0 && !document.hidden; }
+  function ensure() {
+    const a = Sfx.context(); if (!a) return null;
+    if (a !== ctx_) { ctx_ = a; gain = a.createGain(); gain.connect(a.destination); }
+    gain.gain.value = settings.musicVol / 100 * .55;
+    return a;
+  }
+  function loop() {
+    const a = ctx_; if (!a || !on) return;
+    while (nextTime < a.currentTime + .3) { schedule(a, gain, step, nextTime); nextTime += STEP; step = (step + 1) % STEPS; }
+  }
+  const api = {
+    sync() {
+      if (!want()) { if (on) { on = false; clearInterval(timer); timer = null; if (gain) gain.gain.setTargetAtTime(0, ctx_.currentTime, .05); } return; }
+      const a = ensure(); if (!a) return;
+      if (!on) { on = true; nextTime = a.currentTime + .08; timer = setInterval(loop, 60); }
+    },
+    /* offline render for a preview file: returns an AudioBuffer */
+    async render(bars) {
+      const sr = 22050, a = new OfflineAudioContext(1, Math.floor(bars * 8 * STEP * sr), sr), g = a.createGain(); g.gain.value = .55 * .45; g.connect(a.destination);
+      for (let s = 0; s < bars * 8; s++) schedule(a, g, s % STEPS, s * STEP);
+      return a.startRendering();
+    },
+    bars: LEAD.length,
+  };
+  document.addEventListener('visibilitychange', () => api.sync());
+  return api;
+})();
 
 /* ---------------------------------------------------------------- state */
 let li = 0, L, dg, thief, thiefDir = 2, hist = [], moves = 0, sel = -1, hintWho = -1, walking = null, inGame = false;
@@ -358,7 +434,7 @@ function load(i) {
   L = P.parseLevel(LEVELS[li].map, LEVELS[li].meta);
   P.prepare(L);
   dg = P.initialDigits(L); thief = L.S; thiefDir = 2; hist = []; moves = 0; sel = -1; hintWho = -1; walking = null;
-  hearts = HEARTS_MAX; lost = 0; hintsUsed = 0; caughtOn = false; gdraw.length = 0;
+  hearts = HEARTS_MAX; lost = 0; hintsUsed = 0; caughtOn = false; gdraw.length = 0; loadToken++; gBusy = false;
   document.querySelectorAll('.overlay.on').forEach(o => o.classList.remove('on'));
   $('menu').classList.remove('on'); inGame = true; store.set('pb_last', li);
   setTip(heartsOn() ? tr().sHeartsS : (tipFor(LEVELS[li].id) || tr().pick));
@@ -379,7 +455,7 @@ function options(k) {
     const horiz = (g.rail[0] % L.w) !== (g.rail[g.rail.length - 1] % L.w);
     for (const s of [-1, 1]) {
       const ni = i + s;
-      out.push({ kind: 'guardStep', label: horiz ? (s < 0 ? '◀' : '▶') : (s < 0 ? '▲' : '▼'), dg: (ni >= 0 && ni < g.rail.length && !blocked(ni)) ? Object.assign(dg.slice(), { [k]: ni * 2 + f }) : null });
+      out.push({ kind: 'guardStep', label: horiz ? (s < 0 ? '◀' : '▶') : (s < 0 ? '▲' : '▼'), dg: (ni >= 0 && ni < g.rail.length && !blocked(ni)) ? Object.assign(dg.slice(), { [k]: ni * 2 + (s === 1 ? 0 : 1) }) : null });
     }
     out.push({ kind: 'turn', label: '⟲', dg: Object.assign(dg.slice(), { [k]: i * 2 + (1 - f) }) });
     return out;
@@ -478,6 +554,7 @@ function tapPoint(k) {
   else { px = FX(x) + cs * .2; py = FY(y) + cellH * .25; }
   return [r.left + ox + px, r.top + oy + py];
 }
+function thiefPoint() { ensureSize(); const r = cv.getBoundingClientRect(); return [r.left + ox + FX(thief % L.w + .5), r.top + oy + FY((thief / L.w) | 0) + cellH * .9 - cs * .45]; }
 function cellPoint(c) { ensureSize(); const x = c % L.w, y = (c / L.w) | 0, r = cv.getBoundingClientRect(); return [r.left + ox + FX(x + .5), r.top + oy + FY(y) + cellH * .3]; }
 
 /* What a tap lands on: a standing guard or a mounted camera (their sprites), a door or mirror, otherwise the floor tile. */
@@ -496,21 +573,49 @@ function hitTest(px, py) {
     }
   }
   if (bestK >= 0) return { watcher: bestK };
+  { const tx = FX(thief % L.w + .5), tyFeet = FY((thief / L.w) | 0) + cellH * .9;
+    if (px >= tx - cs * .3 && px < tx + cs * .3 && py >= tyFeet - cs * .95 && py < tyFeet) return { thief: true }; }
   const gx = Math.floor(px / cs), gy = Math.floor((py - wallH) / cellH);
   if (gx < 0 || gy < 0 || gx >= L.w || gy >= L.h) return null;
   return { cell: gy * L.w + gx };
 }
+/* A guard moves along its rail one cell per action; tapping a rail cell walks it there, and every step counts as one action
+   (the solver counts steps the same way). It stops at once if a step would expose the prisoner. */
+let gBusy = false, loadToken = 0;
+async function guardGoTo(k, cell) {
+  const g = L.guards[k - nCam()], ti = g.rail.indexOf(cell);
+  if (ti < 0 || gBusy) return;
+  gBusy = true; const token = loadToken;
+  try {
+    for (let n = 0; n < 8; n++) {
+      if (token !== loadToken) return;                                                  // the level was reloaded meanwhile
+      const cur = dg[k] >> 1; if (cur === ti) break;
+      const o = options(k)[ti > cur ? 1 : 0];
+      if (!o.dg) break;
+      const before = moves; tryAction(o.dg, 'guardStep'); if (moves === before) break;
+      await new Promise(r => setTimeout(r, 170));
+    }
+  } finally { if (token === loadToken) gBusy = false; }
+}
 function onTap(px, py) {
   const h = hitTest(px, py); if (!h) return;
+  if (h.thief) { sel = -1; setTip(''); buildBar(); return; }
   if (h.watcher !== undefined) {
-    sel = h.watcher; const kind = kindOf(sel);
-    if (kind !== 'guard') { const o = options(sel)[0]; tryAction(o.dg, o.kind); }        // cameras, doors, mirrors act on one tap
+    const k = h.watcher, kind = kindOf(k);
+    if (kind === 'guard') {
+      if (sel === k) { const o = options(k)[2]; tryAction(o.dg, o.kind); }          // tapping the selected guard turns it round
+      else { sel = k; setTip(tr().guardTip); }
+      buildBar(); return;
+    }
+    sel = k;
+    const o = options(k)[0]; tryAction(o.dg, o.kind);                                  // cameras, doors, mirrors act on one tap
     buildBar(); return;
   }
+  if (sel >= nCam() && sel < nCam() + nGuard() && L.guards[sel - nCam()].rail.includes(h.cell)) { guardGoTo(sel, h.cell); return; }
   if (!L.wall[h.cell]) walkTo(h.cell);
 }
 cv.addEventListener('pointerdown', e0 => {
-  if (!inGame || walking || caughtOn || document.querySelector('.overlay.on')) return;
+  if (!inGame || walking || gBusy || caughtOn || document.querySelector('.overlay.on')) return;
   ensureSize(); const r = cv.getBoundingClientRect(); onTap((e0.clientX - r.left) * (W / r.width) - ox, (e0.clientY - r.top) * (H / r.height) - oy);
 });
 window.addEventListener('keydown', e => {
@@ -530,7 +635,7 @@ function applyLang() {
   $('mLevels').innerHTML = icon('levels', 3) + ' ' + t.levels; $('mHow').innerHTML = icon('help', 3) + ' ' + t.how; $('mSettings').innerHTML = icon('gear', 3) + ' ' + t.settings;
   set('pauseTitle', t.pause); set('pResume', t.resume); set('pRestart', t.restart); set('pLevels', t.levels); set('pSettings', t.settings); set('pMenu', t.mainMenu);
   set('winRetry', t.retry); set('winLevels', t.levels); set('lvTitle', t.levels); set('lvClose', t.close); set('howTitle', t.howTitle); set('howClose', t.close);
-  set('setTitle', t.setTitle); set('setClose', t.close); set('sLangL', t.sLang); set('sSfxL', t.sSfx); set('sVolL', t.sVol); set('sVibL', t.sVib);
+  set('setTitle', t.setTitle); set('setClose', t.close); set('sLangL', t.sLang); set('sSfxL', t.sSfx); set('sVolL', t.sVol); set('sMusL', t.sMus); set('sMusVolL', t.sMusVol); set('sVibL', t.sVib);
   set('sHeartsL', t.sHearts); set('sHeartsS', t.sHeartsS); set('sMotionL', t.sMotion); set('sMotionS', t.sMotionS); set('sUnlockL', t.sUnlock); set('sUnlockS', t.sUnlockS);
   set('adTitle', t.adTitle); set('adText', t.adText); set('adCancel', t.adCancel); set('adClaim', t.adClaim);
   $('howList').innerHTML = t.howList.map(s => `<li>${s}</li>`).join('');
@@ -539,8 +644,8 @@ function applyLang() {
 }
 function syncSettingsUI() {
   const t = tr(), tog = (id, on) => { $(id).textContent = on ? t.on : t.off; $(id).className = 'tog' + (on ? ' on' : ''); };
-  tog('sSfx', settings.sfx); tog('sVib', settings.vibrate); tog('sHearts', settings.hearts); tog('sMotion', settings.reduceMotion); tog('sUnlock', settings.unlockAll);
-  $('sVol').value = settings.vol; $('langEn').className = settings.lang === 'en' ? 'sel' : ''; $('langFa').className = settings.lang === 'fa' ? 'sel' : '';
+  tog('sSfx', settings.sfx); tog('sMus', settings.music); tog('sVib', settings.vibrate); tog('sHearts', settings.hearts); tog('sMotion', settings.reduceMotion); tog('sUnlock', settings.unlockAll);
+  $('sVol').value = settings.vol; $('sMusVol').value = settings.musicVol; $('langEn').className = settings.lang === 'en' ? 'sel' : ''; $('langFa').className = settings.lang === 'fa' ? 'sel' : '';
   $('sReset').textContent = t.sReset; $('sReset').className = '';
 }
 function syncUI() {
@@ -552,22 +657,21 @@ function syncUI() {
   $('heartsWrap').style.display = heartsOn() ? 'flex' : 'none';
 }
 function buildBar() {
-  const bar = $('bar'), t = tr(); bar.innerHTML = '';
-  const add = (html, fn, cls, dis) => { const b = document.createElement('button'); b.innerHTML = html; if (cls) b.className = cls; b.disabled = !!dis; b.onclick = fn; bar.appendChild(b); return b; };
+  const bar = $('bar'), ctxEl = $('ctx'), t = tr(); bar.innerHTML = ''; ctxEl.innerHTML = '';
+  const add = (parent, html, fn, cls, dis) => { const b = document.createElement('button'); b.innerHTML = html; if (cls) b.className = cls; b.disabled = !!dis; b.onclick = fn; parent.appendChild(b); return b; };
   if (sel >= 0) {
     const kind = kindOf(sel);
     options(sel).forEach(o => {
       const html = o.kind === 'guardStep' ? icon(/[◀▲]/.test(o.label) ? 'left' : 'right', 3, /[▲▼]/.test(o.label) ? 'rot90' : '') : o.kind === 'turn' ? icon('turn', 2) : kind === 'cam' ? icon('right', 3) + ' ' + t.turn : icon('swap', 3) + ' ' + t.flip;
-      add(html, () => tryAction(o.dg, o.kind), 'primary', !o.dg);
+      add(ctxEl, html, () => { if (!gBusy) tryAction(o.dg, o.kind); }, 'primary', !o.dg);
     });
-    const sep = document.createElement('span'); sep.className = 'sep'; bar.appendChild(sep);
   }
-  add(icon('undo', 3) + ' ' + t.undo, undo, '', !hist.length || !!walking);
-  add(icon('door', 3) + ' ' + t.toExit, () => { Sfx.play('click'); walkTo(L.E); }, '', !!walking);
-  add(icon('bulb', 3) + ' ' + (hintsUsed < FREE_HINTS ? t.hint : t.hintAd), onHint);
+  add(bar, icon('undo', 3) + ' ' + t.undo, undo, '', !hist.length || !!walking);
+  add(bar, icon('door', 3) + ' ' + t.toExit, () => { Sfx.play('click'); walkTo(L.E); }, '', !!walking);
+  add(bar, icon('bulb', 3) + ' ' + (hintsUsed < FREE_HINTS ? t.hint : t.hintAd), onHint);
 }
 function undo() {
-  if (!hist.length || walking) return;
+  if (!hist.length || walking || gBusy) return;
   Sfx.play('undo'); const h = hist.pop(); dg = h.dg; thief = h.thief; moves = h.moves; hearts = h.hearts; lost = h.lost; thiefDir = h.thiefDir;
   hintWho = -1; caughtOn = false; setTip(''); syncUI(); buildBar();
 }
@@ -615,18 +719,20 @@ function win() {
 }
 function openLevels() {
   const wrap = $('lvChapters'); wrap.innerHTML = '';
-  for (let ci = 0; ci * 10 < LEVELS.length; ci++) {
+  CHAPTERS.forEach((ch, ci) => {
+    const from = chapStart[ci], to = Math.min(LEVELS.length, from + ch.size);
+    if (from >= LEVELS.length) return;
     const locked = chapterLocked(ci), head = document.createElement('div'); head.className = 'chap';
-    let got = 0; for (let i = ci * 10; i < Math.min(LEVELS.length, ci * 10 + 10); i++) got += (best[LEVELS[i].id] && best[LEVELS[i].id].stars) || 0;
-    head.innerHTML = `<b>${ci + 1}. ${CHAPTERS[ci][settings.lang]}</b><span>${locked ? icon('lock', 2) + ' ' + tr().locked(chapNeed(ci), starsBefore(ci)) : icon('star', 2, 'gold') + ' ' + got + '/30'}</span>`;
+    let got = 0; for (let i = from; i < to; i++) got += (best[LEVELS[i].id] && best[LEVELS[i].id].stars) || 0;
+    head.innerHTML = `<b>${ci + 1}. ${ch[settings.lang]}</b><span>${locked ? icon('lock', 2) + ' ' + tr().locked(chapNeed(ci), starsBefore(ci)) : icon('star', 2, 'gold') + ' ' + got + '/' + (to - from) * 3}</span>`;
     wrap.appendChild(head);
     const g = document.createElement('div'); g.className = 'grid';
-    for (let i = ci * 10; i < Math.min(LEVELS.length, ci * 10 + 10); i++) {
+    for (let i = from; i < to; i++) {
       const b = document.createElement('button'), id = LEVELS[i].id, bs = best[id] ? best[id].stars : 0;
       b.innerHTML = id + '<span class="row2">' + (locked ? icon('lock', 2) : starsHTML(bs, 3, 2)) + '</span>'; b.disabled = locked; b.onclick = () => load(i); g.appendChild(b);
     }
     wrap.appendChild(g);
-  }
+  });
   $('lvOv').classList.add('on');
 }
 function show(id) { $(id).classList.add('on'); }
@@ -664,6 +770,8 @@ $('sSfx').onclick = () => flip('sfx'); $('sVib').onclick = () => { flip('vibrate
 $('sHearts').onclick = () => { flip('hearts'); if (inGame) { load(li); settingsFrom = 'menu'; show('setOv'); } };
 $('sMotion').onclick = () => flip('reduceMotion');
 $('sUnlock').onclick = () => { flip('unlockAll'); };
+$('sMus').onclick = () => { flip('music'); Music.sync(); };
+$('sMusVol').oninput = e => { settings.musicVol = Number(e.target.value); saveSettings(); Music.sync(); };
 $('sVol').oninput = e => { settings.vol = Number(e.target.value); saveSettings(); Sfx.volume(); };
 $('sVol').onchange = () => Sfx.play('step');
 let resetArmed = false;
@@ -948,7 +1056,6 @@ function draw(now) {
     }
     guardsAt(y); thiefAt(y);
   }
-  L.guards.forEach((g, j) => drawGuard(j, true)); drawThief(true);     // a faint ghost so a wall in front never hides anyone completely
   ctx.restore();
 }
 setFavicon(); applyLang(); syncSettingsUI();

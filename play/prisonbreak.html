@@ -187,6 +187,8 @@
  *    door behind a dog to trap its scent in the room it is in. One action steps a dog one tile along its rail.
  *  - Searchlights (optional) sit in wall cells like cameras but nobody turns them: after EVERY action they swing a quarter turn
  *    clockwise by themselves. "Wait" is an action that changes nothing else, so only the searchlights swing.
+ *  - Power panels (optional) sit in wall cells. A panel is wired to two or three cameras, doors or mirrors; those can then only be
+ *    operated through the panel, and one tap on it advances all of them at once (cameras a quarter turn, doors and mirrors flip).
  *  - Walls, guards and closed doors stop sight. Guards, closed doors and mirrors block movement.
  *  - The thief may stand only on dark cells. Walking is free; only actions on watchers/objects count.
  *    An action is illegal if it lights the thief's cell (he picks the best cell in his dark region
@@ -223,6 +225,22 @@ function radices(L) {
 }
 function initialDigits(L) {
   return L.cams.map(c => c.d).concat(L.guards.map(g => g.i * 2 + g.f), (L.toggles || []).map(t => t.s), (L.dogs || []).map(d => d.i), (L.lights || []).map(l => l.d));
+}
+/* Panels: L.panels = [{c, links:[digit index, ...]}]; a linked camera / door / mirror has no action of its own. */
+function wiredOf(L) {
+  if (!L._wired) L._wired = new Set((L.panels || []).flatMap(p => p.links));
+  return L._wired;
+}
+/* The digits after tapping panel j, or null when a door would close on a dog standing in it. */
+function panelApply(L, dg, j) {
+  const [nc, ng] = counts(L), p = L.panels[j], d2 = dg.slice();
+  for (const i of p.links) {
+    if (i < nc) { d2[i] = (dg[i] + 1) % 4; continue; }
+    const t = L.toggles[i - nc - ng];
+    if (t.kind === 'door' && dg[i] === 0 && (L.dogs || []).some((d, q) => d.rail[dg[nc + ng + L.toggles.length + q]] === t.c)) return null;
+    d2[i] = 1 - dg[i];
+  }
+  return d2;
 }
 /* After every action each searchlight swings a quarter turn clockwise (digits are copied). */
 function sweep(L, dg) {
@@ -317,7 +335,8 @@ function actions(L, dg) {
 }
 function actions0(L, dg) {
   const [nc, ng] = counts(L), out = [];
-  L.cams.forEach((cm, k) => { const d2 = dg.slice(); d2[k] = (dg[k] + 1) % 4; out.push([d2, k]); });   // clockwise only
+  const wired = wiredOf(L);
+  L.cams.forEach((cm, k) => { if (wired.has(k)) return; const d2 = dg.slice(); d2[k] = (dg[k] + 1) % 4; out.push([d2, k]); });   // clockwise only
   L.guards.forEach((g, j) => {
     const k = nc + j, v = dg[k], i = v >> 1, f = v & 1;
     const taken = ni => L.guards.some((o, q) => q !== j && o.rail[dg[nc + q] >> 1] === g.rail[ni]);
@@ -331,6 +350,7 @@ function actions0(L, dg) {
   const nt = (L.toggles || []).length;
   (L.toggles || []).forEach((t, j) => {
     const k = nc + ng + j;
+    if (wired.has(k)) return;
     // a door cannot close on a dog standing in the doorway
     if (t.kind === 'door' && dg[k] === 0 && (L.dogs || []).some((d, q) => d.rail[dg[nc + ng + nt + q]] === t.c)) return;
     const d2 = dg.slice(); d2[k] = 1 - dg[k]; out.push([d2, k]);
@@ -341,6 +361,7 @@ function actions0(L, dg) {
       (L.toggles || []).some((t, q) => t.c === cell && (t.kind === 'mirror' || dg[nc + ng + q] === 1));
     for (const s of [1, -1]) { const ni = i + s; if (ni < 0 || ni >= d.rail.length || taken(d.rail[ni])) continue; const d2 = dg.slice(); d2[k] = ni; out.push([d2, k]); }
   });
+  (L.panels || []).forEach((p, j) => { const d2 = panelApply(L, dg, j); if (d2) out.push([d2, dg.length + j]); });     // a panel's 'who' follows the digit indices
   return out;
 }
 
@@ -417,6 +438,7 @@ function draw(L, digits) {
       (L.toggles || []).forEach((t, j) => { if (t.c === c) ch = t.kind === 'door' ? (digits[nc + ng + j] ? 'X' : 'x') : (digits[nc + ng + j] ? '\\' : '/'); });
       (L.dogs || []).forEach((d, j) => { if (d.rail[digits[nc + ng + nt + j]] === c) ch = 'efgh'[j]; });
       (L.lights || []).forEach((l, j) => { if (l.c === c) ch = String(digits[nc + ng + nt + nd + j]); });
+      (L.panels || []).forEach((p, j) => { if (p.c === c) ch = 'pqr'[j]; });
       s += ch;
     }
     s += '\n';
@@ -428,8 +450,8 @@ function draw(L, digits) {
    X closed door, x open door, / \ mirror. meta.guards: {a:{i,f,range}} start index on the rail, facing, range. */
 function parseLevel(map, meta) {
   const h = map.length, w = map[0].length, wall = new Uint8Array(w * h);
-  const L = { w, h, wall, S: -1, E: -1, cams: [], guards: [], toggles: [], dogs: [], lights: [] };
-  const rails = {};
+  const L = { w, h, wall, S: -1, E: -1, cams: [], guards: [], toggles: [], dogs: [], lights: [], panels: [] };
+  const rails = {}, pcells = {};
   map.forEach((row, y) => {
     if (row.length !== w) throw new Error('ragged map row ' + y);
     [...row].forEach((ch, x) => {
@@ -438,6 +460,7 @@ function parseLevel(map, meta) {
       else if (ch === 'S') L.S = c;
       else if (ch === 'E') L.E = c;
       else if ('^>v<'.includes(ch)) { wall[c] = 1; L.cams.push({ c, d: '^>v<'.indexOf(ch) }); }
+      else if (/[p-r]/.test(ch)) { wall[c] = 1; pcells[ch] = c; }                                  // a power panel on a wall cell
       else if ('0123'.includes(ch)) { wall[c] = 1; L.lights.push({ c, d: Number(ch) }); }       // a searchlight; the digit is the way it faces now
       else if (/[a-d]/.test(ch)) (rails[ch] = rails[ch] || []).push(c);
       else if (/[e-h]/.test(ch)) (rails[ch] = rails[ch] || []).push(c);
@@ -453,6 +476,15 @@ function parseLevel(map, meta) {
   // a dog's rail may run through a door tile, which the picture cannot show twice, so meta carries the rail itself
   const dm = (meta && meta.dogs) || {};
   Object.keys(dm).sort().forEach(k => L.dogs.push({ rail: dm[k].rail.slice(), i: dm[k].i || 0 }));
+  // panels: meta.panels {p:{links:[cell,...]}} names the wired cameras / doors / mirrors by their cells
+  const pm = (meta && meta.panels) || {};
+  Object.keys(pcells).sort().forEach(k => {
+    const links = ((pm[k] && pm[k].links) || []).map(cell => {
+      const ci = L.cams.findIndex(q => q.c === cell); if (ci >= 0) return ci;
+      return L.cams.length + L.guards.length + L.toggles.findIndex(q => q.c === cell);
+    });
+    L.panels.push({ c: pcells[k], links });
+  });
   return L;
 }
 function toMap(L) {
@@ -467,6 +499,7 @@ function toMap(L) {
       const cam = L.cams.find(q => q.c === c);
       if (cam) ch = ar[cam.d];
       const lt = (L.lights || []).find(q => q.c === c); if (lt) ch = String(lt.d);
+      (L.panels || []).forEach((p, k) => { if (p.c === c) ch = 'pqr'[k]; });
       L.guards.forEach((g, k) => { if (g.rail.includes(c)) ch = 'abcd'[k]; });
       (L.dogs || []).forEach((d, k) => { if (d.rail.includes(c)) ch = 'efgh'[k]; });
       (L.toggles || []).forEach(t => { if (t.c === c) ch = t.kind === 'door' ? (t.s ? 'X' : 'x') : (t.s ? '\\' : '/'); });
@@ -474,10 +507,12 @@ function toMap(L) {
     }
     rows.push(r);
   }
-  const guards = {}, dogs = {};
+  const guards = {}, dogs = {}, panels = {};
+  const [nc0, ng0] = counts(L);
+  (L.panels || []).forEach((p, k) => { panels['pqr'[k]] = { links: p.links.map(i => i < nc0 ? L.cams[i].c : L.toggles[i - nc0 - ng0].c) }; });
   L.guards.forEach((g, k) => { guards['abcd'[k]] = { i: g.i, f: g.f, range: g.range }; });
   (L.dogs || []).forEach((d, k) => { dogs['efgh'[k]] = { rail: d.rail.slice(), i: d.i }; });
-  return { map: rows, meta: Object.assign({ guards }, (L.dogs || []).length ? { dogs } : {}) };
+  return { map: rows, meta: Object.assign({ guards }, (L.dogs || []).length ? { dogs } : {}, (L.panels || []).length ? { panels } : {}) };
 }
 
 /* ------------------------------------------------------------- generator */
@@ -547,7 +582,7 @@ function randomLayout(rnd, spec) {
   for (let y = 0; y < h; y++) { wall[y * w] = 1; wall[y * w + w - 1] = 1; }
   const pick = a => a[(rnd() * a.length) | 0];
   const shapes = [[[0, 0]], [[0, 0], [1, 0]], [[0, 0], [0, 1]], [[0, 0], [1, 0], [2, 0]], [[0, 0], [0, 1], [0, 2]], [[0, 0], [1, 0], [0, 1]]];
-  const L = { w, h, wall, S: -1, E: -1, cams: [], guards: [], toggles: [], dogs: [], lights: [] };
+  const L = { w, h, wall, S: -1, E: -1, cams: [], guards: [], toggles: [], dogs: [], lights: [], panels: [] };
   for (let b = 0, tries = 0; b < spec.blocks && tries < 60; tries++) {
     const sh = pick(shapes), x0 = 1 + ((rnd() * (w - 2)) | 0), y0 = 1 + ((rnd() * (h - 2)) | 0), cells = sh.map(([dx, dy]) => (y0 + dy) * w + x0 + dx);
     if (sh.some(([dx, dy]) => x0 + dx >= w - 1 || y0 + dy >= h - 1) || cells.some(c => wall[c])) continue;
@@ -623,6 +658,17 @@ function randomLayout(rnd, spec) {
     const c = mounts.splice((rnd() * mounts.length) | 0, 1)[0];
     L.lights.push({ c, d: (rnd() * 4) | 0 });
   }
+  // panels: each is wired to spec.wire (default 2) cameras / doors / mirrors that no other panel owns
+  const nc = L.cams.length, ng = L.guards.length, wirable = [];
+  for (let i = 0; i < nc; i++) wirable.push(i);
+  for (let j = 0; j < L.toggles.length; j++) wirable.push(nc + ng + j);
+  for (let k = 0; k < (spec.panels || 0); k++) {
+    const wire = spec.wire || 2;
+    if (!mounts.length || wirable.length < wire) return null;
+    const c = mounts.splice((rnd() * mounts.length) | 0, 1)[0], links = [];
+    for (let q = 0; q < wire; q++) links.push(wirable.splice((rnd() * wirable.length) | 0, 1)[0]);
+    L.panels.push({ c, links: links.sort((a, b) => a - b) });
+  }
   return L;
 }
 
@@ -637,13 +683,13 @@ function mounts(L) {
 }
 function cloneLevel(L) {
   return { w: L.w, h: L.h, wall: L.wall.slice(), S: L.S, E: L.E, cams: L.cams.map(c => ({ ...c })),
-    guards: L.guards.map(g => ({ ...g, rail: g.rail.slice() })), toggles: L.toggles.map(t => ({ ...t })), dogs: (L.dogs || []).map(d => ({ ...d, rail: d.rail.slice() })), lights: (L.lights || []).map(l => ({ ...l })) };
+    guards: L.guards.map(g => ({ ...g, rail: g.rail.slice() })), toggles: L.toggles.map(t => ({ ...t })), dogs: (L.dogs || []).map(d => ({ ...d, rail: d.rail.slice() })), lights: (L.lights || []).map(l => ({ ...l })), panels: (L.panels || []).map(p => ({ c: p.c, links: p.links.slice() })) };
 }
 /* One random change to a layout (walls, exit, a camera mount, a guard rail, a door or a mirror). null if it breaks the layout. */
 function mutateLayout(L, rnd) {
   const M = cloneLevel(L), { w, h } = M, n = w * h, pick = a => a[(rnd() * a.length) | 0];
   const busy = new Set([M.E]);
-  M.guards.forEach(g => g.rail.forEach(c => busy.add(c))); M.dogs.forEach(d => d.rail.forEach(c => busy.add(c))); M.toggles.forEach(t => busy.add(t.c)); M.cams.forEach(c => busy.add(c.c)); M.lights.forEach(c => busy.add(c.c));
+  M.guards.forEach(g => g.rail.forEach(c => busy.add(c))); M.dogs.forEach(d => d.rail.forEach(c => busy.add(c))); M.toggles.forEach(t => busy.add(t.c)); M.cams.forEach(c => busy.add(c.c)); M.lights.forEach(c => busy.add(c.c)); M.panels.forEach(c => busy.add(c.c));
   const k = rnd();
   if (k < .35) {                                                   // flip an interior wall cell
     const c = (1 + ((rnd() * (h - 2)) | 0)) * w + 1 + ((rnd() * (w - 2)) | 0);
@@ -652,9 +698,9 @@ function mutateLayout(L, rnd) {
   } else if (k < .5) {                                             // move the exit
     const fl = []; for (let c = 0; c < n; c++) if (!M.wall[c] && !busy.has(c)) fl.push(c);
     if (!fl.length) return null; M.E = pick(fl);
-  } else if (k < .72 && M.cams.length + M.lights.length) {         // move a camera or searchlight to another mount
-    const ms = mounts(M).filter(c => !M.cams.some(q => q.c === c) && !M.lights.some(q => q.c === c)); if (!ms.length) return null;
-    pick(M.cams.concat(M.lights)).c = pick(ms);
+  } else if (k < .72 && M.cams.length + M.lights.length + M.panels.length) {   // move a camera, searchlight or panel to another mount
+    const ms = mounts(M).filter(c => !busy.has(c)); if (!ms.length) return null;
+    pick(M.cams.concat(M.lights, M.panels)).c = pick(ms);
   } else if (k < .84 && M.guards.length + M.dogs.length) {         // slide or re-draw a guard or dog rail
     const g = pick(M.guards.concat(M.dogs)), len = g.rail.length, horiz = (g.rail[0] % w) !== (g.rail[len - 1] % w);
     const x0 = (g.rail[0] % w) + (rnd() < .5 ? 0 : (horiz ? (rnd() < .5 ? -1 : 1) : 0)), y0 = ((g.rail[0] / w) | 0) + (rnd() < .5 ? 0 : (horiz ? 0 : (rnd() < .5 ? -1 : 1)));
@@ -665,14 +711,14 @@ function mutateLayout(L, rnd) {
     const t = pick(M.toggles), fl = []; for (let c = 0; c < n; c++) if (!M.wall[c] && !busy.has(c)) fl.push(c);
     if (!fl.length) return null; t.c = pick(fl);
   } else return null;
-  for (const c of M.cams.concat(M.lights)) if (!M.wall[c.c]) return null;
+  for (const c of M.cams.concat(M.lights, M.panels)) if (!M.wall[c.c]) return null;
   if (!mounts(M).length || M.wall[M.E]) return null;
   for (const g of M.guards.concat(M.dogs)) if (g.rail.some(c => M.wall[c])) return null;
   for (const t of M.toggles) if (M.wall[t.c]) return null;
   const pillars = new Uint8Array(n); M.toggles.forEach(t => { if (t.kind === 'mirror') pillars[t.c] = 1; });
   if (!floorConnected(M, pillars)) return null;
   // a camera whose neighbours became all wall can light nothing
-  for (const c of M.cams.concat(M.lights)) {
+  for (const c of M.cams.concat(M.lights, M.panels)) {
     const x = c.c % w, y = (c.c / w) | 0;
     if (!(x > 0 && !M.wall[c.c - 1] || x < w - 1 && !M.wall[c.c + 1] || y > 0 && !M.wall[c.c - w] || y < h - 1 && !M.wall[c.c + w])) return null;
   }
@@ -680,8 +726,14 @@ function mutateLayout(L, rnd) {
 }
 
 /* How many watchers/objects the level cannot be solved without: freeze each one and see whether par gets worse. */
+/* Units the player works with: every item that has an action of its own (wired ones do not), every panel and every searchlight. */
+function unitCount(L) {
+  const wired = wiredOf(L);
+  return L.cams.length + L.guards.length + L.toggles.length + (L.dogs || []).length - wired.size + (L.panels || []).length + (L.lights || []).length;
+}
 function necessary(L, par) {
-  const total = L.cams.length + L.guards.length + L.toggles.length + (L.dogs || []).length, nl = (L.lights || []).length;
+  const D = L.cams.length + L.guards.length + L.toggles.length + (L.dogs || []).length + (L.lights || []).length, nl = (L.lights || []).length, wired = wiredOf(L);
+  const nItems = D - nl;
   let cnt = 0;
   // a searchlight cannot be frozen (it swings anyway); it counts when taking it away changes the par
   for (let j = 0; j < nl; j++) {
@@ -689,7 +741,9 @@ function necessary(L, par) {
     const r = solve(M, { maxDepth: par + 2 });
     if (!r || !r.solvable || r.par !== par) cnt++;
   }
-  for (let k = 0; k < total; k++) { const r = solve(L, { frozen: new Set([k]), maxDepth: par }); if (!r || !r.solvable || r.par > par) cnt++; }
+  const check = k => { const r = solve(L, { frozen: new Set([k]), maxDepth: par }); if (!r || !r.solvable || r.par > par) cnt++; };
+  for (let k = 0; k < nItems; k++) if (!wired.has(k)) check(k);
+  for (let j = 0; j < (L.panels || []).length; j++) check(D + j);
   return cnt;
 }
 
@@ -799,7 +853,7 @@ function genLevel(spec, seed, target, iters) {
   let L = null;
   for (let t = 0; t < 40 && !L; t++) L = randomLayout(rnd, spec);
   if (!L) return null;
-  const total = L.cams.length + L.guards.length + L.toggles.length + L.dogs.length + L.lights.length, minUsed = total - (total <= 3 ? 0 : (spec.minUnused == null ? 1 : spec.minUnused));
+  const total = unitCount(L), minUsed = total - (total <= 3 ? 0 : (spec.minUnused == null ? 1 : spec.minUnused));
   const wLo = spec.phasesLo || 1, wHi = spec.phasesHi || 99;
   let cur = buildGraph(L, spec.cap || 20000), curScore = -1;
   const maxOf = g => { let m = 0; for (let i = 0; i < g.dist.length; i++) if (g.dist[i] > m) m = g.dist[i]; return m; };
@@ -829,7 +883,7 @@ function genLevel(spec, seed, target, iters) {
   return null;
 }
 
-const api = { analyze, _layout: randomLayout, solve, draw, mulberry32, hash2, initialDigits, evalConfig, prepare, parseLevel, toMap, guardFacingDir, radices, actions, genLevel, buildGraph, sweep };
+const api = { analyze, _layout: randomLayout, solve, draw, mulberry32, hash2, initialDigits, evalConfig, prepare, parseLevel, toMap, guardFacingDir, radices, actions, genLevel, buildGraph, sweep, panelApply };
 if (typeof module !== 'undefined' && module.exports) module.exports = api;
 if (typeof window !== 'undefined') window.Prison = api;
 })();
@@ -837,7 +891,7 @@ if (typeof window !== 'undefined') window.Prison = api;
 </script>
 <script>
 /* generated by tools/gen-levels.js + tools/build-levels.js; every level re-solved exactly (par = fewest actions) */
-window.PRISON_LEVELS = [{"id":1,"map":["#####","##.E#","#S#.#",">...#","#####"],"meta":{"guards":{}},"par":1,"walks":1},{"id":2,"map":["#####",">E#.#","#...#","##S.#","#####"],"meta":{"guards":{}},"par":1,"walks":1},{"id":3,"map":["#####","##.S#","#>..#","#.#.#","#E..#","#####"],"meta":{"guards":{}},"par":2,"walks":1},{"id":4,"map":["######",">..E##","###.##","##S..#","###^##"],"meta":{"guards":{}},"par":2,"walks":1},{"id":5,"map":["###v##","#..E##","###.<#","##S..#","######"],"meta":{"guards":{}},"par":2,"walks":1},{"id":6,"map":["#v####","#E.#.#","#.#S.#","#..>.#","##...#","######"],"meta":{"guards":{}},"par":4,"walks":2},{"id":7,"map":["######","###..#","#>.E.#","#..<##","#S####","######"],"meta":{"guards":{}},"par":3,"walks":2},{"id":8,"map":["######","##S.v#","#.>..<","#..#.#","##E..#","######"],"meta":{"guards":{}},"par":4,"walks":2},{"id":9,"map":["######","####.#","#....#","##.#E#","#Sv..<","#...<#","######"],"meta":{"guards":{}},"par":4,"walks":2},{"id":10,"map":["#######","###S..#","###...#","#E.>..#",">....##","###^###"],"meta":{"guards":{}},"par":5,"walks":2},{"id":11,"map":["#######","#....##","##...##","#..<..#","#S>...#","##E.<##","#######"],"meta":{"guards":{}},"par":7,"walks":3},{"id":12,"map":["#######","###>.E#","#....<#","#...vS#","##>...#","#####.#","#######"],"meta":{"guards":{}},"par":7,"walks":3},{"id":13,"map":["#######","##....#","##.v..#","#...<E#","##...##","#..^S.#","##^####"],"meta":{"guards":{}},"par":9,"walks":3},{"id":14,"map":["########","###S...#","#..#.#.#","#...^..#","#.>...##","#.E<..##","##^#^###"],"meta":{"guards":{}},"par":9,"walks":4},{"id":15,"map":["########","##S....#","###..#.#","###^.###","#.E>...#","#...v^.#","##.....#","####^###"],"meta":{"guards":{}},"par":11,"walks":2},{"id":16,"map":["######",">.E..#","##...#","#.aaa#","####S#","######"],"meta":{"guards":{"a":{"i":0,"f":0,"range":3}}},"par":2,"walks":1},{"id":17,"map":["######","#Saaa#","##..##","##...#","##.E##","###^##"],"meta":{"guards":{"a":{"i":0,"f":0,"range":3}}},"par":2,"walks":1},{"id":18,"map":["######","#E<.##","#..a.#","###a.#","##Sa##","######"],"meta":{"guards":{"a":{"i":2,"f":1,"range":3}}},"par":4,"walks":2},{"id":19,"map":["#######","#..S.##","#.#.###","#.#.v.#","##aaaE#","#####^#"],"meta":{"guards":{"a":{"i":2,"f":1,"range":3}}},"par":4,"walks":2},{"id":20,"map":["#######","##...S#","##.>.<#","#.#..##","#Eaaa##","#######"],"meta":{"guards":{"a":{"i":0,"f":1,"range":3}}},"par":5,"walks":2},{"id":21,"map":["####v##","##...E#","##.#.##","###v..#","#Saaa##","#.#...#","#######"],"meta":{"guards":{"a":{"i":0,"f":0,"range":3}}},"par":5,"walks":2},{"id":22,"map":["#######","#.E####","#.>.###","#.aaa.#","#####.#","#####S#","#######"],"meta":{"guards":{"a":{"i":0,"f":1,"range":3}}},"par":6,"walks":3},{"id":23,"map":["#######","##aaa.#","#...#.#","###S>.#","###>..#","#.E..##","#######"],"meta":{"guards":{"a":{"i":2,"f":0,"range":3}}},"par":6,"walks":2},{"id":24,"map":["#######","#.S##.#","##a#E.#","#.a.<.#","##a#..#","##....#","#####^#"],"meta":{"guards":{"a":{"i":0,"f":0,"range":3}}},"par":7,"walks":3},{"id":25,"map":["#######","#######","##....#","#..a^E#","#.#a.##","##Sa<##","#######"],"meta":{"guards":{"a":{"i":2,"f":0,"range":3}}},"par":8,"walks":3},{"id":26,"map":["#######","#...###","#...S##","#.#..##","#.>.<E#","##aaa.#","#######"],"meta":{"guards":{"a":{"i":2,"f":1,"range":3}}},"par":4,"walks":2},{"id":27,"map":["####v##","#SaaaE#","###.^##","#....##","##....#","##...##","#######"],"meta":{"guards":{"a":{"i":0,"f":0,"range":3}}},"par":6,"walks":2},{"id":28,"map":["#######","##.E..#","###.###","#Sv..##","#aaaa##","#^#..##","#######"],"meta":{"guards":{"a":{"i":0,"f":0,"range":3}}},"par":5,"walks":2},{"id":29,"map":["#####v#","###Sa.#","####a.#","###ba<#","###b.##","#.Eb###","#######"],"meta":{"guards":{"a":{"i":2,"f":1,"range":3},"b":{"i":2,"f":0,"range":3}}},"par":7,"walks":3},{"id":30,"map":["#v#####","#..#.##","##.#a##","#bbba.#",">E<.aS#","#.#..##","#######"],"meta":{"guards":{"a":{"i":2,"f":1,"range":3},"b":{"i":2,"f":0,"range":3}}},"par":7,"walks":3},{"id":31,"map":["#######","#bbbE##","##>.a.#","###>a##","##..a<#","#..#aS#","#######"],"meta":{"guards":{"a":{"i":3,"f":0,"range":3},"b":{"i":2,"f":0,"range":3}}},"par":8,"walks":3},{"id":32,"map":["########","#.####S#","#E.#.>.#","#^.aaaa#","##.bbb.#","##.##..#","##^#####"],"meta":{"guards":{"a":{"i":3,"f":1,"range":3},"b":{"i":2,"f":1,"range":3}}},"par":7,"walks":3},{"id":33,"map":["##v#####","#....E.#",">b##^#.#","#b.##.##","#b##...#","#b.aaaS#","########"],"meta":{"guards":{"a":{"i":1,"f":1,"range":3},"b":{"i":3,"f":1,"range":3}}},"par":9,"walks":3},{"id":34,"map":["###v####","#..bbbb#","##.#^S##","##.v##.#","#.aaaaE#","####...#","########"],"meta":{"guards":{"a":{"i":1,"f":1,"range":3},"b":{"i":0,"f":1,"range":3}}},"par":9,"walks":4},{"id":35,"map":["####v###","##abbbS#","#.a^.###","#.a##.E#","#...#.##","#.^....#","########"],"meta":{"guards":{"a":{"i":0,"f":1,"range":3},"b":{"i":1,"f":1,"range":3}}},"par":10,"walks":4},{"id":36,"map":["#v#####","#...#E#","#..bbb#","#a<..##","#aS#.##","#a##..#","#######"],"meta":{"guards":{"a":{"i":1,"f":0,"range":3},"b":{"i":2,"f":0,"range":3}}},"par":7,"walks":3},{"id":37,"map":["#######","#...v##","#bbbaS#","#.v#a##","#...a##","#....E#","#######"],"meta":{"guards":{"a":{"i":0,"f":1,"range":3},"b":{"i":2,"f":1,"range":3}}},"par":7,"walks":3},{"id":38,"map":["#######","###bbb#","###Sa.#","###>a.#","##>.a<#","##E...#","#######"],"meta":{"guards":{"a":{"i":2,"f":1,"range":3},"b":{"i":1,"f":0,"range":3}}},"par":8,"walks":3},{"id":39,"map":["########","###vS..#","#.#.>.##","#Ebbb.<#","##.#..##","##.#aaa#","########"],"meta":{"guards":{"a":{"i":1,"f":1,"range":3},"b":{"i":2,"f":1,"range":3}}},"par":9,"walks":3},{"id":40,"map":["########","##.v..##","##a....#","#.a<b^S#","##a#b.##","##E#b.##","########"],"meta":{"guards":{"a":{"i":0,"f":0,"range":3},"b":{"i":0,"f":1,"range":3}}},"par":8,"walks":4},{"id":41,"map":["########","#..b####","#..b...#","#>.b<.##","#S#aaa##","#...#.E<","########"],"meta":{"guards":{"a":{"i":0,"f":1,"range":3},"b":{"i":2,"f":1,"range":3}}},"par":9,"walks":3},{"id":42,"map":["########","#a#.#S.#","#a...>b#","#a^...b#","#a.<..b#","#E.#...#","#...##.#","########"],"meta":{"guards":{"a":{"i":3,"f":1,"range":3},"b":{"i":0,"f":1,"range":3}}},"par":10,"walks":4},{"id":43,"map":["########","##.v####","#S.av#.#","##^ab..#","#..ab###","##.#b#E#","###.b..#","########"],"meta":{"guards":{"a":{"i":0,"f":1,"range":3},"b":{"i":3,"f":1,"range":3}}},"par":11,"walks":4},{"id":44,"map":["########","#a####S#","#a.bbbb#","#a#..###",">a##^E.#","#.v#..##","#.....##","########"],"meta":{"guards":{"a":{"i":3,"f":0,"range":3},"b":{"i":3,"f":1,"range":3}}},"par":11,"walks":4},{"id":45,"map":["########","######S#","##.##..#","#a.#...#","#aEv#..#","#a#.#.##","#.bbbb<#","##^#####"],"meta":{"guards":{"a":{"i":2,"f":1,"range":3},"b":{"i":3,"f":1,"range":3}}},"par":11,"walks":2},{"id":46,"map":["######","#SX..#","###..<","#...E#","#....#","######"],"meta":{"guards":{}},"par":2,"walks":1},{"id":47,"map":["######","#S..##","##^.##","#E#..#","#..X##","######"],"meta":{"guards":{}},"par":3,"walks":1},{"id":48,"map":["######","#E..##","#^^X##","#...##","#S..##","######"],"meta":{"guards":{}},"par":3,"walks":2},{"id":49,"map":["######","#....#","#S.v.#","##...#","#.^..#","#E.X##","######"],"meta":{"guards":{}},"par":5,"walks":2},{"id":50,"map":["#######","####..#","#S#...#","#X>.E.<","#.X..##","#######"],"meta":{"guards":{}},"par":4,"walks":2},{"id":51,"map":["#######","#>..X.#","#..^.##","#S#.X.#","##.E.##","#######"],"meta":{"guards":{}},"par":6,"walks":3},{"id":52,"map":["#######","##.####","##..###","##>..X#","#S..^.#","#.##EX#","#######"],"meta":{"guards":{}},"par":6,"walks":3},{"id":53,"map":["#######","##.#.##","#.X>aE#","##.Xa<#","##.#a.#","#####S#","#######"],"meta":{"guards":{"a":{"i":0,"f":0,"range":3}}},"par":7,"walks":3},{"id":54,"map":["#######","#..Xa.#","#S#^a.#","##X.a##","##.#..#","##E####","#######"],"meta":{"guards":{"a":{"i":2,"f":1,"range":3}}},"par":8,"walks":2},{"id":55,"map":["#######","###S###","###.a##","##.#a.#","#E.>a<#","#..XX.#","#######"],"meta":{"guards":{"a":{"i":1,"f":0,"range":3}}},"par":9,"walks":3},{"id":56,"map":["#######","##S..##","#E<>.##","#X..X##","#.#...#","#.###.#","#######"],"meta":{"guards":{}},"par":5,"walks":2},{"id":57,"map":["###v###","#.XE###","#..##.#","#.vS#.#","#...#x#","#.....#","#######"],"meta":{"guards":{}},"par":5,"walks":2},{"id":58,"map":["#######","#.....#","#X.##E#","#Xv.S##","#...<##","#.....#","#######"],"meta":{"guards":{}},"par":6,"walks":3},{"id":59,"map":["#######","#..#..#","#.#Sa##","#E.va##","#^X.a.#","##x#a.#","#######"],"meta":{"guards":{"a":{"i":0,"f":1,"range":3}}},"par":7,"walks":3},{"id":60,"map":["###v###","##a.#S#","##a..X#","##a<..#","#.X.###","#X#E###","#######"],"meta":{"guards":{"a":{"i":2,"f":1,"range":3}}},"par":6,"walks":2},{"id":61,"map":["########","#EaaaX.#","##.X##X#","#.#.#>.#","#...#S.#","##...#^#","########"],"meta":{"guards":{"a":{"i":2,"f":0,"range":3}}},"par":8,"walks":3},{"id":62,"map":["########","##...###","#.a#X###","#.a#..##","#.aS#Xv#","##.#.XE<","########"],"meta":{"guards":{"a":{"i":2,"f":1,"range":3}}},"par":7,"walks":3},{"id":63,"map":["########","#SaaaX.#","##..#.##","#Ev##X<#","#...#..#","##..X.##","########"],"meta":{"guards":{"a":{"i":2,"f":0,"range":3}}},"par":8,"walks":2},{"id":64,"map":["########",">.XS#..#","#a#.#..#","#a.#...#","#a.##E##","#.^..X##","#.X...##","########"],"meta":{"guards":{"a":{"i":0,"f":0,"range":3}}},"par":9,"walks":3},{"id":65,"map":["########","#x..#..#","##..aX.#","####avE#","####a.##","###.a<S#","#.....X#","########"],"meta":{"guards":{"a":{"i":2,"f":0,"range":3}}},"par":11,"walks":4},{"id":66,"map":["######","#.S.\\#","##..<#","#E..##","###.##","######"],"meta":{"guards":{}},"par":2,"walks":1},{"id":67,"map":["######","##...#","##E..#","##.>.#","#..\\S#","######"],"meta":{"guards":{}},"par":2,"walks":1},{"id":68,"map":["######","#....#","#S^\\.#","##...#","#E.#.#","######"],"meta":{"guards":{}},"par":2,"walks":2},{"id":69,"map":["######","##.###","#S...#","#.^\\.#","#.\\E.#","##...#","####^#"],"meta":{"guards":{}},"par":3,"walks":2},{"id":70,"map":["###v##","#...##","#S...#","#.^\\.#","#.\\..#","#.#E##","######"],"meta":{"guards":{}},"par":3,"walks":2},{"id":71,"map":["#######","#/v##.#","#.....#","#.<.#.#","#S/E.##","#######"],"meta":{"guards":{}},"par":5,"walks":2},{"id":72,"map":["#######","#>....#","#..<\\.#","#S#...#","#\\.E###","##...##","#######"],"meta":{"guards":{}},"par":5,"walks":3},{"id":73,"map":["#######","##....#","#/../.#","#..<..#","#...<.#","##S.#E#","#######"],"meta":{"guards":{}},"par":5,"walks":2},{"id":74,"map":["#######","##..###","#..\\###","#.....#","#..<\\.#","#S^E..#","#######"],"meta":{"guards":{}},"par":5,"walks":2},{"id":75,"map":["#######","##...##","#S./..#","##^/^.#","#.E...#","#...#.#","#######"],"meta":{"guards":{}},"par":6,"walks":3},{"id":76,"map":["#######","#\\/..##","#...#E#","#.<.>.#","#.#...#","#S##..#","#######"],"meta":{"guards":{}},"par":4,"walks":2},{"id":77,"map":["#######","##\\..##","#.....#","#\\.#.E#","#...v##","##^..S#","#######"],"meta":{"guards":{}},"par":4,"walks":2},{"id":78,"map":["#######","#/v\\###","#.....#","#.<.E##","#S##.##","#.#..\\#","#######"],"meta":{"guards":{}},"par":5,"walks":1},{"id":79,"map":["#######","#..\\v##","##....#","#..<\\.#","#X#...#","#S\\E###","#######"],"meta":{"guards":{}},"par":5,"walks":2},{"id":80,"map":["#######","#.E##.#","#.<.XS#","#.>./.#","#././##","#.....#","#######"],"meta":{"guards":{}},"par":5,"walks":2},{"id":81,"map":["#######","#>E\\###","#...###","#X</v##","#....##","#.#\\.S#","#######"],"meta":{"guards":{}},"par":7,"walks":3},{"id":82,"map":["########","#.##/Sv#","#E..\\..#","###..>X#","##.....#","##.^\\#.#","########"],"meta":{"guards":{}},"par":7,"walks":3},{"id":83,"map":["########","#....S##","#\\..^/<#","#.>...##","#...../#","#.#.#XE#","########"],"meta":{"guards":{}},"par":6,"walks":2},{"id":84,"map":["########","#S#..#.#","#X.....#","#^\\.^.##",">E./#./#","##.....#","#..#.#.#","########"],"meta":{"guards":{}},"par":6,"walks":2},{"id":85,"map":["########","#.....##","#.#.^..#","#.S#...#","#^/>...#","##\\.X#.#","###E../#","########"],"meta":{"guards":{}},"par":9,"walks":2},{"id":86,"map":["#v#####","#.S.###","#a#..##","#a.##.#","#a#>XE#","#....##","#######"],"meta":{"guards":{"a":{"i":0,"f":1,"range":3}}},"par":7,"walks":3},{"id":87,"map":["#######","#..##S#","#E.#.X#","#..#.##","#^.>..#","#..aaa#","#######"],"meta":{"guards":{"a":{"i":0,"f":0,"range":3}}},"par":7,"walks":2},{"id":88,"map":["#######","#.#..X#","#.#a<E#","#..a.##","##>a\\##","#.Sa.##","#######"],"meta":{"guards":{"a":{"i":2,"f":1,"range":3}}},"par":9,"walks":3},{"id":89,"map":["#######","#..####","#.Xaaa#","#.<..##","#..<.E#","#^S####","#######"],"meta":{"guards":{"a":{"i":2,"f":1,"range":3}}},"par":9,"walks":3},{"id":90,"map":["########","#####.##","#....X.#","##.v#..#","#aaa.^.#","###S#EX#","########"],"meta":{"guards":{"a":{"i":2,"f":1,"range":3}}},"par":10,"walks":2},{"id":91,"map":["########","###/aXE#","##..a#^#","#..^a###","#..#aXS#","#.##.###","########"],"meta":{"guards":{"a":{"i":3,"f":0,"range":3}}},"par":9,"walks":3},{"id":92,"map":["########","#>....##","#..#...#","#X<S#..#","#X#aaa.#",">E##.###","########"],"meta":{"guards":{"a":{"i":0,"f":0,"range":3}}},"par":10,"walks":3},{"id":93,"map":["########","########","#.##.E.#","#./##^.#","#.#aS#.#",">..a##.#","#.^aXX.#","########"],"meta":{"guards":{"a":{"i":0,"f":1,"range":3}}},"par":10,"walks":3},{"id":94,"map":["########","#..###S#","#.E#.aX#","#..##a/#","#..v#a.#","#.#.Xa##","#...<###","#^######"],"meta":{"guards":{"a":{"i":0,"f":1,"range":3}}},"par":11,"walks":3},{"id":95,"map":["########","##.E.a##","#..^/a.<","#...#a##","#..#..##","#.##XvS#","##.X...#","########"],"meta":{"guards":{"a":{"i":2,"f":1,"range":3}}},"par":11,"walks":3},{"id":96,"map":["########","##.##.##","#.S...##","#\\#^..a#","#...^.a#","#E#X..a#","########"],"meta":{"guards":{"a":{"i":1,"f":0,"range":3}}},"par":8,"walks":2},{"id":97,"map":["########","#.....S#","##..<###","#..#X#.#","#..aaa.#","#\\.##^E#","########"],"meta":{"guards":{"a":{"i":0,"f":1,"range":3}}},"par":8,"walks":3},{"id":98,"map":["########","#.##..##","#.#/.###","#...X#S#","#..#X#.<",">.Eaaaa#","##^#####"],"meta":{"guards":{"a":{"i":3,"f":1,"range":3}}},"par":9,"walks":2},{"id":99,"map":["########","#.S\\.###","#X<#.#.#","#av#...#","#a.##E.#","#a#.X.##","#...<..#","########"],"meta":{"guards":{"a":{"i":0,"f":0,"range":3}}},"par":10,"walks":4},{"id":100,"map":["######v#","##aS.#.#","#.a<.#.#","#\\a.##E#","#...#..#","#..XX.<#","###.#..#","########"],"meta":{"guards":{"a":{"i":0,"f":1,"range":3}}},"par":10,"walks":3},{"id":101,"map":["########","#..#####","##...X\\#","#...#Xv#","#..v#.E#","#.#..###","#..aaaS#","###^####"],"meta":{"guards":{"a":{"i":2,"f":1,"range":3}}},"par":10,"walks":3},{"id":102,"map":["###v####","#/..##.#","#.#.#..#","#E#.#X.#",">bXaaaa#","#b#.#^S#","#b..####","########"],"meta":{"guards":{"a":{"i":0,"f":0,"range":3},"b":{"i":0,"f":0,"range":3}}},"par":10,"walks":2},{"id":103,"map":["#v######","#...X.\\#","#...#..#","#a###.b#","#a.##.b#","#a#.##b#","#S#.EX.#","####^^##"],"meta":{"guards":{"a":{"i":2,"f":1,"range":3},"b":{"i":2,"f":0,"range":3}}},"par":11,"walks":3},{"id":104,"map":["######v#","#.bS##E#","#/b#.#X<","#Xb#aaa#","##b....<","#....\\.#","###.#..#","########"],"meta":{"guards":{"a":{"i":1,"f":0,"range":3},"b":{"i":1,"f":0,"range":3}}},"par":10,"walks":2},{"id":105,"map":["###vv###","#.XX.###","#S##a/.#","##>.a..#","#E##a/##","#bbbb.##","#..#..##","########"],"meta":{"guards":{"a":{"i":1,"f":0,"range":3},"b":{"i":3,"f":0,"range":3}}},"par":12,"walks":3},{"id":106,"map":["######","####S#","#e##X#","#x#.E#","#e...#","######"],"meta":{"guards":{},"dogs":{"e":{"rail":[13,19,25],"i":1}}},"par":3,"walks":1},{"id":107,"map":["######","#exe.#","#.####","#E#.##","#.X.S#","######"],"meta":{"guards":{},"dogs":{"e":{"rail":[7,8,9],"i":1}}},"par":3,"walks":1},{"id":108,"map":["######","#e...#","#x...#","#e####","#EXS##","######"],"meta":{"guards":{},"dogs":{"e":{"rail":[7,13,19],"i":2}}},"par":4,"walks":1},{"id":109,"map":["#######","##..e.#","#.E.X.#","#X##e##","#S#..##","#######"],"meta":{"guards":{},"dogs":{"e":{"rail":[11,18,25],"i":0}}},"par":5,"walks":1},{"id":110,"map":["#######","#...#.#","#e..XS#","#X..E##","#e##.##","#######"],"meta":{"guards":{},"dogs":{"e":{"rail":[15,22,29],"i":0}}},"par":5,"walks":1},{"id":111,"map":["#######","#e....#","#e###E#","#X.#..#","#e##.X#","#..##S#","#######"],"meta":{"guards":{},"dogs":{"e":{"rail":[8,15,22,29],"i":0}}},"par":6,"walks":1},{"id":112,"map":["#######","#.eeXe#","##.#..#","#..E#S#","#.X#X.#","##...##","#######"],"meta":{"guards":{},"dogs":{"e":{"rail":[9,10,11,12],"i":0}}},"par":8,"walks":2},{"id":113,"map":["#######","#Ex...#","#..#..#","#e#.#.#","#X...X#","#eS..##","#######"],"meta":{"guards":{},"dogs":{"e":{"rail":[22,29,36],"i":0}}},"par":8,"walks":2},{"id":114,"map":["########","##.##..#","##.##.##","##X##..#","##SXE#.#","#eXee..#","########"],"meta":{"guards":{},"dogs":{"e":{"rail":[41,42,43,44],"i":3}}},"par":9,"walks":2},{"id":115,"map":["########","##..exe#","#SX##E.#","##.###x#","#....#.#","#.##...#","########"],"meta":{"guards":{},"dogs":{"e":{"rail":[12,13,14],"i":1}}},"par":10,"walks":2},{"id":116,"map":["#######","#...###","#.#..X#","#E#.#S#","#^#.#.#","#eXe.##","#######"],"meta":{"guards":{},"dogs":{"e":{"rail":[36,37,38],"i":2}}},"par":6,"walks":1},{"id":117,"map":["#######","#.##..#","#..XE.#","#.<.#e#","#S#.#X#","##..#e#","#######"],"meta":{"guards":{},"dogs":{"e":{"rail":[26,33,40],"i":0}}},"par":7,"walks":1},{"id":118,"map":["#######","##e.#S#","##X#.X#","#.e#.<#","##e..##","###E.##","#######"],"meta":{"guards":{},"dogs":{"e":{"rail":[9,16,23,30],"i":3}}},"par":7,"walks":2},{"id":119,"map":["########","##E.#S.#","#exe.>X#","##..>..#","##.....#","##..#.##","########"],"meta":{"guards":{},"dogs":{"e":{"rail":[17,18,19],"i":1}}},"par":9,"walks":2},{"id":120,"map":["########","#.XS.#.#","##.<eXe#","#...#^.#","#.x#.#.#","##....E#","########"],"meta":{"guards":{},"dogs":{"e":{"rail":[20,21,22],"i":2}}},"par":9,"walks":3},{"id":121,"map":["########","#.....E#","##..e<##","##..e###","#>X#X.x#","#..#e#.#","#S.#.#.#","########"],"meta":{"guards":{},"dogs":{"e":{"rail":[20,28,36,44],"i":0}}},"par":9,"walks":2},{"id":122,"map":["########","#.S#>..#","#X<#aaa#","#..e.#.#","#..x#X.#","###e.E##","##..#.##","########"],"meta":{"guards":{"a":{"i":1,"f":1,"range":3}},"dogs":{"e":{"rail":[27,35,43],"i":2}}},"par":11,"walks":4},{"id":123,"map":["########",">E###S.#","#.<....#","#XeXea.#","##..#a.#","##.x.a.#","#...#.##","########"],"meta":{"guards":{"a":{"i":2,"f":0,"range":3}},"dogs":{"e":{"rail":[26,27,28],"i":0}}},"par":11,"walks":3},{"id":124,"map":["########","#..#.e##","#a###e.#","#a#..X##",">a..Xe.#","#X^S/..#","#.#.##E#","########"],"meta":{"guards":{"a":{"i":1,"f":0,"range":3}},"dogs":{"e":{"rail":[13,21,29,37],"i":3}}},"par":12,"walks":3},{"id":125,"map":["####v###","###Sx..#","##f##..<","##x.aaa#","#.f.eXe#","##...E<#","#####./#","########"],"meta":{"guards":{"a":{"i":1,"f":0,"range":3}},"dogs":{"e":{"rail":[36,37,38],"i":0},"f":{"rail":[18,26,34],"i":1}}},"par":12,"walks":1},{"id":126,"map":["#####","#...#","###.#","#.SE#","###0#"],"meta":{"guards":{}},"par":1,"walks":1},{"id":127,"map":["######","#.####","#E.2.#","#...S#","######"],"meta":{"guards":{}},"par":2,"walks":1},{"id":128,"map":["######","##..E#","##...#","##..3#","#S.###","######"],"meta":{"guards":{}},"par":2,"walks":1},{"id":129,"map":["######","#S.#.#","#X2#.#","#E...#","####.#","######"],"meta":{"guards":{}},"par":2,"walks":1},{"id":130,"map":["###0##","#..S.#","##>..#","##...#","#E...#","######"],"meta":{"guards":{}},"par":3,"walks":2},{"id":131,"map":["#######","#..#.##","#....##","#.<E.##","#S.1..#","#######"],"meta":{"guards":{}},"par":4,"walks":2},{"id":132,"map":["####2##","#.X..##","#.#..##","#S.^.##","###E..#","#######"],"meta":{"guards":{}},"par":5,"walks":2},{"id":133,"map":["#######","##..###","#..E#S#","#..0.X#","##.#>.#","#.....#","#######"],"meta":{"guards":{}},"par":5,"walks":2},{"id":134,"map":["#######","####..#","###.#.#","#.#X..#","#S..1.#","###^E.#","#######"],"meta":{"guards":{}},"par":6,"walks":3},{"id":135,"map":["#######","##XE.##","#..2#S#","#.>...#","#...###","#..####","#######"],"meta":{"guards":{}},"par":7,"walks":2},{"id":136,"map":["#######","#..E###","#...#S#","#..>..#","##.X..#","##.##.#","##3####"],"meta":{"guards":{}},"par":6,"walks":2},{"id":137,"map":["#######","###S.X#","#E#.^.#","#..1..#","#....##","#..#.##","#######"],"meta":{"guards":{}},"par":7,"walks":2},{"id":138,"map":["#######","#.X..##","#.>..##","#..#S##","#...#E#","#13...#","#######"],"meta":{"guards":{}},"par":7,"walks":3},{"id":139,"map":["########","#1..X..#","#S.2E#.#","#x.#..##","#.^...##","#.##...#","########"],"meta":{"guards":{}},"par":9,"walks":3},{"id":140,"map":["########","#..#.###","##.....#","#..v.0.#","##.X<E.#","###Sx0##","########"],"meta":{"guards":{}},"par":9,"walks":3},{"id":141,"map":["########","#..##S.#","#EX..3a#","#0....a#","###X<#a#","##....##","####v###"],"meta":{"guards":{"a":{"i":0,"f":0,"range":3}}},"par":10,"walks":3},{"id":142,"map":["########","#.X....#","#a^#.0E#","#a..2###","#a#x####","#S#eee##","########"],"meta":{"guards":{"a":{"i":2,"f":1,"range":3}},"dogs":{"e":{"rail":[43,44,45],"i":0}}},"par":10,"walks":4},{"id":143,"map":["########","#S1.#..#","3.X.eEv#","#.##X###","#a#.e###","#a..####","#a....##","########"],"meta":{"guards":{"a":{"i":2,"f":0,"range":3}},"dogs":{"e":{"rail":[20,28,36],"i":0}}},"par":11,"walks":4},{"id":144,"map":["########","#.####.#","#.#e...#","#E1x<#.#","#.#e#a##","#X..#aS#","#....a2#","###^####"],"meta":{"guards":{"a":{"i":1,"f":0,"range":3}},"dogs":{"e":{"rail":[19,27,35],"i":2}}},"par":11,"walks":4},{"id":145,"map":["########","#.#eeXe#","#.E..#.#","##a..#.#","#.a##X.#","##av...#","0.....S#","##0##^##"],"meta":{"guards":{"a":{"i":1,"f":0,"range":3}},"dogs":{"e":{"rail":[11,12,13,14],"i":0}}},"par":12,"walks":3}];
+window.PRISON_LEVELS = [{"id":1,"map":["#####","##.E#","#S#.#",">...#","#####"],"meta":{"guards":{}},"par":1,"walks":1},{"id":2,"map":["#####",">E#.#","#...#","##S.#","#####"],"meta":{"guards":{}},"par":1,"walks":1},{"id":3,"map":["#####","##.S#","#>..#","#.#.#","#E..#","#####"],"meta":{"guards":{}},"par":2,"walks":1},{"id":4,"map":["######",">..E##","###.##","##S..#","###^##"],"meta":{"guards":{}},"par":2,"walks":1},{"id":5,"map":["###v##","#..E##","###.<#","##S..#","######"],"meta":{"guards":{}},"par":2,"walks":1},{"id":6,"map":["#v####","#E.#.#","#.#S.#","#..>.#","##...#","######"],"meta":{"guards":{}},"par":4,"walks":2},{"id":7,"map":["######","###..#","#>.E.#","#..<##","#S####","######"],"meta":{"guards":{}},"par":3,"walks":2},{"id":8,"map":["######","##S.v#","#.>..<","#..#.#","##E..#","######"],"meta":{"guards":{}},"par":4,"walks":2},{"id":9,"map":["######","####.#","#....#","##.#E#","#Sv..<","#...<#","######"],"meta":{"guards":{}},"par":4,"walks":2},{"id":10,"map":["#######","###S..#","###...#","#E.>..#",">....##","###^###"],"meta":{"guards":{}},"par":5,"walks":2},{"id":11,"map":["#######","#....##","##...##","#..<..#","#S>...#","##E.<##","#######"],"meta":{"guards":{}},"par":7,"walks":3},{"id":12,"map":["#######","###>.E#","#....<#","#...vS#","##>...#","#####.#","#######"],"meta":{"guards":{}},"par":7,"walks":3},{"id":13,"map":["#######","##....#","##.v..#","#...<E#","##...##","#..^S.#","##^####"],"meta":{"guards":{}},"par":9,"walks":3},{"id":14,"map":["########","###S...#","#..#.#.#","#...^..#","#.>...##","#.E<..##","##^#^###"],"meta":{"guards":{}},"par":9,"walks":4},{"id":15,"map":["########","##S....#","###..#.#","###^.###","#.E>...#","#...v^.#","##.....#","####^###"],"meta":{"guards":{}},"par":11,"walks":2},{"id":16,"map":["######",">.E..#","##...#","#.aaa#","####S#","######"],"meta":{"guards":{"a":{"i":0,"f":0,"range":3}}},"par":2,"walks":1},{"id":17,"map":["######","#Saaa#","##..##","##...#","##.E##","###^##"],"meta":{"guards":{"a":{"i":0,"f":0,"range":3}}},"par":2,"walks":1},{"id":18,"map":["######","#E<.##","#..a.#","###a.#","##Sa##","######"],"meta":{"guards":{"a":{"i":2,"f":1,"range":3}}},"par":4,"walks":2},{"id":19,"map":["#######","#..S.##","#.#.###","#.#.v.#","##aaaE#","#####^#"],"meta":{"guards":{"a":{"i":2,"f":1,"range":3}}},"par":4,"walks":2},{"id":20,"map":["#######","##...S#","##.>.<#","#.#..##","#Eaaa##","#######"],"meta":{"guards":{"a":{"i":0,"f":1,"range":3}}},"par":5,"walks":2},{"id":21,"map":["####v##","##...E#","##.#.##","###v..#","#Saaa##","#.#...#","#######"],"meta":{"guards":{"a":{"i":0,"f":0,"range":3}}},"par":5,"walks":2},{"id":22,"map":["#######","#.E####","#.>.###","#.aaa.#","#####.#","#####S#","#######"],"meta":{"guards":{"a":{"i":0,"f":1,"range":3}}},"par":6,"walks":3},{"id":23,"map":["#######","##aaa.#","#...#.#","###S>.#","###>..#","#.E..##","#######"],"meta":{"guards":{"a":{"i":2,"f":0,"range":3}}},"par":6,"walks":2},{"id":24,"map":["#######","#.S##.#","##a#E.#","#.a.<.#","##a#..#","##....#","#####^#"],"meta":{"guards":{"a":{"i":0,"f":0,"range":3}}},"par":7,"walks":3},{"id":25,"map":["#######","#######","##....#","#..a^E#","#.#a.##","##Sa<##","#######"],"meta":{"guards":{"a":{"i":2,"f":0,"range":3}}},"par":8,"walks":3},{"id":26,"map":["#######","#...###","#...S##","#.#..##","#.>.<E#","##aaa.#","#######"],"meta":{"guards":{"a":{"i":2,"f":1,"range":3}}},"par":4,"walks":2},{"id":27,"map":["####v##","#SaaaE#","###.^##","#....##","##....#","##...##","#######"],"meta":{"guards":{"a":{"i":0,"f":0,"range":3}}},"par":6,"walks":2},{"id":28,"map":["#######","##.E..#","###.###","#Sv..##","#aaaa##","#^#..##","#######"],"meta":{"guards":{"a":{"i":0,"f":0,"range":3}}},"par":5,"walks":2},{"id":29,"map":["#####v#","###Sa.#","####a.#","###ba<#","###b.##","#.Eb###","#######"],"meta":{"guards":{"a":{"i":2,"f":1,"range":3},"b":{"i":2,"f":0,"range":3}}},"par":7,"walks":3},{"id":30,"map":["#v#####","#..#.##","##.#a##","#bbba.#",">E<.aS#","#.#..##","#######"],"meta":{"guards":{"a":{"i":2,"f":1,"range":3},"b":{"i":2,"f":0,"range":3}}},"par":7,"walks":3},{"id":31,"map":["#######","#bbbE##","##>.a.#","###>a##","##..a<#","#..#aS#","#######"],"meta":{"guards":{"a":{"i":3,"f":0,"range":3},"b":{"i":2,"f":0,"range":3}}},"par":8,"walks":3},{"id":32,"map":["########","#.####S#","#E.#.>.#","#^.aaaa#","##.bbb.#","##.##..#","##^#####"],"meta":{"guards":{"a":{"i":3,"f":1,"range":3},"b":{"i":2,"f":1,"range":3}}},"par":7,"walks":3},{"id":33,"map":["##v#####","#....E.#",">b##^#.#","#b.##.##","#b##...#","#b.aaaS#","########"],"meta":{"guards":{"a":{"i":1,"f":1,"range":3},"b":{"i":3,"f":1,"range":3}}},"par":9,"walks":3},{"id":34,"map":["###v####","#..bbbb#","##.#^S##","##.v##.#","#.aaaaE#","####...#","########"],"meta":{"guards":{"a":{"i":1,"f":1,"range":3},"b":{"i":0,"f":1,"range":3}}},"par":9,"walks":4},{"id":35,"map":["####v###","##abbbS#","#.a^.###","#.a##.E#","#...#.##","#.^....#","########"],"meta":{"guards":{"a":{"i":0,"f":1,"range":3},"b":{"i":1,"f":1,"range":3}}},"par":10,"walks":4},{"id":36,"map":["#v#####","#...#E#","#..bbb#","#a<..##","#aS#.##","#a##..#","#######"],"meta":{"guards":{"a":{"i":1,"f":0,"range":3},"b":{"i":2,"f":0,"range":3}}},"par":7,"walks":3},{"id":37,"map":["#######","#...v##","#bbbaS#","#.v#a##","#...a##","#....E#","#######"],"meta":{"guards":{"a":{"i":0,"f":1,"range":3},"b":{"i":2,"f":1,"range":3}}},"par":7,"walks":3},{"id":38,"map":["#######","###bbb#","###Sa.#","###>a.#","##>.a<#","##E...#","#######"],"meta":{"guards":{"a":{"i":2,"f":1,"range":3},"b":{"i":1,"f":0,"range":3}}},"par":8,"walks":3},{"id":39,"map":["########","###vS..#","#.#.>.##","#Ebbb.<#","##.#..##","##.#aaa#","########"],"meta":{"guards":{"a":{"i":1,"f":1,"range":3},"b":{"i":2,"f":1,"range":3}}},"par":9,"walks":3},{"id":40,"map":["########","##.v..##","##a....#","#.a<b^S#","##a#b.##","##E#b.##","########"],"meta":{"guards":{"a":{"i":0,"f":0,"range":3},"b":{"i":0,"f":1,"range":3}}},"par":8,"walks":4},{"id":41,"map":["########","#..b####","#..b...#","#>.b<.##","#S#aaa##","#...#.E<","########"],"meta":{"guards":{"a":{"i":0,"f":1,"range":3},"b":{"i":2,"f":1,"range":3}}},"par":9,"walks":3},{"id":42,"map":["########","#a#.#S.#","#a...>b#","#a^...b#","#a.<..b#","#E.#...#","#...##.#","########"],"meta":{"guards":{"a":{"i":3,"f":1,"range":3},"b":{"i":0,"f":1,"range":3}}},"par":10,"walks":4},{"id":43,"map":["########","##.v####","#S.av#.#","##^ab..#","#..ab###","##.#b#E#","###.b..#","########"],"meta":{"guards":{"a":{"i":0,"f":1,"range":3},"b":{"i":3,"f":1,"range":3}}},"par":11,"walks":4},{"id":44,"map":["########","#a####S#","#a.bbbb#","#a#..###",">a##^E.#","#.v#..##","#.....##","########"],"meta":{"guards":{"a":{"i":3,"f":0,"range":3},"b":{"i":3,"f":1,"range":3}}},"par":11,"walks":4},{"id":45,"map":["########","######S#","##.##..#","#a.#...#","#aEv#..#","#a#.#.##","#.bbbb<#","##^#####"],"meta":{"guards":{"a":{"i":2,"f":1,"range":3},"b":{"i":3,"f":1,"range":3}}},"par":11,"walks":2},{"id":46,"map":["######","#SX..#","###..<","#...E#","#....#","######"],"meta":{"guards":{}},"par":2,"walks":1},{"id":47,"map":["######","#S..##","##^.##","#E#..#","#..X##","######"],"meta":{"guards":{}},"par":3,"walks":1},{"id":48,"map":["######","#E..##","#^^X##","#...##","#S..##","######"],"meta":{"guards":{}},"par":3,"walks":2},{"id":49,"map":["######","#....#","#S.v.#","##...#","#.^..#","#E.X##","######"],"meta":{"guards":{}},"par":5,"walks":2},{"id":50,"map":["#######","####..#","#S#...#","#X>.E.<","#.X..##","#######"],"meta":{"guards":{}},"par":4,"walks":2},{"id":51,"map":["#######","#>..X.#","#..^.##","#S#.X.#","##.E.##","#######"],"meta":{"guards":{}},"par":6,"walks":3},{"id":52,"map":["#######","##.####","##..###","##>..X#","#S..^.#","#.##EX#","#######"],"meta":{"guards":{}},"par":6,"walks":3},{"id":53,"map":["#######","##.#.##","#.X>aE#","##.Xa<#","##.#a.#","#####S#","#######"],"meta":{"guards":{"a":{"i":0,"f":0,"range":3}}},"par":7,"walks":3},{"id":54,"map":["#######","#..Xa.#","#S#^a.#","##X.a##","##.#..#","##E####","#######"],"meta":{"guards":{"a":{"i":2,"f":1,"range":3}}},"par":8,"walks":2},{"id":55,"map":["#######","###S###","###.a##","##.#a.#","#E.>a<#","#..XX.#","#######"],"meta":{"guards":{"a":{"i":1,"f":0,"range":3}}},"par":9,"walks":3},{"id":56,"map":["#######","##S..##","#E<>.##","#X..X##","#.#...#","#.###.#","#######"],"meta":{"guards":{}},"par":5,"walks":2},{"id":57,"map":["###v###","#.XE###","#..##.#","#.vS#.#","#...#x#","#.....#","#######"],"meta":{"guards":{}},"par":5,"walks":2},{"id":58,"map":["#######","#.....#","#X.##E#","#Xv.S##","#...<##","#.....#","#######"],"meta":{"guards":{}},"par":6,"walks":3},{"id":59,"map":["#######","#..#..#","#.#Sa##","#E.va##","#^X.a.#","##x#a.#","#######"],"meta":{"guards":{"a":{"i":0,"f":1,"range":3}}},"par":7,"walks":3},{"id":60,"map":["###v###","##a.#S#","##a..X#","##a<..#","#.X.###","#X#E###","#######"],"meta":{"guards":{"a":{"i":2,"f":1,"range":3}}},"par":6,"walks":2},{"id":61,"map":["########","#EaaaX.#","##.X##X#","#.#.#>.#","#...#S.#","##...#^#","########"],"meta":{"guards":{"a":{"i":2,"f":0,"range":3}}},"par":8,"walks":3},{"id":62,"map":["########","##...###","#.a#X###","#.a#..##","#.aS#Xv#","##.#.XE<","########"],"meta":{"guards":{"a":{"i":2,"f":1,"range":3}}},"par":7,"walks":3},{"id":63,"map":["########","#SaaaX.#","##..#.##","#Ev##X<#","#...#..#","##..X.##","########"],"meta":{"guards":{"a":{"i":2,"f":0,"range":3}}},"par":8,"walks":2},{"id":64,"map":["########",">.XS#..#","#a#.#..#","#a.#...#","#a.##E##","#.^..X##","#.X...##","########"],"meta":{"guards":{"a":{"i":0,"f":0,"range":3}}},"par":9,"walks":3},{"id":65,"map":["########","#x..#..#","##..aX.#","####avE#","####a.##","###.a<S#","#.....X#","########"],"meta":{"guards":{"a":{"i":2,"f":0,"range":3}}},"par":11,"walks":4},{"id":66,"map":["######","#.S.\\#","##..<#","#E..##","###.##","######"],"meta":{"guards":{}},"par":2,"walks":1},{"id":67,"map":["######","##...#","##E..#","##.>.#","#..\\S#","######"],"meta":{"guards":{}},"par":2,"walks":1},{"id":68,"map":["######","#....#","#S^\\.#","##...#","#E.#.#","######"],"meta":{"guards":{}},"par":2,"walks":2},{"id":69,"map":["######","##.###","#S...#","#.^\\.#","#.\\E.#","##...#","####^#"],"meta":{"guards":{}},"par":3,"walks":2},{"id":70,"map":["###v##","#...##","#S...#","#.^\\.#","#.\\..#","#.#E##","######"],"meta":{"guards":{}},"par":3,"walks":2},{"id":71,"map":["#######","#/v##.#","#.....#","#.<.#.#","#S/E.##","#######"],"meta":{"guards":{}},"par":5,"walks":2},{"id":72,"map":["#######","#>....#","#..<\\.#","#S#...#","#\\.E###","##...##","#######"],"meta":{"guards":{}},"par":5,"walks":3},{"id":73,"map":["#######","##....#","#/../.#","#..<..#","#...<.#","##S.#E#","#######"],"meta":{"guards":{}},"par":5,"walks":2},{"id":74,"map":["#######","##..###","#..\\###","#.....#","#..<\\.#","#S^E..#","#######"],"meta":{"guards":{}},"par":5,"walks":2},{"id":75,"map":["#######","##...##","#S./..#","##^/^.#","#.E...#","#...#.#","#######"],"meta":{"guards":{}},"par":6,"walks":3},{"id":76,"map":["#######","#\\/..##","#...#E#","#.<.>.#","#.#...#","#S##..#","#######"],"meta":{"guards":{}},"par":4,"walks":2},{"id":77,"map":["#######","##\\..##","#.....#","#\\.#.E#","#...v##","##^..S#","#######"],"meta":{"guards":{}},"par":4,"walks":2},{"id":78,"map":["#######","#/v\\###","#.....#","#.<.E##","#S##.##","#.#..\\#","#######"],"meta":{"guards":{}},"par":5,"walks":1},{"id":79,"map":["#######","#..\\v##","##....#","#..<\\.#","#X#...#","#S\\E###","#######"],"meta":{"guards":{}},"par":5,"walks":2},{"id":80,"map":["#######","#.E##.#","#.<.XS#","#.>./.#","#././##","#.....#","#######"],"meta":{"guards":{}},"par":5,"walks":2},{"id":81,"map":["#######","#>E\\###","#...###","#X</v##","#....##","#.#\\.S#","#######"],"meta":{"guards":{}},"par":7,"walks":3},{"id":82,"map":["########","#.##/Sv#","#E..\\..#","###..>X#","##.....#","##.^\\#.#","########"],"meta":{"guards":{}},"par":7,"walks":3},{"id":83,"map":["########","#....S##","#\\..^/<#","#.>...##","#...../#","#.#.#XE#","########"],"meta":{"guards":{}},"par":6,"walks":2},{"id":84,"map":["########","#S#..#.#","#X.....#","#^\\.^.##",">E./#./#","##.....#","#..#.#.#","########"],"meta":{"guards":{}},"par":6,"walks":2},{"id":85,"map":["########","#.....##","#.#.^..#","#.S#...#","#^/>...#","##\\.X#.#","###E../#","########"],"meta":{"guards":{}},"par":9,"walks":2},{"id":86,"map":["#v#####","#.S.###","#a#..##","#a.##.#","#a#>XE#","#....##","#######"],"meta":{"guards":{"a":{"i":0,"f":1,"range":3}}},"par":7,"walks":3},{"id":87,"map":["#######","#..##S#","#E.#.X#","#..#.##","#^.>..#","#..aaa#","#######"],"meta":{"guards":{"a":{"i":0,"f":0,"range":3}}},"par":7,"walks":2},{"id":88,"map":["#######","#.#..X#","#.#a<E#","#..a.##","##>a\\##","#.Sa.##","#######"],"meta":{"guards":{"a":{"i":2,"f":1,"range":3}}},"par":9,"walks":3},{"id":89,"map":["#######","#..####","#.Xaaa#","#.<..##","#..<.E#","#^S####","#######"],"meta":{"guards":{"a":{"i":2,"f":1,"range":3}}},"par":9,"walks":3},{"id":90,"map":["########","#####.##","#....X.#","##.v#..#","#aaa.^.#","###S#EX#","########"],"meta":{"guards":{"a":{"i":2,"f":1,"range":3}}},"par":10,"walks":2},{"id":91,"map":["########","###/aXE#","##..a#^#","#..^a###","#..#aXS#","#.##.###","########"],"meta":{"guards":{"a":{"i":3,"f":0,"range":3}}},"par":9,"walks":3},{"id":92,"map":["########","#>....##","#..#...#","#X<S#..#","#X#aaa.#",">E##.###","########"],"meta":{"guards":{"a":{"i":0,"f":0,"range":3}}},"par":10,"walks":3},{"id":93,"map":["########","########","#.##.E.#","#./##^.#","#.#aS#.#",">..a##.#","#.^aXX.#","########"],"meta":{"guards":{"a":{"i":0,"f":1,"range":3}}},"par":10,"walks":3},{"id":94,"map":["########","#..###S#","#.E#.aX#","#..##a/#","#..v#a.#","#.#.Xa##","#...<###","#^######"],"meta":{"guards":{"a":{"i":0,"f":1,"range":3}}},"par":11,"walks":3},{"id":95,"map":["########","##.E.a##","#..^/a.<","#...#a##","#..#..##","#.##XvS#","##.X...#","########"],"meta":{"guards":{"a":{"i":2,"f":1,"range":3}}},"par":11,"walks":3},{"id":96,"map":["########","##.##.##","#.S...##","#\\#^..a#","#...^.a#","#E#X..a#","########"],"meta":{"guards":{"a":{"i":1,"f":0,"range":3}}},"par":8,"walks":2},{"id":97,"map":["########","#.....S#","##..<###","#..#X#.#","#..aaa.#","#\\.##^E#","########"],"meta":{"guards":{"a":{"i":0,"f":1,"range":3}}},"par":8,"walks":3},{"id":98,"map":["########","#.##..##","#.#/.###","#...X#S#","#..#X#.<",">.Eaaaa#","##^#####"],"meta":{"guards":{"a":{"i":3,"f":1,"range":3}}},"par":9,"walks":2},{"id":99,"map":["########","#.S\\.###","#X<#.#.#","#av#...#","#a.##E.#","#a#.X.##","#...<..#","########"],"meta":{"guards":{"a":{"i":0,"f":0,"range":3}}},"par":10,"walks":4},{"id":100,"map":["######v#","##aS.#.#","#.a<.#.#","#\\a.##E#","#...#..#","#..XX.<#","###.#..#","########"],"meta":{"guards":{"a":{"i":0,"f":1,"range":3}}},"par":10,"walks":3},{"id":101,"map":["########","#..#####","##...X\\#","#...#Xv#","#..v#.E#","#.#..###","#..aaaS#","###^####"],"meta":{"guards":{"a":{"i":2,"f":1,"range":3}}},"par":10,"walks":3},{"id":102,"map":["###v####","#/..##.#","#.#.#..#","#E#.#X.#",">bXaaaa#","#b#.#^S#","#b..####","########"],"meta":{"guards":{"a":{"i":0,"f":0,"range":3},"b":{"i":0,"f":0,"range":3}}},"par":10,"walks":2},{"id":103,"map":["#v######","#...X.\\#","#...#..#","#a###.b#","#a.##.b#","#a#.##b#","#S#.EX.#","####^^##"],"meta":{"guards":{"a":{"i":2,"f":1,"range":3},"b":{"i":2,"f":0,"range":3}}},"par":11,"walks":3},{"id":104,"map":["######v#","#.bS##E#","#/b#.#X<","#Xb#aaa#","##b....<","#....\\.#","###.#..#","########"],"meta":{"guards":{"a":{"i":1,"f":0,"range":3},"b":{"i":1,"f":0,"range":3}}},"par":10,"walks":2},{"id":105,"map":["###vv###","#.XX.###","#S##a/.#","##>.a..#","#E##a/##","#bbbb.##","#..#..##","########"],"meta":{"guards":{"a":{"i":1,"f":0,"range":3},"b":{"i":3,"f":0,"range":3}}},"par":12,"walks":3},{"id":106,"map":["######","####S#","#e##X#","#x#.E#","#e...#","######"],"meta":{"guards":{},"dogs":{"e":{"rail":[13,19,25],"i":1}}},"par":3,"walks":1},{"id":107,"map":["######","#exe.#","#.####","#E#.##","#.X.S#","######"],"meta":{"guards":{},"dogs":{"e":{"rail":[7,8,9],"i":1}}},"par":3,"walks":1},{"id":108,"map":["######","#e...#","#x...#","#e####","#EXS##","######"],"meta":{"guards":{},"dogs":{"e":{"rail":[7,13,19],"i":2}}},"par":4,"walks":1},{"id":109,"map":["#######","##..e.#","#.E.X.#","#X##e##","#S#..##","#######"],"meta":{"guards":{},"dogs":{"e":{"rail":[11,18,25],"i":0}}},"par":5,"walks":1},{"id":110,"map":["#######","#...#.#","#e..XS#","#X..E##","#e##.##","#######"],"meta":{"guards":{},"dogs":{"e":{"rail":[15,22,29],"i":0}}},"par":5,"walks":1},{"id":111,"map":["#######","#e....#","#e###E#","#X.#..#","#e##.X#","#..##S#","#######"],"meta":{"guards":{},"dogs":{"e":{"rail":[8,15,22,29],"i":0}}},"par":6,"walks":1},{"id":112,"map":["#######","#.eeXe#","##.#..#","#..E#S#","#.X#X.#","##...##","#######"],"meta":{"guards":{},"dogs":{"e":{"rail":[9,10,11,12],"i":0}}},"par":8,"walks":2},{"id":113,"map":["#######","#Ex...#","#..#..#","#e#.#.#","#X...X#","#eS..##","#######"],"meta":{"guards":{},"dogs":{"e":{"rail":[22,29,36],"i":0}}},"par":8,"walks":2},{"id":114,"map":["########","##.##..#","##.##.##","##X##..#","##SXE#.#","#eXee..#","########"],"meta":{"guards":{},"dogs":{"e":{"rail":[41,42,43,44],"i":3}}},"par":9,"walks":2},{"id":115,"map":["########","##..exe#","#SX##E.#","##.###x#","#....#.#","#.##...#","########"],"meta":{"guards":{},"dogs":{"e":{"rail":[12,13,14],"i":1}}},"par":10,"walks":2},{"id":116,"map":["#######","#...###","#.#..X#","#E#.#S#","#^#.#.#","#eXe.##","#######"],"meta":{"guards":{},"dogs":{"e":{"rail":[36,37,38],"i":2}}},"par":6,"walks":1},{"id":117,"map":["#######","#.##..#","#..XE.#","#.<.#e#","#S#.#X#","##..#e#","#######"],"meta":{"guards":{},"dogs":{"e":{"rail":[26,33,40],"i":0}}},"par":7,"walks":1},{"id":118,"map":["#######","##e.#S#","##X#.X#","#.e#.<#","##e..##","###E.##","#######"],"meta":{"guards":{},"dogs":{"e":{"rail":[9,16,23,30],"i":3}}},"par":7,"walks":2},{"id":119,"map":["########","##E.#S.#","#exe.>X#","##..>..#","##.....#","##..#.##","########"],"meta":{"guards":{},"dogs":{"e":{"rail":[17,18,19],"i":1}}},"par":9,"walks":2},{"id":120,"map":["########","#.XS.#.#","##.<eXe#","#...#^.#","#.x#.#.#","##....E#","########"],"meta":{"guards":{},"dogs":{"e":{"rail":[20,21,22],"i":2}}},"par":9,"walks":3},{"id":121,"map":["########","#.....E#","##..e<##","##..e###","#>X#X.x#","#..#e#.#","#S.#.#.#","########"],"meta":{"guards":{},"dogs":{"e":{"rail":[20,28,36,44],"i":0}}},"par":9,"walks":2},{"id":122,"map":["########","#.S#>..#","#X<#aaa#","#..e.#.#","#..x#X.#","###e.E##","##..#.##","########"],"meta":{"guards":{"a":{"i":1,"f":1,"range":3}},"dogs":{"e":{"rail":[27,35,43],"i":2}}},"par":11,"walks":4},{"id":123,"map":["########",">E###S.#","#.<....#","#XeXea.#","##..#a.#","##.x.a.#","#...#.##","########"],"meta":{"guards":{"a":{"i":2,"f":0,"range":3}},"dogs":{"e":{"rail":[26,27,28],"i":0}}},"par":11,"walks":3},{"id":124,"map":["########","#..#.e##","#a###e.#","#a#..X##",">a..Xe.#","#X^S/..#","#.#.##E#","########"],"meta":{"guards":{"a":{"i":1,"f":0,"range":3}},"dogs":{"e":{"rail":[13,21,29,37],"i":3}}},"par":12,"walks":3},{"id":125,"map":["####v###","###Sx..#","##f##..<","##x.aaa#","#.f.eXe#","##...E<#","#####./#","########"],"meta":{"guards":{"a":{"i":1,"f":0,"range":3}},"dogs":{"e":{"rail":[36,37,38],"i":0},"f":{"rail":[18,26,34],"i":1}}},"par":12,"walks":1},{"id":126,"map":["#####","#...#","###.#","#.SE#","###0#"],"meta":{"guards":{}},"par":1,"walks":1},{"id":127,"map":["######","#.####","#E.2.#","#...S#","######"],"meta":{"guards":{}},"par":2,"walks":1},{"id":128,"map":["######","##..E#","##...#","##..3#","#S.###","######"],"meta":{"guards":{}},"par":2,"walks":1},{"id":129,"map":["######","#S.#.#","#X2#.#","#E...#","####.#","######"],"meta":{"guards":{}},"par":2,"walks":1},{"id":130,"map":["###0##","#..S.#","##>..#","##...#","#E...#","######"],"meta":{"guards":{}},"par":3,"walks":2},{"id":131,"map":["#######","#..#.##","#....##","#.<E.##","#S.1..#","#######"],"meta":{"guards":{}},"par":4,"walks":2},{"id":132,"map":["####2##","#.X..##","#.#..##","#S.^.##","###E..#","#######"],"meta":{"guards":{}},"par":5,"walks":2},{"id":133,"map":["#######","##..###","#..E#S#","#..0.X#","##.#>.#","#.....#","#######"],"meta":{"guards":{}},"par":5,"walks":2},{"id":134,"map":["#######","####..#","###.#.#","#.#X..#","#S..1.#","###^E.#","#######"],"meta":{"guards":{}},"par":6,"walks":3},{"id":135,"map":["#######","##XE.##","#..2#S#","#.>...#","#...###","#..####","#######"],"meta":{"guards":{}},"par":7,"walks":2},{"id":136,"map":["#######","#..E###","#...#S#","#..>..#","##.X..#","##.##.#","##3####"],"meta":{"guards":{}},"par":6,"walks":2},{"id":137,"map":["#######","###S.X#","#E#.^.#","#..1..#","#....##","#..#.##","#######"],"meta":{"guards":{}},"par":7,"walks":2},{"id":138,"map":["#######","#.X..##","#.>..##","#..#S##","#...#E#","#13...#","#######"],"meta":{"guards":{}},"par":7,"walks":3},{"id":139,"map":["########","#1..X..#","#S.2E#.#","#x.#..##","#.^...##","#.##...#","########"],"meta":{"guards":{}},"par":9,"walks":3},{"id":140,"map":["########","#..#.###","##.....#","#..v.0.#","##.X<E.#","###Sx0##","########"],"meta":{"guards":{}},"par":9,"walks":3},{"id":141,"map":["########","#..##S.#","#EX..3a#","#0....a#","###X<#a#","##....##","####v###"],"meta":{"guards":{"a":{"i":0,"f":0,"range":3}}},"par":10,"walks":3},{"id":142,"map":["########","#.X....#","#a^#.0E#","#a..2###","#a#x####","#S#eee##","########"],"meta":{"guards":{"a":{"i":2,"f":1,"range":3}},"dogs":{"e":{"rail":[43,44,45],"i":0}}},"par":10,"walks":4},{"id":143,"map":["########","#S1.#..#","3.X.eEv#","#.##X###","#a#.e###","#a..####","#a....##","########"],"meta":{"guards":{"a":{"i":2,"f":0,"range":3}},"dogs":{"e":{"rail":[20,28,36],"i":0}}},"par":11,"walks":4},{"id":144,"map":["########","#.####.#","#.#e...#","#E1x<#.#","#.#e#a##","#X..#aS#","#....a2#","###^####"],"meta":{"guards":{"a":{"i":1,"f":0,"range":3}},"dogs":{"e":{"rail":[19,27,35],"i":2}}},"par":11,"walks":4},{"id":145,"map":["########","#.#eeXe#","#.E..#.#","##a..#.#","#.a##X.#","##av...#","0.....S#","##0##^##"],"meta":{"guards":{"a":{"i":1,"f":0,"range":3}},"dogs":{"e":{"rail":[11,12,13,14],"i":0}}},"par":12,"walks":3},{"id":146,"map":["####p#","#.X.S#","#E####","#...>#","#...##","######"],"meta":{"guards":{},"panels":{"p":{"links":[22,8]}}},"par":1,"walks":1},{"id":147,"map":["######","#...S#","####.<","#.#..#","#E.x.p","######"],"meta":{"guards":{},"panels":{"p":{"links":[17,27]}}},"par":2,"walks":1},{"id":148,"map":["####>#","#..XE#","#.#S##","#.#.##","p....#","######"],"meta":{"guards":{},"panels":{"p":{"links":[4,9]}}},"par":3,"walks":1},{"id":149,"map":["##>####","#...E##","p.....#",">X#...#","#S#.#.#","#######"],"meta":{"guards":{},"panels":{"p":{"links":[2,22]}}},"par":3,"walks":2},{"id":150,"map":["###>###","#.#S..#","#E#..##","#.#.p.#","#..X..#","#^#####"],"meta":{"guards":{},"panels":{"p":{"links":[3,31]}}},"par":4,"walks":2},{"id":151,"map":["####p##","##.#.##","#.EX.##","#.#.X.#","###v..#","#.S...#","###<###"],"meta":{"guards":{},"panels":{"p":{"links":[31,45]}}},"par":5,"walks":2},{"id":152,"map":["###>###","#SXX..#","###...#","v...###","#...E##","####..#","#####p#"],"meta":{"guards":{},"panels":{"p":{"links":[21,3,10]}}},"par":5,"walks":2},{"id":153,"map":["###p###","#...###","#...###","#.#..##","v.E.#S#","##^.XX#","#######"],"meta":{"guards":{},"panels":{"p":{"links":[28,37,39]}}},"par":6,"walks":3},{"id":154,"map":["#######","#....##","#.#...#","##x.>.#","#..##S#","p.xE###","##^####"],"meta":{"guards":{},"panels":{"p":{"links":[44,25,23]}}},"par":7,"walks":3},{"id":155,"map":["####p##","#E>.X.#","#..x<S#","##.#.##","#....##","####.##","#######"],"meta":{"guards":{},"panels":{"p":{"links":[18,17,11]}}},"par":9,"walks":3},{"id":156,"map":["#######","#.....#","#...E##","#x.v..#","#.#.p##","#...XS#","####<##"],"meta":{"guards":{},"panels":{"p":{"links":[46,39,22]}}},"par":7,"walks":2},{"id":157,"map":["#######","#E.#>##","#..#.##","#.vx.X#","#...#S#","#..##.p","#######"],"meta":{"guards":{},"panels":{"p":{"links":[11,23,26]}}},"par":8,"walks":3},{"id":158,"map":["#p#####","#.###.#","#.X..E#","#Sv#.##","#..<#.#","#....x#","#<##q##"],"meta":{"guards":{},"panels":{"p":{"links":[43,16]},"q":{"links":[31,40]}}},"par":7,"walks":3},{"id":159,"map":["########","##...x.#","#E>.>..v","#...##X#","#.q#.S.#","#..##p##","########"],"meta":{"guards":{},"panels":{"p":{"links":[13,30]},"q":{"links":[20,23]}}},"par":8,"walks":3},{"id":160,"map":["###q####","#...####","#pE#...#","#.X###S#","<..v..X#","#..aaa.#","######<#"],"meta":{"guards":{"a":{"i":0,"f":1,"range":3}},"panels":{"p":{"links":[32,35]},"q":{"links":[54,38]}}},"par":9,"walks":3},{"id":161,"map":["########","##<p...#","##.#.###","#aaa.###","#S^x...q","##EX<###","########"],"meta":{"guards":{"a":{"i":0,"f":1,"range":3}},"panels":{"p":{"links":[44,35]},"q":{"links":[10,34]}}},"par":10,"walks":3},{"id":162,"map":["##v#####","#E.v#.##","#3..X..p","##^##/X#","##S#.#.#","#q.aaa.#","########"],"meta":{"guards":{"a":{"i":0,"f":1,"range":3}},"panels":{"p":{"links":[26,29]},"q":{"links":[11,30]}}},"par":10,"walks":4},{"id":163,"map":["#q######","#.X..###","#..#...#","#.E#.#.#","#.a#...#","##a>.#/#","v.aX.S.v","#1p#####"],"meta":{"guards":{"a":{"i":2,"f":0,"range":3}},"panels":{"p":{"links":[55,43]},"q":{"links":[48,51]}}},"par":11,"walks":4},{"id":164,"map":["#>p#####","#...X..#","#\\..>..#","#q0X##a#","##..v.a#","##..##a#","##E.##S#","########"],"meta":{"guards":{"a":{"i":2,"f":1,"range":3}},"panels":{"p":{"links":[36,17]},"q":{"links":[1,20]}}},"par":11,"walks":3},{"id":165,"map":["###v####","##3..###","#>aaa.##","##Sq#X##","####..\\#","##p...X#","###..<E#","########"],"meta":{"guards":{"a":{"i":2,"f":1,"range":3}},"panels":{"p":{"links":[53,29]},"q":{"links":[17,38]}}},"par":11,"walks":4}];
 
 </script>
 <script>
@@ -865,6 +919,7 @@ const CHAPTERS = [
   { en: 'Control I', fa: 'کنترل ۱', size: 10 }, { en: 'Control II', fa: 'کنترل ۲', size: 10 },
   { en: 'Kennel I', fa: 'لانهٔ سگ ۱', size: 10 }, { en: 'Kennel II', fa: 'لانهٔ سگ ۲', size: 10 },
   { en: 'Night Shift I', fa: 'شیفت شب ۱', size: 10 }, { en: 'Night Shift II', fa: 'شیفت شب ۲', size: 10 },
+  { en: 'Fuse Box I', fa: 'تابلو برق ۱', size: 10 }, { en: 'Fuse Box II', fa: 'تابلو برق ۲', size: 10 },
 ];
 const chapStart = CHAPTERS.map((_, i) => CHAPTERS.slice(0, i).reduce((n, c) => n + c.size, 0));
 const chapterOf = i => { let ci = 0; while (ci + 1 < CHAPTERS.length && i >= chapStart[ci + 1]) ci++; return ci; };    // level index -> chapter index
@@ -881,7 +936,7 @@ const T = {
     tag: 'Move the darkness. Slip the prisoner past cameras and guards.', foot: 'Playtest build',
     play: 'Play', cont: lv => 'Continue · Level ' + lv, levels: 'Levels', how: 'How to play', settings: 'Settings', close: 'Close', back: 'Back',
     dogTip: 'Dog selected: tap a tile of its rail to send it there, tap the prisoner to let go.', doorBlocked: 'The dog is standing in the doorway.',
-    guardTip: 'Guard selected: tap it again to turn, tap a rail tile to send it, tap the prisoner to let go.', gotIt: 'Got it', itemsL: 'Items', itemNames: { cam: 'Camera', guard: 'Guard', door: 'Door', mirror: 'Mirror', dog: 'Dog', light: 'Searchlight' },
+    guardTip: 'Guard selected: tap it again to turn, tap a rail tile to send it, tap the prisoner to let go.', gotIt: 'Got it', itemsL: 'Items', itemNames: { cam: 'Camera', guard: 'Guard', door: 'Door', mirror: 'Mirror', dog: 'Dog', light: 'Searchlight', panel: 'Power panel' },
     intro: {
       cam: { title: 'New: Camera', list: ['A camera throws red light along a line. The prisoner can never stand in it.', 'Tap a camera to turn it a quarter turn clockwise.', 'Walking is free. Only your taps on cameras count.'] },
       guard: { title: 'New: Guard', list: ['A guard walks back and forth on its rail and sees 3 tiles ahead. Behind it is a blind spot.', 'Tap it to select it, tap again to turn it round, or tap a tile of its rail to send it there.', 'Every step is one action.'] },
@@ -889,13 +944,14 @@ const T = {
       mirror: { title: 'New: Mirror', list: ['A mirror bends light by 90 degrees.', 'Tap it to flip between the two slants.', 'Now a camera can reach tiles around a corner.'] },
       dog: { title: 'New: Guard dog', list: ['A dog smells every tile it can walk to. The prisoner can never stand on a smelly tile.', 'Tap the dog, then a tile of its rail to send it there. Every step is one action.', 'A closed door stops the smell. Shut the dog into another room!', 'A door cannot be closed while the dog stands in it.'] },
       light: { title: 'New: Searchlight', list: ['A searchlight throws red light like a camera, but you cannot turn it. After EVERY action you take, it swings a quarter turn clockwise by itself.', 'Tap the searchlight to wait: an action that changes nothing else, so only the lights swing.', 'The dashed outline shows where the light will point after your next action.', 'An action is refused if the swing would light the prisoner.'] },
+      panel: { title: 'New: Power panel', list: ['A power panel is wired to two or three cameras, doors or mirrors. The coloured wires show which.', 'Wired things have no controls of their own. Tap the panel and ALL of them change at once: cameras turn a quarter turn, doors and mirrors switch.', 'One action, several changes. Look for the order that leaves the prisoner in the dark.'] },
       all: { title: 'Everything together', list: ['Cameras, guards, doors and mirrors work as you know them.', 'Some levels need several rounds: move the prisoner on, then change the room again.'] },
     },
     pause: 'Paused', resume: 'Resume', restart: 'Restart level', mainMenu: 'Main menu',
     level: 'Level', moves: 'Actions', best: 'Best', undo: 'Undo', hint: 'Hint', hintAd: 'Hint · Ad', toExit: 'Escape', turn: 'Turn', flip: 'Switch',
     pick: 'Tap a dark tile to walk. Tap a camera to turn it clockwise.',
     refused: 'Not allowed: that would expose the prisoner. Move him somewhere dark first.', unreach: 'The prisoner cannot get there from here.',
-    pathClear: 'The way is clear. Send the prisoner to the exit.', hintWho: 'Try: ', hintCam: 'turn this camera', hintGuard: 'move this guard', hintDoor: 'use this door', hintMirror: 'flip this mirror', hintDog: 'move this dog', hintLight: 'wait: tap the searchlight', wait: 'Wait',
+    pathClear: 'The way is clear. Send the prisoner to the exit.', hintWho: 'Try: ', hintCam: 'turn this camera', hintGuard: 'move this guard', hintDoor: 'use this door', hintMirror: 'flip this mirror', hintDog: 'move this dog', hintLight: 'wait: tap the searchlight', hintPanel: 'use this power panel', wiredTip: 'This one is wired to a power panel. Tap the panel instead.', wait: 'Wait',
     escaped: 'Escaped!', winText: (m, p, l) => `${m} actions · best ${p}` + (l ? ` · ${l} heart(s) lost` : ''), retry: 'Retry', next: 'Next level', done: 'All levels cleared!',
     seen: 'Spotted! You lost a heart.', caught: 'Caught!', caughtText: 'You ran out of hearts.', revive: 'Ad: continue with 1 heart',
     locked: (n, h) => `Locked: needs ${n} stars (you have ${h})`, gate: (n, h) => `The next block needs ${n} stars. You have ${h}.`,
@@ -905,7 +961,7 @@ const T = {
     on: 'On', off: 'Off', setTitle: 'Settings', howTitle: 'How to play',
     howList: [
       'Tap a dark tile to walk the prisoner there. Walking is free.',
-      'Only your actions count: tap a camera to turn it clockwise (three taps turn it left). Tap a guard to select it, tap it again to turn it round, or tap a tile of its rail to send it there (each step is one action). Tap a door or a mirror to switch it. Tap a dog, then a tile of its rail, to send it there. Searchlights swing a quarter turn after every action; tap one to wait.',
+      'Only your actions count: tap a camera to turn it clockwise (three taps turn it left). Tap a guard to select it, tap it again to turn it round, or tap a tile of its rail to send it there (each step is one action). Tap a door or a mirror to switch it. Tap a dog, then a tile of its rail, to send it there. Searchlights swing a quarter turn after every action; tap one to wait. A power panel changes everything wired to it at once; wired things cannot be tapped themselves.',
       'The prisoner must never stand in red light. An action that would light him is refused, so move him to a dark tile first.',
       'Walls, guards and closed doors stop sight. Mirrors bend a sight line by 90 degrees. A dog smells every tile it can walk to (green): trap it behind a closed door.',
       'Reach the green exit with as few actions as the best solution to earn three stars. Stars open the next block.',
@@ -920,6 +976,8 @@ const T = {
       66: 'New: mirrors. Tap a mirror to flip it. Light that hits it bends by 90 degrees.',
       86: 'Everything together. Take your time.',
       106: 'New: the guard dog. The prisoner may not stand where the dog can smell him. Shut the dog into another room with a door.',
+      146: 'New: the power panel. Wired cameras, doors and mirrors only change through it, all at once. Follow the coloured wires.',
+      147: 'A panel turns every camera it is wired to by a quarter turn, so a camera that needs three turns takes three taps, and its door flips each time.',
       126: 'New: the searchlight. It swings a quarter turn clockwise after every action you take. Tap it to wait. The dashed outline shows where it will point next.',
       127: 'Every action counts for the searchlight, not only the waiting. Plan the order so the beam is off the prisoner when it lands.',
       107: 'You cannot close a door while the dog stands in the doorway. Let it through first, then close the door behind it.',
@@ -929,7 +987,7 @@ const T = {
     tag: 'تاریکی را جابه‌جا کن و زندانی را از کنار دوربین‌ها و نگهبان‌ها رد کن.', foot: 'نسخهٔ آزمایشی',
     play: 'شروع بازی', cont: lv => 'ادامه · مرحلهٔ ' + lv, levels: 'مرحله‌ها', how: 'راهنمای بازی', settings: 'تنظیمات', close: 'بستن', back: 'بازگشت',
     dogTip: 'سگ انتخاب شد: خانهٔ ریلش را لمس کن تا برود، زندانی را لمس کن تا رها شود.', doorBlocked: 'سگ توی چارچوب در ایستاده است.',
-    guardTip: 'نگهبان انتخاب شد: دوباره لمسش کن تا برگردد، خانهٔ ریل را لمس کن تا برود، زندانی را لمس کن تا رها شود.', gotIt: 'فهمیدم', itemsL: 'آیتم‌ها', itemNames: { cam: 'دوربین', guard: 'نگهبان', door: 'در', mirror: 'آینه', dog: 'سگ', light: 'نورافکن' },
+    guardTip: 'نگهبان انتخاب شد: دوباره لمسش کن تا برگردد، خانهٔ ریل را لمس کن تا برود، زندانی را لمس کن تا رها شود.', gotIt: 'فهمیدم', itemsL: 'آیتم‌ها', itemNames: { cam: 'دوربین', guard: 'نگهبان', door: 'در', mirror: 'آینه', dog: 'سگ', light: 'نورافکن', panel: 'تابلو برق' },
     intro: {
       cam: { title: 'تازه: دوربین', list: ['دوربین روی یک خط نور قرمز می‌اندازد. زندانی هرگز نباید در آن بایستد.', 'دوربین را لمس کن تا یک‌چهارم دور ساعتگرد بچرخد.', 'راه رفتن رایگان است. فقط لمس‌هایت روی دوربین‌ها شمرده می‌شود.'] },
       guard: { title: 'تازه: نگهبان', list: ['نگهبان روی ریلش جلو و عقب می‌رود و ۳ خانه جلویش را می‌بیند. پشتش نقطهٔ کور است.', 'لمسش کن تا انتخاب شود، دوباره لمس کن تا برگردد، یا یک خانهٔ ریلش را لمس کن تا به آنجا برود.', 'هر قدم یک عمل است.'] },
@@ -937,13 +995,14 @@ const T = {
       mirror: { title: 'تازه: آینه', list: ['آینه نور را ۹۰ درجه می‌شکند.', 'لمسش کن تا بین دو شیب عوض شود.', 'حالا یک دوربین می‌تواند خانه‌های پشت گوشه را هم روشن کند.'] },
       dog: { title: 'تازه: سگ نگهبان', list: ['سگ هر خانه‌ای را که بتواند به آن برسد بو می‌کند. زندانی هرگز نباید روی خانهٔ بودار بایستد.', 'سگ را لمس کن، بعد یک خانهٔ ریلش را لمس کن تا به آنجا برود. هر قدم یک عمل است.', 'در بسته بو را می‌بندد. سگ را پشت یک در در اتاق دیگر گیر بینداز!', 'تا سگ در چارچوب در ایستاده، نمی‌شود آن در را بست.'] },
       light: { title: 'تازه: نورافکن', list: ['نورافکن مثل دوربین نور قرمز می‌اندازد، ولی تو نمی‌توانی آن را بچرخانی. بعد از هر عملی که انجام بدهی، خودش یک‌چهارم دور ساعتگرد می‌چرخد.', 'نورافکن را لمس کن تا صبر کنی: عملی که چیز دیگری را عوض نمی‌کند و فقط نورافکن‌ها می‌چرخند.', 'خط‌چین نشان می‌دهد بعد از عمل بعدی‌ات نور به کجا می‌افتد.', 'اگر چرخش نور زندانی را روشن کند، آن عمل رد می‌شود.'] },
+      panel: { title: 'تازه: تابلو برق', list: ['تابلو برق به دو یا سه دوربین، در یا آینه سیم‌کشی شده است. سیم‌های رنگی نشان می‌دهند به کدام‌ها.', 'چیزهای سیم‌کشی‌شده کنترل جداگانه ندارند. تابلو را لمس کن تا همه‌شان با هم عوض شوند: دوربین‌ها یک‌چهارم می‌چرخند، در و آینه عوض می‌شوند.', 'یک عمل، چند تغییر. ترتیبی پیدا کن که زندانی در تاریکی بماند.'] },
       all: { title: 'همه با هم', list: ['دوربین، نگهبان، در و آینه همان‌طور که می‌شناسی کار می‌کنند.', 'بعضی مرحله‌ها چند دور می‌خواهند: زندانی را جلو ببر، بعد اتاق را دوباره عوض کن.'] },
     },
     pause: 'توقف', resume: 'ادامه', restart: 'شروع دوبارهٔ مرحله', mainMenu: 'منوی اصلی',
     level: 'مرحله', moves: 'عمل', best: 'بهترین', undo: 'برگشت', hint: 'راهنما', hintAd: 'راهنما · تبلیغ', toExit: 'فرار', turn: 'چرخش', flip: 'تغییر',
     pick: 'یک خانهٔ تاریک را لمس کن تا دزد برود. یک دوربین را لمس کن تا ساعتگرد بچرخد.',
     refused: 'ممنوع! با این کار زندانی دیده می‌شود. اول او را به یک خانهٔ تاریک ببر.', unreach: 'زندانی از اینجا نمی‌تواند به آن خانه برود.',
-    pathClear: 'راه باز است. زندانی را به خروج ببر.', hintWho: 'پیشنهاد: ', hintCam: 'این دوربین را بچرخان', hintGuard: 'این نگهبان را جابه‌جا کن', hintDoor: 'این در را باز/بسته کن', hintMirror: 'این آینه را بچرخان', hintDog: 'این سگ را جابه‌جا کن', hintLight: 'صبر کن: نورافکن را لمس کن', wait: 'صبر',
+    pathClear: 'راه باز است. زندانی را به خروج ببر.', hintWho: 'پیشنهاد: ', hintCam: 'این دوربین را بچرخان', hintGuard: 'این نگهبان را جابه‌جا کن', hintDoor: 'این در را باز/بسته کن', hintMirror: 'این آینه را بچرخان', hintDog: 'این سگ را جابه‌جا کن', hintLight: 'صبر کن: نورافکن را لمس کن', hintPanel: 'این تابلو برق را بزن', wiredTip: 'این یکی به تابلو برق وصل است. به‌جایش تابلو را لمس کن.', wait: 'صبر',
     escaped: 'فرار کرد!', winText: (m, p, l) => `${m} عمل · بهترین ${p}` + (l ? ` · ${l} جان از دست رفت` : ''), retry: 'دوباره', next: 'مرحلهٔ بعد', done: 'همهٔ مرحله‌ها تمام شد!',
     seen: 'دیده شدی! یک جان کم شد.', caught: 'گرفتار شد!', caughtText: 'جان‌هایت تمام شد.', revive: 'تبلیغ و ادامه با ۱ جان',
     locked: (n, h) => `قفل: ${n} ستاره لازم است (داری ${h})`, gate: (n, h) => `برای بخش بعد ${n} ستاره لازم است. تا الان ${h} داری.`,
@@ -953,7 +1012,7 @@ const T = {
     on: 'روشن', off: 'خاموش', setTitle: 'تنظیمات', howTitle: 'راهنمای بازی',
     howList: [
       'یک خانهٔ تاریک را لمس کن تا زندانی به آنجا برود. راه رفتن رایگان است.',
-      'فقط عمل‌های تو شمرده می‌شوند: دوربین را لمس کن تا ساعتگرد بچرخد (برای چرخش به چپ سه بار). نگهبان را لمس کن تا انتخاب شود، دوباره لمسش کن تا برگردد، یا یک خانهٔ ریلش را لمس کن تا به آنجا برود (هر قدم یک عمل). در یا آینه را لمس کن تا عوض شود. سگ را لمس کن و بعد یک خانهٔ ریلش را لمس کن تا برود. نورافکن بعد از هر عمل یک‌چهارم می‌چرخد؛ لمسش کن تا صبر کنی.',
+      'فقط عمل‌های تو شمرده می‌شوند: دوربین را لمس کن تا ساعتگرد بچرخد (برای چرخش به چپ سه بار). نگهبان را لمس کن تا انتخاب شود، دوباره لمسش کن تا برگردد، یا یک خانهٔ ریلش را لمس کن تا به آنجا برود (هر قدم یک عمل). در یا آینه را لمس کن تا عوض شود. سگ را لمس کن و بعد یک خانهٔ ریلش را لمس کن تا برود. نورافکن بعد از هر عمل یک‌چهارم می‌چرخد؛ لمسش کن تا صبر کنی. تابلو برق همهٔ چیزهای وصل‌شده به خودش را با هم عوض می‌کند؛ خودِ آن‌ها را نمی‌شود لمس کرد.',
       'زندانی هرگز نباید در نور قرمز بایستد. عملی که او را روشن کند ممنوع است؛ اول او را به خانهٔ تاریک ببر.',
       'دیوار، نگهبان و در بسته دید را می‌برند. آینه خط دید را ۹۰ درجه می‌شکند. سگ هر خانه‌ای را که بتواند به آن برسد بو می‌کند (سبز): او را پشت یک در بسته گیر بینداز.',
       'با کمترین تعداد عمل به خروج سبز برس تا سه ستاره بگیری. ستاره‌ها بخش بعد را باز می‌کنند.',
@@ -968,6 +1027,8 @@ const T = {
       66: 'تازه: آینه. آینه را لمس کن تا بچرخد. نوری که به آن بخورد ۹۰ درجه می‌شکند.',
       86: 'همه‌چیز با هم. با حوصله.',
       106: 'تازه: سگ نگهبان. زندانی نباید جایی بایستد که سگ بتواند او را بو کند. سگ را با یک در در اتاق دیگری حبس کن.',
+      146: 'تازه: تابلو برق. دوربین، در و آینهٔ سیم‌کشی‌شده فقط با تابلو و همه با هم عوض می‌شوند. سیم‌های رنگی را دنبال کن.',
+      147: 'تابلو هر دوربین وصل‌شده را یک‌چهارم می‌چرخاند؛ پس دوربینی که سه چرخش می‌خواهد سه لمس می‌خواهد و درِ وصل هر بار عوض می‌شود.',
       126: 'تازه: نورافکن. بعد از هر عملی که می‌کنی یک‌چهارم ساعتگرد می‌چرخد. لمسش کن تا صبر کنی. خط‌چین نشان می‌دهد بعدش کجا می‌افتد.',
       127: 'نورافکن برای هر عمل می‌چرخد، نه فقط برای صبر کردن. ترتیب را طوری بچین که نور هنگام رسیدن روی زندانی نباشد.',
       107: 'تا سگ توی چارچوب در ایستاده نمی‌شود در را بست. اول بگذار رد شود، بعد در را پشت سرش ببند.',
@@ -1037,6 +1098,7 @@ const Sfx = (() => {
     cam: (a, t) => { tone(a, t, 170, 330, .2, 'sawtooth', .07, 0, 900); tone(a, t, 1300, 1300, .02, 'square', .05, .2); },
     guardStep: (a, t) => { tone(a, t, 130, 55, .14, 'sine', .3); noise(a, t, .05, .05, 0, 2000); },
     dogStep: (a, t) => { tone(a, t, 240, 150, .09, 'sawtooth', .09, 0, 700); noise(a, t, .03, .04, .08, 2500); noise(a, t, .03, .04, .14, 2500); },
+    panel: (a, t) => { tone(a, t, 1200, 180, .12, 'square', .07, 0, 2500); noise(a, t, .06, .06, 0, 3500); tone(a, t, 90, 60, .12, 'sine', .2, .06); },
     sweep: (a, t) => { tone(a, t, 220, 360, .2, 'sawtooth', .06, 0, 800); tone(a, t, 1500, 1500, .015, 'square', .04, .2); },
     wait: (a, t) => { tone(a, t, 330, 330, .05, 'triangle', .1); tone(a, t, 220, 360, .2, 'sawtooth', .06, .05, 800); tone(a, t, 1500, 1500, .015, 'square', .04, .25); },
     turn: (a, t) => { tone(a, t, 520, 330, .07, 'square', .05); tone(a, t, 400, 300, .07, 'square', .05, .08); noise(a, t, .12, .03, 0, 4000); },
@@ -1135,7 +1197,7 @@ const Music = (() => {
 
 /* ---------------------------------------------------- item introductions */
 /* A card with a small looping demonstration appears the first time a level introduces a new item (and can be replayed from How to play). */
-const INTROS = { 1: 'cam', 16: 'guard', 46: 'door', 66: 'mirror', 86: 'all', 106: 'dog', 126: 'light' };
+const INTROS = { 1: 'cam', 16: 'guard', 46: 'door', 66: 'mirror', 86: 'all', 106: 'dog', 126: 'light', 146: 'panel' };
 let introSeen = store.get('pb_intro', {}), introKind = null, introMark = false;
 function showIntro(kind, mark) {
   introKind = kind; introMark = mark; const t = tr().intro[kind];
@@ -1178,6 +1240,22 @@ function drawIntro(now) {
     spr(w.img, w.x, w.y, false);
     spr(person('guard', 1, 0), 12, 45, face === 3);
     if (t > 1.8 && t < 2.8) { ix.strokeStyle = `rgba(255,255,255,${.4 + .6 * Math.abs(Math.sin(t * 8))})`; ix.lineWidth = 2; ix.strokeRect(3, 21, 18, 26); }
+  } else if (introKind === 'panel') {
+    // the panel in the corner is wired to the camera and the door: one tap turns the camera away and opens the door
+    const done = t >= 2.4, col = '#5ad1ff';
+    wall(0, 0, 8, 24); wall(0, 24, 8, 24);
+    R('#8892a6', 1, 2, 6, 18); R('#2a303d', 2, 4, 4, 14); R(col, 3, 6, 2, 2); R('#ffd24a', 3, 12, 2, 2);
+    if (!done) { for (let c = 1; c < 5; c++) lit(c, 1); R('rgba(255,59,82,.5)', 14, 33, 106, 6); }
+    ix.strokeStyle = col; ix.lineWidth = 1; ix.setLineDash([3, 3]); ix.beginPath(); ix.moveTo(4, 12); ix.lineTo(4, 38); ix.moveTo(7, 11); ix.lineTo(60, 11); ix.stroke(); ix.setLineDash([]);
+    R(col, 4, 40, 4, 4); R(col, 66, 3, 4, 4);
+    spr(camSprite(done ? 2 : 1), 10, 46, false);
+    if (done) { for (let i = 0; i < 3; i++) R('#ffc54a', 52 + i * 7, 6, 4, 4); R('rgba(255,197,74,.5)', 50, 10, 22, 2); } else { R('#7f8a9d', 49, 1, 22, 22); R('#16101f', 59, 8, 3, 8); for (let i = 0; i < 3; i++) R('#ffc54a', 51 + i * 7, 17, 4, 4); }
+    exit(4, 1);
+    const p = Math.max(0, t - 3.2) * 30, pts = [[36, 21], [108, 21], [108, 45]];
+    let tx = 36, ty = 21, rem = p, dirI = 1;
+    for (let i = 1; i < pts.length && rem > 0; i++) { const dx = pts[i][0] - pts[i - 1][0], dy = pts[i][1] - pts[i - 1][1], len = Math.abs(dx) + Math.abs(dy), u = Math.min(rem, len) / len; tx = pts[i - 1][0] + dx * u; ty = pts[i - 1][1] + dy * u; rem -= len; dirI = dy ? 2 : 1; }
+    spr(person('thief', dirI, p > 0 && p < 120 ? 1 + (Math.floor(t * 6) % 2) : 0), tx, ty, false);
+    if (t > 1.8 && t < 2.8) ring(4, 11, t - 1.8);
   } else if (introKind === 'light') {
     // the lamp on the left wall points along the middle row; one tap (a wait) and it has swung down into the wall, so the way is free
     const swung = t >= 2.4;
@@ -1252,11 +1330,14 @@ function load(i) {
   const kind = INTROS[LEVELS[li].id]; if (kind && !introSeen[kind]) showIntro(kind, true);
 }
 function ev(d) { P.prepare(L); return P.evalConfig(L, d || dg, false); }
-const nCam = () => L.cams.length, nGuard = () => L.guards.length, nTog = () => L.toggles.length, nDog = () => L.dogs.length, nLight = () => L.lights.length, nAll = () => nCam() + nGuard() + nTog() + nDog() + nLight();
+const nCam = () => L.cams.length, nGuard = () => L.guards.length, nTog = () => L.toggles.length, nDog = () => L.dogs.length, nLight = () => L.lights.length, nPanel = () => L.panels.length, nAll = () => nCam() + nGuard() + nTog() + nDog() + nLight() + nPanel();
 /* watcher index space: cameras, guards, doors/mirrors, then dogs, the same order as the digits */
-const dogBase = () => nCam() + nGuard() + nTog(), lightBase = () => dogBase() + nDog();
-function watcherCell(k) { return k < nCam() ? L.cams[k].c : k < nCam() + nGuard() ? L.guards[k - nCam()].rail[dg[k] >> 1] : k < dogBase() ? L.toggles[k - nCam() - nGuard()].c : k < lightBase() ? L.dogs[k - dogBase()].rail[dg[k]] : L.lights[k - lightBase()].c; }
-const kindOf = k => k < nCam() ? 'cam' : k < nCam() + nGuard() ? 'guard' : k < dogBase() ? L.toggles[k - nCam() - nGuard()].kind : k < lightBase() ? 'dog' : 'light';
+const dogBase = () => nCam() + nGuard() + nTog(), lightBase = () => dogBase() + nDog(), panelBase = () => lightBase() + nLight();
+const PANEL_COL = ['#5ad1ff', '#ff7bd5', '#b6ff5a'];
+/* the panel (watcher index) that a camera, door or mirror (watcher index) is wired to, or -1 */
+const panelOf = k => { if (k >= dogBase()) return -1; const j = L.panels.findIndex(p => p.links.includes(k)); return j < 0 ? -1 : panelBase() + j; };
+function watcherCell(k) { return k < nCam() ? L.cams[k].c : k < nCam() + nGuard() ? L.guards[k - nCam()].rail[dg[k] >> 1] : k < dogBase() ? L.toggles[k - nCam() - nGuard()].c : k < lightBase() ? L.dogs[k - dogBase()].rail[dg[k]] : k < panelBase() ? L.lights[k - lightBase()].c : L.panels[k - panelBase()].c; }
+const kindOf = k => k < nCam() ? 'cam' : k < nCam() + nGuard() ? 'guard' : k < dogBase() ? L.toggles[k - nCam() - nGuard()].kind : k < lightBase() ? 'dog' : k < panelBase() ? 'light' : 'panel';
 /* guards and dogs both walk a rail; this gives the rail, the current tile index and the digit-to-index rule */
 function walkerRail(k) { return k < dogBase() ? { rail: L.guards[k - nCam()].rail, cur: dg[k] >> 1 } : { rail: L.dogs[k - dogBase()].rail, cur: dg[k] }; }
 const dogHere = (d, c) => L.dogs.some((o, q) => o.rail[d[dogBase() + q]] === c);
@@ -1264,6 +1345,7 @@ const dogHere = (d, c) => L.dogs.some((o, q) => o.rail[d[dogBase() + q]] === c);
 /* ------------------------------------------------------------- actions */
 /* every action ends with the searchlights swinging a quarter turn; a Wait is only that swing */
 function options(k) {
+  if (k >= panelBase()) { const d = P.panelApply(L, dg, k - panelBase()); return [{ kind: 'panel', label: '⚡', dg: d ? P.sweep(L, d) : null }]; }
   if (k >= lightBase()) return [{ kind: 'wait', label: '⏳', dg: P.sweep(L, dg) }];
   return options0(k).map(o => o.dg ? Object.assign({}, o, { dg: P.sweep(L, o.dg) }) : o);
 }
@@ -1380,7 +1462,7 @@ function tapPoint(k) {
   let px, py;
   if (kind === 'guard') { px = FX(x + .5); py = FY(y) + cellH * .9 - cs * .5; }
   else if (kind === 'dog') { px = FX(x + .5); py = FY(y) + cellH * .9 - cs * .22; }
-  else if (kind === 'cam' || kind === 'light') { px = FX(x + .5); py = FY(y) - wallH + cellH * .4; }
+  else if (kind === 'cam' || kind === 'light' || kind === 'panel') { px = FX(x + .5); py = FY(y) - wallH + cellH * .4; }
   else if (kind === 'mirror' || dg[k] === 1) { px = FX(x + .5); py = FY(y) - wallH + cellH * .5; }
   else { px = FX(x) + cs * .2; py = FY(y) + cellH * .25; }
   return [r.left + ox + px, r.top + oy + py];
@@ -1396,7 +1478,7 @@ function hitTest(px, py) {
     let x0, x1, y0, y1;
     if (kind === 'dog') { x0 = FX(x + .5) - cs * .36; x1 = FX(x + .5) + cs * .36; y1 = FY(y) + cellH * .9; y0 = y1 - cs * .6; }
     else if (kind === 'guard') { x0 = FX(x + .5) - cs * .34; x1 = FX(x + .5) + cs * .34; y1 = FY(y) + cellH * .9; y0 = y1 - cs * 1.05; }
-    else if (kind === 'cam' || kind === 'light') { x0 = FX(x + .5) - cs * .36; x1 = FX(x + .5) + cs * .36; y0 = FY(y) - wallH; y1 = FY(y) - wallH + cellH * .85; }
+    else if (kind === 'cam' || kind === 'light' || kind === 'panel') { x0 = FX(x + .5) - cs * .36; x1 = FX(x + .5) + cs * .36; y0 = FY(y) - wallH; y1 = FY(y) - wallH + cellH * .85; }
     else if (kind === 'mirror' || dg[k] === 1) { x0 = FX(x); x1 = FX(x + 1); y0 = FY(y) - wallH; y1 = FY(y) + cellH; }
     else { x0 = FX(x); x1 = FX(x) + cs * .42; y0 = FY(y); y1 = FY(y) + cellH * .5; }       // open door: only its small switch box
     if (px >= x0 && px < x1 && py >= y0 && py < y1) {
@@ -1440,6 +1522,7 @@ function onTap(px, py) {
       else { sel = k; setTip(tr().guardTip); }
       buildBar(); return;
     }
+    const pn = panelOf(k); if (pn >= 0) { sel = pn; setTip(tr().wiredTip); buildBar(); return; }          // wired things only change through their panel
     sel = k;
     const o = options(k)[0]; tryAction(o.dg, o.kind);                                  // cameras, doors, mirrors act on one tap
     buildBar(); return;
@@ -1470,7 +1553,7 @@ function applyLang() {
   set('winRetry', t.retry); set('winLevels', t.levels); set('lvTitle', t.levels); set('lvClose', t.close); set('howTitle', t.howTitle); set('howClose', t.close);
   set('setTitle', t.setTitle); set('setClose', t.close); set('sLangL', t.sLang); set('sSfxL', t.sSfx); set('sVolL', t.sVol); set('sMusL', t.sMus); set('sMusVolL', t.sMusVol); set('sVibL', t.sVib);
   set('sHeartsL', t.sHearts); set('sHeartsS', t.sHeartsS); set('sMotionL', t.sMotion); set('sMotionS', t.sMotionS); set('sUnlockL', t.sUnlock); set('sUnlockS', t.sUnlockS);
-  set('howItemsL', t.itemsL); $('howItems').innerHTML = ''; ['cam', 'guard', 'door', 'mirror', 'dog', 'light'].forEach(k => { const b = document.createElement('button'); b.textContent = t.itemNames[k]; b.onclick = () => showIntro(k, false); $('howItems').appendChild(b); });
+  set('howItemsL', t.itemsL); $('howItems').innerHTML = ''; ['cam', 'guard', 'door', 'mirror', 'dog', 'light', 'panel'].forEach(k => { const b = document.createElement('button'); b.textContent = t.itemNames[k]; b.onclick = () => showIntro(k, false); $('howItems').appendChild(b); });
   set('introOk', t.gotIt);
   set('adTitle', t.adTitle); set('adText', t.adText); set('adCancel', t.adCancel); set('adClaim', t.adClaim);
   $('howList').innerHTML = t.howList.map(s => `<li>${s}</li>`).join('');
@@ -1525,7 +1608,7 @@ function doHint() {
   if (r.par === 0) { setTip(tr().pathClear, 'good'); return; }
   hintWho = r.who[0]; sel = hintWho;
   const kind = kindOf(hintWho), t = tr();
-  setTip(t.hintWho + (kind === 'cam' ? t.hintCam : kind === 'guard' ? t.hintGuard : kind === 'dog' ? t.hintDog : kind === 'light' ? t.hintLight : kind === 'door' ? t.hintDoor : t.hintMirror), 'good'); buildBar();
+  setTip(t.hintWho + (kind === 'cam' ? t.hintCam : kind === 'guard' ? t.hintGuard : kind === 'dog' ? t.hintDog : kind === 'light' ? t.hintLight : kind === 'panel' ? t.hintPanel : kind === 'door' ? t.hintDoor : t.hintMirror), 'good'); buildBar();
 }
 
 /* Stand-in for a real rewarded-ad SDK. Ads only ever appear after the player asks for a hint or a revive. */
@@ -1663,6 +1746,14 @@ function camSprite(dir) {
   if (dir === 2) { pxr(c, '#c9d2e6', 1, 1, 10, 6); pxr(c, '#7d889c', 1, 5, 10, 2); pxr(c, '#1a1420', 4, 2, 4, 4); pxr(c, '#ff3b52', 5, 3, 2, 2); }
   else if (dir === 0) { pxr(c, '#aab4c8', 1, 1, 10, 6); pxr(c, '#7d889c', 1, 5, 10, 2); pxr(c, '#41d392', 9, 2, 1, 1); }
   else { pxr(c, '#c9d2e6', 1, 1, 8, 6); pxr(c, '#7d889c', 1, 5, 8, 2); pxr(c, '#1a1420', 9, 2, 2, 4); pxr(c, '#ff3b52', 10, 3, 1, 2); }
+  outline(cnv, '#16101f'); sprites.set(key, cnv); return cnv;
+}
+function panelSprite(col) {                             // a fuse box on the wall with lamps in its wire colour
+  const key = 'panel' + col; if (sprites.has(key)) return sprites.get(key);
+  const cnv = document.createElement('canvas'); cnv.width = 14; cnv.height = 12; const c = cnv.getContext('2d'); c.translate(1, 1);
+  pxr(c, '#8892a6', 1, 0, 10, 10); pxr(c, '#aeb8cc', 1, 0, 10, 1); pxr(c, '#5c6679', 1, 9, 10, 1); pxr(c, '#2a303d', 2, 1, 8, 8);
+  pxr(c, col, 3, 2, 2, 2); pxr(c, col, 7, 2, 2, 2); pxr(c, col, 3, 5, 2, 2);
+  pxr(c, '#ffd24a', 7, 5, 2, 1); pxr(c, '#ffd24a', 6, 6, 2, 1); pxr(c, '#ffd24a', 7, 7, 1, 1);
   outline(cnv, '#16101f'); sprites.set(key, cnv); return cnv;
 }
 function lampSprite(dir) {                              // a wall searchlight: gold housing, big pale lens
@@ -1936,6 +2027,9 @@ function draw(now) {
           drawSprite(camSprite(d === 3 ? 1 : d), cx, cy, cs * .05, d === 3, glowFor(k, pulse));
           const lens = d === 1 ? 4.5 : d === 3 ? -4.5 : 0;
           cameraBeam(camOf.get(k), cx + lens * cs * .05, cy - cs * .3, pulse); }
+        const pj = L.panels.findIndex(q => q.c === c);
+        if (pj >= 0) { const k = panelBase() + pj, cx = FX(x + .5), cy = FY(y) - wallH + cellH * .72;
+          drawSprite(panelSprite(PANEL_COL[pj % 3]), cx, cy, cs * .05, false, glowFor(k, pulse)); }
         const li = L.lights.findIndex(q => q.c === c);
         if (li >= 0) { const k = lightBase() + li, d = dg[k], cx = FX(x + .5), cy = FY(y) - wallH + cellH * .72;
           drawSprite(lampSprite(d === 3 ? 1 : d), cx, cy, cs * .05, d === 3, glowFor(k, pulse));
@@ -1951,6 +2045,19 @@ function draw(now) {
     }
     guardsAt(y); dogsAt(y); thiefAt(y);
   }
+  // wires: a coloured dashed line from each panel to the things it drives, and a coloured badge on each of them
+  const topCentre = c => [FX(c % L.w + .5), FY((c / L.w) | 0) - wallH + cellH * .5];
+  L.panels.forEach((pn, j) => {
+    const col = PANEL_COL[j % 3], k = panelBase() + j, [px0, py0] = topCentre(pn.c);
+    pn.links.forEach(i => {
+      const cell = watcherCell(i), open = kindOf(i) === 'door' && dg[i] === 0, [qx, qy] = open ? [FX(cell % L.w + .5), FY((cell / L.w) | 0) + cellH * .5] : topCentre(cell);
+      ctx.strokeStyle = col; ctx.globalAlpha = sel === k ? .95 : .5; ctx.lineWidth = sel === k ? 2.5 : 1.6; ctx.setLineDash([cs * .08, cs * .07]);
+      ctx.beginPath(); ctx.moveTo(px0, py0); ctx.lineTo(qx, py0); ctx.lineTo(qx, qy); ctx.stroke(); ctx.setLineDash([]); ctx.globalAlpha = 1;
+      const bs = Math.max(5, cs * .15), bx = FX(cell % L.w) + cs - bs - 2, by = (open ? FY((cell / L.w) | 0) : FY((cell / L.w) | 0) - wallH) + 2;
+      ctx.fillStyle = '#16101f'; ctx.fillRect(bx - 1, by - 1, bs + 2, bs + 2); ctx.fillStyle = col; ctx.fillRect(bx, by, bs, bs);
+      if (sel === k) { ctx.strokeStyle = col; ctx.lineWidth = 2; ctx.globalAlpha = .4 + .6 * pulse; ctx.strokeRect(FX(cell % L.w) - 1, (open ? FY((cell / L.w) | 0) : FY((cell / L.w) | 0) - wallH) - 1, cs + 2, cellH + (open ? 0 : wallH) + 2); ctx.globalAlpha = 1; }
+    });
+  });
   ctx.restore();
 }
 setFavicon(); applyLang(); syncSettingsUI();

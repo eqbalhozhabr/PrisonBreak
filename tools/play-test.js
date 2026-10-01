@@ -9,7 +9,7 @@ const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
   const pg = await b.newPage({ viewport: { width: 390, height: 800 }, deviceScaleFactor: 2, hasTouch: false });
   const errs = []; pg.on('pageerror', e => errs.push(String(e.stack || e).split('\n').slice(0, 4).join(' | '))); pg.on('console', m => m.type() === 'error' && errs.push(m.text()));
   await pg.goto(url); await pg.waitForTimeout(300);
-  await pg.evaluate(() => { settings.unlockAll = true; settings.hearts = false; settings.sfx = false; settings.music = false; settings.vibrate = false; introSeen = { cam: 1, guard: 1, door: 1, mirror: 1, all: 1, dog: 1, light: 1 }; });
+  await pg.evaluate(() => { settings.unlockAll = true; settings.hearts = false; settings.sfx = false; settings.music = false; settings.vibrate = false; introSeen = { cam: 1, guard: 1, door: 1, mirror: 1, all: 1, dog: 1, light: 1, panel: 1 }; });
   const n = await pg.evaluate(() => LEVELS.length);
   let idx = [];
   if (which === 'all') idx = [...Array(n).keys()];
@@ -136,11 +136,11 @@ const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
   // item introductions: shown once at the level that brings the item, not again after "Got it"
   const intro = await pg.evaluate(() => {
     introSeen = {}; const out = [];
-    for (const idx of [0, 15, 45, 65, 85, 105, 125]) { load(idx); out.push([LEVELS[idx].id, introKind, document.getElementById('introOv').classList.contains('on')]); closeIntro(); }
+    for (const idx of [0, 15, 45, 65, 85, 105, 125, 145]) { load(idx); out.push([LEVELS[idx].id, introKind, document.getElementById('introOv').classList.contains('on')]); closeIntro(); }
     load(15); out.push(['again', introKind]);
-    introSeen = { cam: 1, guard: 1, door: 1, mirror: 1, all: 1, dog: 1, light: 1 }; return out;
+    introSeen = { cam: 1, guard: 1, door: 1, mirror: 1, all: 1, dog: 1, light: 1, panel: 1 }; return out;
   });
-  const introOk = JSON.stringify(intro) === JSON.stringify([[1, 'cam', true], [16, 'guard', true], [46, 'door', true], [66, 'mirror', true], [86, 'all', true], [106, 'dog', true], [126, 'light', true], ['again', null]]);
+  const introOk = JSON.stringify(intro) === JSON.stringify([[1, 'cam', true], [16, 'guard', true], [46, 'door', true], [66, 'mirror', true], [86, 'all', true], [106, 'dog', true], [126, 'light', true], [146, 'panel', true], ['again', null]]);
   console.log('introductions:', JSON.stringify(intro), introOk ? 'OK' : 'FAIL'); ok = ok && introOk;
   // dogs: tap selects (no turning), tapping a rail tile walks the dog one action per step, a door cannot close on a dog in the doorway, scent is drawn
   const dg1 = await pg.evaluate(async () => {
@@ -170,6 +170,20 @@ const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
   });
   const ltOk = lt.preview && (lt.waitMoves === undefined || (lt.waitMoves === 1 && lt.turned && lt.lampOnly));
   console.log('searchlight: tap = wait, swings a quarter turn:', JSON.stringify(lt), ltOk ? 'OK' : 'FAIL'); ok = ok && !!ltOk;
+  // power panels: a tap changes every wired thing at once (one action); wired things cannot be tapped themselves and send you to the panel
+  const pt = await pg.evaluate(async () => {
+    const li = LEVELS.findIndex(l => l.meta.panels); load(li); const k = panelBase(), pn = L.panels[0], out = { level: li + 1, links: pn.links.length };
+    const before = dg.slice(), p = tapPoint(k), want = P.panelApply(L, before, 0);
+    onTap(p[0] - cv.getBoundingClientRect().left - ox, p[1] - cv.getBoundingClientRect().top - oy);
+    out.moves = moves;
+    out.allChanged = moves === 1 ? pn.links.every(i => dg[i] !== before[i]) && dg.every((v, i) => pn.links.includes(i) || v === before[i]) : 'refused';
+    // wired item: tap does nothing but select the panel
+    load(li); const w = pn.links[0], q = tapPoint(w); onTap(q[0] - cv.getBoundingClientRect().left - ox, q[1] - cv.getBoundingClientRect().top - oy);
+    out.wiredTapMoves = moves; out.wiredSelectsPanel = sel === panelBase();
+    return out;
+  });
+  const ptOk = (pt.moves === 0 || (pt.moves === 1 && pt.allChanged === true)) && pt.wiredTapMoves === 0 && pt.wiredSelectsPanel;
+  console.log('panel: one tap changes all wired things, wired things are not tappable:', JSON.stringify(pt), ptOk ? 'OK' : 'FAIL'); ok = ok && !!ptOk;
   // hearts mode: crossing a beam costs a heart and the run still ends at the exit
   const hm = await pg.evaluate(async () => {
     settings.hearts = true;

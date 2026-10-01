@@ -1,5 +1,5 @@
-/* The difficulty ramp: what every level n (1..145) is made of. Fourteen blocks: 15 camera-only levels, then thirteen of ten.
-   cams/guards/doors/mirrors/dogs/lights are counts, par is the number of actions the best solution takes. */
+/* The difficulty ramp: what every level n (1..165) is made of. Sixteen blocks: 15 camera-only levels, then fifteen of ten.
+   cams/guards/doors/mirrors/dogs/lights/panels are counts (a panel is wired to `wire` of the cameras, doors and mirrors), par is the number of actions the best solution takes. */
 'use strict';
 const BLOCKS = [
   { name: 'Cells', grid: [[5,5],[5,5],[5,6],[6,5],[6,5],[6,6],[6,6],[6,6],[6,7],[7,6],[7,7],[7,7],[7,7],[8,7],[8,8]], blocks: [1,1,2,2,2,3,3,3,4,4,5,5,5,6,7], cams: [1,1,1,2,2,2,2,3,3,3,3,4,4,5,5], guards: 0, doors: 0, mirrors: 0,
@@ -17,6 +17,8 @@ const BLOCKS = [
   { name: 'Kennel II',  grid: [[7,7],[7,7],[7,7],[8,7],[8,7],[8,8],[8,8],[8,8],[8,8],[8,8]], blocks: [3,3,4,4,4,5,5,5,6,6], cams: [1,1,1,2,2,2,2,2,2,3], guards: [0,0,0,0,0,0,1,1,1,1], doors: [2,2,2,2,3,3,3,3,3,3], mirrors: [0,0,0,0,0,0,0,0,1,1], dogs: [1,1,1,1,1,1,1,1,1,2], par: [7,8,8,9,10,10,11,11,12,12], phases: [2,2,3,3,3,3,4,4,4,4], cap: 60000, timeMs: 60000, minUnused: 1 },
   { name: 'Night Shift I',  grid: [[5,5],[6,5],[6,6],[6,6],[6,6],[7,6],[7,6],[7,7],[7,7],[7,7]], blocks: [1,2,2,2,2,3,3,3,3,3], cams: [0,0,0,0,1,1,1,1,1,1], guards: 0, doors: [0,0,0,1,0,0,1,1,1,1], mirrors: 0, lights: 1, par: [2,2,3,3,4,5,5,6,7,8], phases: [1,1,1,1,2,2,2,2,3,3], cap: 40000, timeMs: 40000, minUnused: 0 },
   { name: 'Night Shift II', grid: [[7,7],[7,7],[7,7],[8,7],[8,7],[8,7],[8,7],[8,8],[8,8],[8,8]], blocks: [3,3,4,4,4,4,5,5,5,6], cams: [1,1,1,1,2,2,1,1,2,2], guards: [0,0,0,0,0,1,1,1,1,1], doors: [1,1,1,2,2,2,2,2,2,2], mirrors: 0, dogs: [0,0,0,0,0,0,1,1,1,1], lights: [1,1,2,2,2,2,2,2,2,2], par: [7,8,8,9,9,10,10,11,11,12], phases: [2,2,3,3,3,3,4,4,4,4], cap: 80000, timeMs: 90000, minUnused: 1 },
+  { name: 'Fuse Box I',  grid: [[6,6],[6,6],[6,6],[7,6],[7,6],[7,7],[7,7],[7,7],[7,7],[7,7]], blocks: [2,2,2,3,3,3,3,3,3,3], cams: [1,1,1,2,2,2,2,2,2,2], guards: 0, doors: [1,1,1,1,1,2,2,2,2,2], mirrors: 0, panels: 1, wire: [2,2,2,2,2,2,3,3,3,3], par: [2,3,4,4,5,5,6,7,8,9], phases: [1,1,1,2,2,2,2,2,3,3], cap: 40000, timeMs: 40000, minUnused: 0 },
+  { name: 'Fuse Box II', grid: [[7,7],[7,7],[7,7],[8,7],[8,7],[8,7],[8,7],[8,8],[8,8],[8,8]], blocks: [3,3,4,4,4,4,5,5,5,6], cams: [2,2,3,3,3,3,3,3,3,3], guards: [0,0,0,0,1,1,1,1,1,1], doors: 2, mirrors: [0,0,0,0,0,0,1,1,1,1], lights: [0,0,0,0,0,0,1,1,1,1], panels: [1,1,2,2,2,2,2,2,2,2], wire: [3,3,2,2,2,2,2,2,2,2], par: [7,8,8,9,9,10,10,11,11,12], phases: [2,2,3,3,3,3,4,4,4,4], cap: 80000, timeMs: 90000, minUnused: 1 },
 ];
 const TOTAL = BLOCKS.reduce((n, b) => n + b.par.length, 0);
 const pick = (v, i) => Array.isArray(v) ? v[i] : v;
@@ -24,7 +26,7 @@ function specFor(n) {
   let bi = 0, i = n - 1;
   while (i >= BLOCKS[bi].par.length) { i -= BLOCKS[bi].par.length; bi++; }
   const b = BLOCKS[bi];
-  return { name: b.name, w: b.grid[i][0], h: b.grid[i][1], blocks: pick(b.blocks, i), cams: pick(b.cams, i), guards: pick(b.guards, i), doors: pick(b.doors, i), mirrors: pick(b.mirrors, i), dogs: pick(b.dogs, i) || 0, lights: pick(b.lights, i) || 0,
+  return { name: b.name, w: b.grid[i][0], h: b.grid[i][1], blocks: pick(b.blocks, i), cams: pick(b.cams, i), guards: pick(b.guards, i), doors: pick(b.doors, i), mirrors: pick(b.mirrors, i), dogs: pick(b.dogs, i) || 0, lights: pick(b.lights, i) || 0, panels: pick(b.panels, i) || 0, wire: pick(b.wire, i) || 2,
     par: b.par[i], phases: b.phases[i], cap: b.cap || 20000, timeMs: b.timeMs || 25000, minUnused: b.minUnused };
 }
 module.exports = { BLOCKS, specFor, TOTAL };

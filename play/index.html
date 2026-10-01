@@ -198,6 +198,7 @@ const CHAPTERS = [
   { en: 'Control I', fa: 'کنترل ۱', size: 10 }, { en: 'Control II', fa: 'کنترل ۲', size: 10 },
   { en: 'Kennel I', fa: 'لانهٔ سگ ۱', size: 10 }, { en: 'Kennel II', fa: 'لانهٔ سگ ۲', size: 10 },
   { en: 'Night Shift I', fa: 'شیفت شب ۱', size: 10 }, { en: 'Night Shift II', fa: 'شیفت شب ۲', size: 10 },
+  { en: 'Fuse Box I', fa: 'تابلو برق ۱', size: 10 }, { en: 'Fuse Box II', fa: 'تابلو برق ۲', size: 10 },
 ];
 const chapStart = CHAPTERS.map((_, i) => CHAPTERS.slice(0, i).reduce((n, c) => n + c.size, 0));
 const chapterOf = i => { let ci = 0; while (ci + 1 < CHAPTERS.length && i >= chapStart[ci + 1]) ci++; return ci; };    // level index -> chapter index
@@ -214,7 +215,7 @@ const T = {
     tag: 'Move the darkness. Slip the prisoner past cameras and guards.', foot: 'Playtest build',
     play: 'Play', cont: lv => 'Continue · Level ' + lv, levels: 'Levels', how: 'How to play', settings: 'Settings', close: 'Close', back: 'Back',
     dogTip: 'Dog selected: tap a tile of its rail to send it there, tap the prisoner to let go.', doorBlocked: 'The dog is standing in the doorway.',
-    guardTip: 'Guard selected: tap it again to turn, tap a rail tile to send it, tap the prisoner to let go.', gotIt: 'Got it', itemsL: 'Items', itemNames: { cam: 'Camera', guard: 'Guard', door: 'Door', mirror: 'Mirror', dog: 'Dog', light: 'Searchlight' },
+    guardTip: 'Guard selected: tap it again to turn, tap a rail tile to send it, tap the prisoner to let go.', gotIt: 'Got it', itemsL: 'Items', itemNames: { cam: 'Camera', guard: 'Guard', door: 'Door', mirror: 'Mirror', dog: 'Dog', light: 'Searchlight', panel: 'Power panel' },
     intro: {
       cam: { title: 'New: Camera', list: ['A camera throws red light along a line. The prisoner can never stand in it.', 'Tap a camera to turn it a quarter turn clockwise.', 'Walking is free. Only your taps on cameras count.'] },
       guard: { title: 'New: Guard', list: ['A guard walks back and forth on its rail and sees 3 tiles ahead. Behind it is a blind spot.', 'Tap it to select it, tap again to turn it round, or tap a tile of its rail to send it there.', 'Every step is one action.'] },
@@ -222,13 +223,14 @@ const T = {
       mirror: { title: 'New: Mirror', list: ['A mirror bends light by 90 degrees.', 'Tap it to flip between the two slants.', 'Now a camera can reach tiles around a corner.'] },
       dog: { title: 'New: Guard dog', list: ['A dog smells every tile it can walk to. The prisoner can never stand on a smelly tile.', 'Tap the dog, then a tile of its rail to send it there. Every step is one action.', 'A closed door stops the smell. Shut the dog into another room!', 'A door cannot be closed while the dog stands in it.'] },
       light: { title: 'New: Searchlight', list: ['A searchlight throws red light like a camera, but you cannot turn it. After EVERY action you take, it swings a quarter turn clockwise by itself.', 'Tap the searchlight to wait: an action that changes nothing else, so only the lights swing.', 'The dashed outline shows where the light will point after your next action.', 'An action is refused if the swing would light the prisoner.'] },
+      panel: { title: 'New: Power panel', list: ['A power panel is wired to two or three cameras, doors or mirrors. The coloured wires show which.', 'Wired things have no controls of their own. Tap the panel and ALL of them change at once: cameras turn a quarter turn, doors and mirrors switch.', 'One action, several changes. Look for the order that leaves the prisoner in the dark.'] },
       all: { title: 'Everything together', list: ['Cameras, guards, doors and mirrors work as you know them.', 'Some levels need several rounds: move the prisoner on, then change the room again.'] },
     },
     pause: 'Paused', resume: 'Resume', restart: 'Restart level', mainMenu: 'Main menu',
     level: 'Level', moves: 'Actions', best: 'Best', undo: 'Undo', hint: 'Hint', hintAd: 'Hint · Ad', toExit: 'Escape', turn: 'Turn', flip: 'Switch',
     pick: 'Tap a dark tile to walk. Tap a camera to turn it clockwise.',
     refused: 'Not allowed: that would expose the prisoner. Move him somewhere dark first.', unreach: 'The prisoner cannot get there from here.',
-    pathClear: 'The way is clear. Send the prisoner to the exit.', hintWho: 'Try: ', hintCam: 'turn this camera', hintGuard: 'move this guard', hintDoor: 'use this door', hintMirror: 'flip this mirror', hintDog: 'move this dog', hintLight: 'wait: tap the searchlight', wait: 'Wait',
+    pathClear: 'The way is clear. Send the prisoner to the exit.', hintWho: 'Try: ', hintCam: 'turn this camera', hintGuard: 'move this guard', hintDoor: 'use this door', hintMirror: 'flip this mirror', hintDog: 'move this dog', hintLight: 'wait: tap the searchlight', hintPanel: 'use this power panel', wiredTip: 'This one is wired to a power panel. Tap the panel instead.', wait: 'Wait',
     escaped: 'Escaped!', winText: (m, p, l) => `${m} actions · best ${p}` + (l ? ` · ${l} heart(s) lost` : ''), retry: 'Retry', next: 'Next level', done: 'All levels cleared!',
     seen: 'Spotted! You lost a heart.', caught: 'Caught!', caughtText: 'You ran out of hearts.', revive: 'Ad: continue with 1 heart',
     locked: (n, h) => `Locked: needs ${n} stars (you have ${h})`, gate: (n, h) => `The next block needs ${n} stars. You have ${h}.`,
@@ -238,7 +240,7 @@ const T = {
     on: 'On', off: 'Off', setTitle: 'Settings', howTitle: 'How to play',
     howList: [
       'Tap a dark tile to walk the prisoner there. Walking is free.',
-      'Only your actions count: tap a camera to turn it clockwise (three taps turn it left). Tap a guard to select it, tap it again to turn it round, or tap a tile of its rail to send it there (each step is one action). Tap a door or a mirror to switch it. Tap a dog, then a tile of its rail, to send it there. Searchlights swing a quarter turn after every action; tap one to wait.',
+      'Only your actions count: tap a camera to turn it clockwise (three taps turn it left). Tap a guard to select it, tap it again to turn it round, or tap a tile of its rail to send it there (each step is one action). Tap a door or a mirror to switch it. Tap a dog, then a tile of its rail, to send it there. Searchlights swing a quarter turn after every action; tap one to wait. A power panel changes everything wired to it at once; wired things cannot be tapped themselves.',
       'The prisoner must never stand in red light. An action that would light him is refused, so move him to a dark tile first.',
       'Walls, guards and closed doors stop sight. Mirrors bend a sight line by 90 degrees. A dog smells every tile it can walk to (green): trap it behind a closed door.',
       'Reach the green exit with as few actions as the best solution to earn three stars. Stars open the next block.',
@@ -253,6 +255,8 @@ const T = {
       66: 'New: mirrors. Tap a mirror to flip it. Light that hits it bends by 90 degrees.',
       86: 'Everything together. Take your time.',
       106: 'New: the guard dog. The prisoner may not stand where the dog can smell him. Shut the dog into another room with a door.',
+      146: 'New: the power panel. Wired cameras, doors and mirrors only change through it, all at once. Follow the coloured wires.',
+      147: 'A panel turns every camera it is wired to by a quarter turn, so a camera that needs three turns takes three taps, and its door flips each time.',
       126: 'New: the searchlight. It swings a quarter turn clockwise after every action you take. Tap it to wait. The dashed outline shows where it will point next.',
       127: 'Every action counts for the searchlight, not only the waiting. Plan the order so the beam is off the prisoner when it lands.',
       107: 'You cannot close a door while the dog stands in the doorway. Let it through first, then close the door behind it.',
@@ -262,7 +266,7 @@ const T = {
     tag: 'تاریکی را جابه‌جا کن و زندانی را از کنار دوربین‌ها و نگهبان‌ها رد کن.', foot: 'نسخهٔ آزمایشی',
     play: 'شروع بازی', cont: lv => 'ادامه · مرحلهٔ ' + lv, levels: 'مرحله‌ها', how: 'راهنمای بازی', settings: 'تنظیمات', close: 'بستن', back: 'بازگشت',
     dogTip: 'سگ انتخاب شد: خانهٔ ریلش را لمس کن تا برود، زندانی را لمس کن تا رها شود.', doorBlocked: 'سگ توی چارچوب در ایستاده است.',
-    guardTip: 'نگهبان انتخاب شد: دوباره لمسش کن تا برگردد، خانهٔ ریل را لمس کن تا برود، زندانی را لمس کن تا رها شود.', gotIt: 'فهمیدم', itemsL: 'آیتم‌ها', itemNames: { cam: 'دوربین', guard: 'نگهبان', door: 'در', mirror: 'آینه', dog: 'سگ', light: 'نورافکن' },
+    guardTip: 'نگهبان انتخاب شد: دوباره لمسش کن تا برگردد، خانهٔ ریل را لمس کن تا برود، زندانی را لمس کن تا رها شود.', gotIt: 'فهمیدم', itemsL: 'آیتم‌ها', itemNames: { cam: 'دوربین', guard: 'نگهبان', door: 'در', mirror: 'آینه', dog: 'سگ', light: 'نورافکن', panel: 'تابلو برق' },
     intro: {
       cam: { title: 'تازه: دوربین', list: ['دوربین روی یک خط نور قرمز می‌اندازد. زندانی هرگز نباید در آن بایستد.', 'دوربین را لمس کن تا یک‌چهارم دور ساعتگرد بچرخد.', 'راه رفتن رایگان است. فقط لمس‌هایت روی دوربین‌ها شمرده می‌شود.'] },
       guard: { title: 'تازه: نگهبان', list: ['نگهبان روی ریلش جلو و عقب می‌رود و ۳ خانه جلویش را می‌بیند. پشتش نقطهٔ کور است.', 'لمسش کن تا انتخاب شود، دوباره لمس کن تا برگردد، یا یک خانهٔ ریلش را لمس کن تا به آنجا برود.', 'هر قدم یک عمل است.'] },
@@ -270,13 +274,14 @@ const T = {
       mirror: { title: 'تازه: آینه', list: ['آینه نور را ۹۰ درجه می‌شکند.', 'لمسش کن تا بین دو شیب عوض شود.', 'حالا یک دوربین می‌تواند خانه‌های پشت گوشه را هم روشن کند.'] },
       dog: { title: 'تازه: سگ نگهبان', list: ['سگ هر خانه‌ای را که بتواند به آن برسد بو می‌کند. زندانی هرگز نباید روی خانهٔ بودار بایستد.', 'سگ را لمس کن، بعد یک خانهٔ ریلش را لمس کن تا به آنجا برود. هر قدم یک عمل است.', 'در بسته بو را می‌بندد. سگ را پشت یک در در اتاق دیگر گیر بینداز!', 'تا سگ در چارچوب در ایستاده، نمی‌شود آن در را بست.'] },
       light: { title: 'تازه: نورافکن', list: ['نورافکن مثل دوربین نور قرمز می‌اندازد، ولی تو نمی‌توانی آن را بچرخانی. بعد از هر عملی که انجام بدهی، خودش یک‌چهارم دور ساعتگرد می‌چرخد.', 'نورافکن را لمس کن تا صبر کنی: عملی که چیز دیگری را عوض نمی‌کند و فقط نورافکن‌ها می‌چرخند.', 'خط‌چین نشان می‌دهد بعد از عمل بعدی‌ات نور به کجا می‌افتد.', 'اگر چرخش نور زندانی را روشن کند، آن عمل رد می‌شود.'] },
+      panel: { title: 'تازه: تابلو برق', list: ['تابلو برق به دو یا سه دوربین، در یا آینه سیم‌کشی شده است. سیم‌های رنگی نشان می‌دهند به کدام‌ها.', 'چیزهای سیم‌کشی‌شده کنترل جداگانه ندارند. تابلو را لمس کن تا همه‌شان با هم عوض شوند: دوربین‌ها یک‌چهارم می‌چرخند، در و آینه عوض می‌شوند.', 'یک عمل، چند تغییر. ترتیبی پیدا کن که زندانی در تاریکی بماند.'] },
       all: { title: 'همه با هم', list: ['دوربین، نگهبان، در و آینه همان‌طور که می‌شناسی کار می‌کنند.', 'بعضی مرحله‌ها چند دور می‌خواهند: زندانی را جلو ببر، بعد اتاق را دوباره عوض کن.'] },
     },
     pause: 'توقف', resume: 'ادامه', restart: 'شروع دوبارهٔ مرحله', mainMenu: 'منوی اصلی',
     level: 'مرحله', moves: 'عمل', best: 'بهترین', undo: 'برگشت', hint: 'راهنما', hintAd: 'راهنما · تبلیغ', toExit: 'فرار', turn: 'چرخش', flip: 'تغییر',
     pick: 'یک خانهٔ تاریک را لمس کن تا دزد برود. یک دوربین را لمس کن تا ساعتگرد بچرخد.',
     refused: 'ممنوع! با این کار زندانی دیده می‌شود. اول او را به یک خانهٔ تاریک ببر.', unreach: 'زندانی از اینجا نمی‌تواند به آن خانه برود.',
-    pathClear: 'راه باز است. زندانی را به خروج ببر.', hintWho: 'پیشنهاد: ', hintCam: 'این دوربین را بچرخان', hintGuard: 'این نگهبان را جابه‌جا کن', hintDoor: 'این در را باز/بسته کن', hintMirror: 'این آینه را بچرخان', hintDog: 'این سگ را جابه‌جا کن', hintLight: 'صبر کن: نورافکن را لمس کن', wait: 'صبر',
+    pathClear: 'راه باز است. زندانی را به خروج ببر.', hintWho: 'پیشنهاد: ', hintCam: 'این دوربین را بچرخان', hintGuard: 'این نگهبان را جابه‌جا کن', hintDoor: 'این در را باز/بسته کن', hintMirror: 'این آینه را بچرخان', hintDog: 'این سگ را جابه‌جا کن', hintLight: 'صبر کن: نورافکن را لمس کن', hintPanel: 'این تابلو برق را بزن', wiredTip: 'این یکی به تابلو برق وصل است. به‌جایش تابلو را لمس کن.', wait: 'صبر',
     escaped: 'فرار کرد!', winText: (m, p, l) => `${m} عمل · بهترین ${p}` + (l ? ` · ${l} جان از دست رفت` : ''), retry: 'دوباره', next: 'مرحلهٔ بعد', done: 'همهٔ مرحله‌ها تمام شد!',
     seen: 'دیده شدی! یک جان کم شد.', caught: 'گرفتار شد!', caughtText: 'جان‌هایت تمام شد.', revive: 'تبلیغ و ادامه با ۱ جان',
     locked: (n, h) => `قفل: ${n} ستاره لازم است (داری ${h})`, gate: (n, h) => `برای بخش بعد ${n} ستاره لازم است. تا الان ${h} داری.`,
@@ -286,7 +291,7 @@ const T = {
     on: 'روشن', off: 'خاموش', setTitle: 'تنظیمات', howTitle: 'راهنمای بازی',
     howList: [
       'یک خانهٔ تاریک را لمس کن تا زندانی به آنجا برود. راه رفتن رایگان است.',
-      'فقط عمل‌های تو شمرده می‌شوند: دوربین را لمس کن تا ساعتگرد بچرخد (برای چرخش به چپ سه بار). نگهبان را لمس کن تا انتخاب شود، دوباره لمسش کن تا برگردد، یا یک خانهٔ ریلش را لمس کن تا به آنجا برود (هر قدم یک عمل). در یا آینه را لمس کن تا عوض شود. سگ را لمس کن و بعد یک خانهٔ ریلش را لمس کن تا برود. نورافکن بعد از هر عمل یک‌چهارم می‌چرخد؛ لمسش کن تا صبر کنی.',
+      'فقط عمل‌های تو شمرده می‌شوند: دوربین را لمس کن تا ساعتگرد بچرخد (برای چرخش به چپ سه بار). نگهبان را لمس کن تا انتخاب شود، دوباره لمسش کن تا برگردد، یا یک خانهٔ ریلش را لمس کن تا به آنجا برود (هر قدم یک عمل). در یا آینه را لمس کن تا عوض شود. سگ را لمس کن و بعد یک خانهٔ ریلش را لمس کن تا برود. نورافکن بعد از هر عمل یک‌چهارم می‌چرخد؛ لمسش کن تا صبر کنی. تابلو برق همهٔ چیزهای وصل‌شده به خودش را با هم عوض می‌کند؛ خودِ آن‌ها را نمی‌شود لمس کرد.',
       'زندانی هرگز نباید در نور قرمز بایستد. عملی که او را روشن کند ممنوع است؛ اول او را به خانهٔ تاریک ببر.',
       'دیوار، نگهبان و در بسته دید را می‌برند. آینه خط دید را ۹۰ درجه می‌شکند. سگ هر خانه‌ای را که بتواند به آن برسد بو می‌کند (سبز): او را پشت یک در بسته گیر بینداز.',
       'با کمترین تعداد عمل به خروج سبز برس تا سه ستاره بگیری. ستاره‌ها بخش بعد را باز می‌کنند.',
@@ -301,6 +306,8 @@ const T = {
       66: 'تازه: آینه. آینه را لمس کن تا بچرخد. نوری که به آن بخورد ۹۰ درجه می‌شکند.',
       86: 'همه‌چیز با هم. با حوصله.',
       106: 'تازه: سگ نگهبان. زندانی نباید جایی بایستد که سگ بتواند او را بو کند. سگ را با یک در در اتاق دیگری حبس کن.',
+      146: 'تازه: تابلو برق. دوربین، در و آینهٔ سیم‌کشی‌شده فقط با تابلو و همه با هم عوض می‌شوند. سیم‌های رنگی را دنبال کن.',
+      147: 'تابلو هر دوربین وصل‌شده را یک‌چهارم می‌چرخاند؛ پس دوربینی که سه چرخش می‌خواهد سه لمس می‌خواهد و درِ وصل هر بار عوض می‌شود.',
       126: 'تازه: نورافکن. بعد از هر عملی که می‌کنی یک‌چهارم ساعتگرد می‌چرخد. لمسش کن تا صبر کنی. خط‌چین نشان می‌دهد بعدش کجا می‌افتد.',
       127: 'نورافکن برای هر عمل می‌چرخد، نه فقط برای صبر کردن. ترتیب را طوری بچین که نور هنگام رسیدن روی زندانی نباشد.',
       107: 'تا سگ توی چارچوب در ایستاده نمی‌شود در را بست. اول بگذار رد شود، بعد در را پشت سرش ببند.',
@@ -370,6 +377,7 @@ const Sfx = (() => {
     cam: (a, t) => { tone(a, t, 170, 330, .2, 'sawtooth', .07, 0, 900); tone(a, t, 1300, 1300, .02, 'square', .05, .2); },
     guardStep: (a, t) => { tone(a, t, 130, 55, .14, 'sine', .3); noise(a, t, .05, .05, 0, 2000); },
     dogStep: (a, t) => { tone(a, t, 240, 150, .09, 'sawtooth', .09, 0, 700); noise(a, t, .03, .04, .08, 2500); noise(a, t, .03, .04, .14, 2500); },
+    panel: (a, t) => { tone(a, t, 1200, 180, .12, 'square', .07, 0, 2500); noise(a, t, .06, .06, 0, 3500); tone(a, t, 90, 60, .12, 'sine', .2, .06); },
     sweep: (a, t) => { tone(a, t, 220, 360, .2, 'sawtooth', .06, 0, 800); tone(a, t, 1500, 1500, .015, 'square', .04, .2); },
     wait: (a, t) => { tone(a, t, 330, 330, .05, 'triangle', .1); tone(a, t, 220, 360, .2, 'sawtooth', .06, .05, 800); tone(a, t, 1500, 1500, .015, 'square', .04, .25); },
     turn: (a, t) => { tone(a, t, 520, 330, .07, 'square', .05); tone(a, t, 400, 300, .07, 'square', .05, .08); noise(a, t, .12, .03, 0, 4000); },
@@ -468,7 +476,7 @@ const Music = (() => {
 
 /* ---------------------------------------------------- item introductions */
 /* A card with a small looping demonstration appears the first time a level introduces a new item (and can be replayed from How to play). */
-const INTROS = { 1: 'cam', 16: 'guard', 46: 'door', 66: 'mirror', 86: 'all', 106: 'dog', 126: 'light' };
+const INTROS = { 1: 'cam', 16: 'guard', 46: 'door', 66: 'mirror', 86: 'all', 106: 'dog', 126: 'light', 146: 'panel' };
 let introSeen = store.get('pb_intro', {}), introKind = null, introMark = false;
 function showIntro(kind, mark) {
   introKind = kind; introMark = mark; const t = tr().intro[kind];
@@ -511,6 +519,22 @@ function drawIntro(now) {
     spr(w.img, w.x, w.y, false);
     spr(person('guard', 1, 0), 12, 45, face === 3);
     if (t > 1.8 && t < 2.8) { ix.strokeStyle = `rgba(255,255,255,${.4 + .6 * Math.abs(Math.sin(t * 8))})`; ix.lineWidth = 2; ix.strokeRect(3, 21, 18, 26); }
+  } else if (introKind === 'panel') {
+    // the panel in the corner is wired to the camera and the door: one tap turns the camera away and opens the door
+    const done = t >= 2.4, col = '#5ad1ff';
+    wall(0, 0, 8, 24); wall(0, 24, 8, 24);
+    R('#8892a6', 1, 2, 6, 18); R('#2a303d', 2, 4, 4, 14); R(col, 3, 6, 2, 2); R('#ffd24a', 3, 12, 2, 2);
+    if (!done) { for (let c = 1; c < 5; c++) lit(c, 1); R('rgba(255,59,82,.5)', 14, 33, 106, 6); }
+    ix.strokeStyle = col; ix.lineWidth = 1; ix.setLineDash([3, 3]); ix.beginPath(); ix.moveTo(4, 12); ix.lineTo(4, 38); ix.moveTo(7, 11); ix.lineTo(60, 11); ix.stroke(); ix.setLineDash([]);
+    R(col, 4, 40, 4, 4); R(col, 66, 3, 4, 4);
+    spr(camSprite(done ? 2 : 1), 10, 46, false);
+    if (done) { for (let i = 0; i < 3; i++) R('#ffc54a', 52 + i * 7, 6, 4, 4); R('rgba(255,197,74,.5)', 50, 10, 22, 2); } else { R('#7f8a9d', 49, 1, 22, 22); R('#16101f', 59, 8, 3, 8); for (let i = 0; i < 3; i++) R('#ffc54a', 51 + i * 7, 17, 4, 4); }
+    exit(4, 1);
+    const p = Math.max(0, t - 3.2) * 30, pts = [[36, 21], [108, 21], [108, 45]];
+    let tx = 36, ty = 21, rem = p, dirI = 1;
+    for (let i = 1; i < pts.length && rem > 0; i++) { const dx = pts[i][0] - pts[i - 1][0], dy = pts[i][1] - pts[i - 1][1], len = Math.abs(dx) + Math.abs(dy), u = Math.min(rem, len) / len; tx = pts[i - 1][0] + dx * u; ty = pts[i - 1][1] + dy * u; rem -= len; dirI = dy ? 2 : 1; }
+    spr(person('thief', dirI, p > 0 && p < 120 ? 1 + (Math.floor(t * 6) % 2) : 0), tx, ty, false);
+    if (t > 1.8 && t < 2.8) ring(4, 11, t - 1.8);
   } else if (introKind === 'light') {
     // the lamp on the left wall points along the middle row; one tap (a wait) and it has swung down into the wall, so the way is free
     const swung = t >= 2.4;
@@ -585,11 +609,14 @@ function load(i) {
   const kind = INTROS[LEVELS[li].id]; if (kind && !introSeen[kind]) showIntro(kind, true);
 }
 function ev(d) { P.prepare(L); return P.evalConfig(L, d || dg, false); }
-const nCam = () => L.cams.length, nGuard = () => L.guards.length, nTog = () => L.toggles.length, nDog = () => L.dogs.length, nLight = () => L.lights.length, nAll = () => nCam() + nGuard() + nTog() + nDog() + nLight();
+const nCam = () => L.cams.length, nGuard = () => L.guards.length, nTog = () => L.toggles.length, nDog = () => L.dogs.length, nLight = () => L.lights.length, nPanel = () => L.panels.length, nAll = () => nCam() + nGuard() + nTog() + nDog() + nLight() + nPanel();
 /* watcher index space: cameras, guards, doors/mirrors, then dogs, the same order as the digits */
-const dogBase = () => nCam() + nGuard() + nTog(), lightBase = () => dogBase() + nDog();
-function watcherCell(k) { return k < nCam() ? L.cams[k].c : k < nCam() + nGuard() ? L.guards[k - nCam()].rail[dg[k] >> 1] : k < dogBase() ? L.toggles[k - nCam() - nGuard()].c : k < lightBase() ? L.dogs[k - dogBase()].rail[dg[k]] : L.lights[k - lightBase()].c; }
-const kindOf = k => k < nCam() ? 'cam' : k < nCam() + nGuard() ? 'guard' : k < dogBase() ? L.toggles[k - nCam() - nGuard()].kind : k < lightBase() ? 'dog' : 'light';
+const dogBase = () => nCam() + nGuard() + nTog(), lightBase = () => dogBase() + nDog(), panelBase = () => lightBase() + nLight();
+const PANEL_COL = ['#5ad1ff', '#ff7bd5', '#b6ff5a'];
+/* the panel (watcher index) that a camera, door or mirror (watcher index) is wired to, or -1 */
+const panelOf = k => { if (k >= dogBase()) return -1; const j = L.panels.findIndex(p => p.links.includes(k)); return j < 0 ? -1 : panelBase() + j; };
+function watcherCell(k) { return k < nCam() ? L.cams[k].c : k < nCam() + nGuard() ? L.guards[k - nCam()].rail[dg[k] >> 1] : k < dogBase() ? L.toggles[k - nCam() - nGuard()].c : k < lightBase() ? L.dogs[k - dogBase()].rail[dg[k]] : k < panelBase() ? L.lights[k - lightBase()].c : L.panels[k - panelBase()].c; }
+const kindOf = k => k < nCam() ? 'cam' : k < nCam() + nGuard() ? 'guard' : k < dogBase() ? L.toggles[k - nCam() - nGuard()].kind : k < lightBase() ? 'dog' : k < panelBase() ? 'light' : 'panel';
 /* guards and dogs both walk a rail; this gives the rail, the current tile index and the digit-to-index rule */
 function walkerRail(k) { return k < dogBase() ? { rail: L.guards[k - nCam()].rail, cur: dg[k] >> 1 } : { rail: L.dogs[k - dogBase()].rail, cur: dg[k] }; }
 const dogHere = (d, c) => L.dogs.some((o, q) => o.rail[d[dogBase() + q]] === c);
@@ -597,6 +624,7 @@ const dogHere = (d, c) => L.dogs.some((o, q) => o.rail[d[dogBase() + q]] === c);
 /* ------------------------------------------------------------- actions */
 /* every action ends with the searchlights swinging a quarter turn; a Wait is only that swing */
 function options(k) {
+  if (k >= panelBase()) { const d = P.panelApply(L, dg, k - panelBase()); return [{ kind: 'panel', label: '⚡', dg: d ? P.sweep(L, d) : null }]; }
   if (k >= lightBase()) return [{ kind: 'wait', label: '⏳', dg: P.sweep(L, dg) }];
   return options0(k).map(o => o.dg ? Object.assign({}, o, { dg: P.sweep(L, o.dg) }) : o);
 }
@@ -713,7 +741,7 @@ function tapPoint(k) {
   let px, py;
   if (kind === 'guard') { px = FX(x + .5); py = FY(y) + cellH * .9 - cs * .5; }
   else if (kind === 'dog') { px = FX(x + .5); py = FY(y) + cellH * .9 - cs * .22; }
-  else if (kind === 'cam' || kind === 'light') { px = FX(x + .5); py = FY(y) - wallH + cellH * .4; }
+  else if (kind === 'cam' || kind === 'light' || kind === 'panel') { px = FX(x + .5); py = FY(y) - wallH + cellH * .4; }
   else if (kind === 'mirror' || dg[k] === 1) { px = FX(x + .5); py = FY(y) - wallH + cellH * .5; }
   else { px = FX(x) + cs * .2; py = FY(y) + cellH * .25; }
   return [r.left + ox + px, r.top + oy + py];
@@ -729,7 +757,7 @@ function hitTest(px, py) {
     let x0, x1, y0, y1;
     if (kind === 'dog') { x0 = FX(x + .5) - cs * .36; x1 = FX(x + .5) + cs * .36; y1 = FY(y) + cellH * .9; y0 = y1 - cs * .6; }
     else if (kind === 'guard') { x0 = FX(x + .5) - cs * .34; x1 = FX(x + .5) + cs * .34; y1 = FY(y) + cellH * .9; y0 = y1 - cs * 1.05; }
-    else if (kind === 'cam' || kind === 'light') { x0 = FX(x + .5) - cs * .36; x1 = FX(x + .5) + cs * .36; y0 = FY(y) - wallH; y1 = FY(y) - wallH + cellH * .85; }
+    else if (kind === 'cam' || kind === 'light' || kind === 'panel') { x0 = FX(x + .5) - cs * .36; x1 = FX(x + .5) + cs * .36; y0 = FY(y) - wallH; y1 = FY(y) - wallH + cellH * .85; }
     else if (kind === 'mirror' || dg[k] === 1) { x0 = FX(x); x1 = FX(x + 1); y0 = FY(y) - wallH; y1 = FY(y) + cellH; }
     else { x0 = FX(x); x1 = FX(x) + cs * .42; y0 = FY(y); y1 = FY(y) + cellH * .5; }       // open door: only its small switch box
     if (px >= x0 && px < x1 && py >= y0 && py < y1) {
@@ -773,6 +801,7 @@ function onTap(px, py) {
       else { sel = k; setTip(tr().guardTip); }
       buildBar(); return;
     }
+    const pn = panelOf(k); if (pn >= 0) { sel = pn; setTip(tr().wiredTip); buildBar(); return; }          // wired things only change through their panel
     sel = k;
     const o = options(k)[0]; tryAction(o.dg, o.kind);                                  // cameras, doors, mirrors act on one tap
     buildBar(); return;
@@ -803,7 +832,7 @@ function applyLang() {
   set('winRetry', t.retry); set('winLevels', t.levels); set('lvTitle', t.levels); set('lvClose', t.close); set('howTitle', t.howTitle); set('howClose', t.close);
   set('setTitle', t.setTitle); set('setClose', t.close); set('sLangL', t.sLang); set('sSfxL', t.sSfx); set('sVolL', t.sVol); set('sMusL', t.sMus); set('sMusVolL', t.sMusVol); set('sVibL', t.sVib);
   set('sHeartsL', t.sHearts); set('sHeartsS', t.sHeartsS); set('sMotionL', t.sMotion); set('sMotionS', t.sMotionS); set('sUnlockL', t.sUnlock); set('sUnlockS', t.sUnlockS);
-  set('howItemsL', t.itemsL); $('howItems').innerHTML = ''; ['cam', 'guard', 'door', 'mirror', 'dog', 'light'].forEach(k => { const b = document.createElement('button'); b.textContent = t.itemNames[k]; b.onclick = () => showIntro(k, false); $('howItems').appendChild(b); });
+  set('howItemsL', t.itemsL); $('howItems').innerHTML = ''; ['cam', 'guard', 'door', 'mirror', 'dog', 'light', 'panel'].forEach(k => { const b = document.createElement('button'); b.textContent = t.itemNames[k]; b.onclick = () => showIntro(k, false); $('howItems').appendChild(b); });
   set('introOk', t.gotIt);
   set('adTitle', t.adTitle); set('adText', t.adText); set('adCancel', t.adCancel); set('adClaim', t.adClaim);
   $('howList').innerHTML = t.howList.map(s => `<li>${s}</li>`).join('');
@@ -858,7 +887,7 @@ function doHint() {
   if (r.par === 0) { setTip(tr().pathClear, 'good'); return; }
   hintWho = r.who[0]; sel = hintWho;
   const kind = kindOf(hintWho), t = tr();
-  setTip(t.hintWho + (kind === 'cam' ? t.hintCam : kind === 'guard' ? t.hintGuard : kind === 'dog' ? t.hintDog : kind === 'light' ? t.hintLight : kind === 'door' ? t.hintDoor : t.hintMirror), 'good'); buildBar();
+  setTip(t.hintWho + (kind === 'cam' ? t.hintCam : kind === 'guard' ? t.hintGuard : kind === 'dog' ? t.hintDog : kind === 'light' ? t.hintLight : kind === 'panel' ? t.hintPanel : kind === 'door' ? t.hintDoor : t.hintMirror), 'good'); buildBar();
 }
 
 /* Stand-in for a real rewarded-ad SDK. Ads only ever appear after the player asks for a hint or a revive. */
@@ -996,6 +1025,14 @@ function camSprite(dir) {
   if (dir === 2) { pxr(c, '#c9d2e6', 1, 1, 10, 6); pxr(c, '#7d889c', 1, 5, 10, 2); pxr(c, '#1a1420', 4, 2, 4, 4); pxr(c, '#ff3b52', 5, 3, 2, 2); }
   else if (dir === 0) { pxr(c, '#aab4c8', 1, 1, 10, 6); pxr(c, '#7d889c', 1, 5, 10, 2); pxr(c, '#41d392', 9, 2, 1, 1); }
   else { pxr(c, '#c9d2e6', 1, 1, 8, 6); pxr(c, '#7d889c', 1, 5, 8, 2); pxr(c, '#1a1420', 9, 2, 2, 4); pxr(c, '#ff3b52', 10, 3, 1, 2); }
+  outline(cnv, '#16101f'); sprites.set(key, cnv); return cnv;
+}
+function panelSprite(col) {                             // a fuse box on the wall with lamps in its wire colour
+  const key = 'panel' + col; if (sprites.has(key)) return sprites.get(key);
+  const cnv = document.createElement('canvas'); cnv.width = 14; cnv.height = 12; const c = cnv.getContext('2d'); c.translate(1, 1);
+  pxr(c, '#8892a6', 1, 0, 10, 10); pxr(c, '#aeb8cc', 1, 0, 10, 1); pxr(c, '#5c6679', 1, 9, 10, 1); pxr(c, '#2a303d', 2, 1, 8, 8);
+  pxr(c, col, 3, 2, 2, 2); pxr(c, col, 7, 2, 2, 2); pxr(c, col, 3, 5, 2, 2);
+  pxr(c, '#ffd24a', 7, 5, 2, 1); pxr(c, '#ffd24a', 6, 6, 2, 1); pxr(c, '#ffd24a', 7, 7, 1, 1);
   outline(cnv, '#16101f'); sprites.set(key, cnv); return cnv;
 }
 function lampSprite(dir) {                              // a wall searchlight: gold housing, big pale lens
@@ -1269,6 +1306,9 @@ function draw(now) {
           drawSprite(camSprite(d === 3 ? 1 : d), cx, cy, cs * .05, d === 3, glowFor(k, pulse));
           const lens = d === 1 ? 4.5 : d === 3 ? -4.5 : 0;
           cameraBeam(camOf.get(k), cx + lens * cs * .05, cy - cs * .3, pulse); }
+        const pj = L.panels.findIndex(q => q.c === c);
+        if (pj >= 0) { const k = panelBase() + pj, cx = FX(x + .5), cy = FY(y) - wallH + cellH * .72;
+          drawSprite(panelSprite(PANEL_COL[pj % 3]), cx, cy, cs * .05, false, glowFor(k, pulse)); }
         const li = L.lights.findIndex(q => q.c === c);
         if (li >= 0) { const k = lightBase() + li, d = dg[k], cx = FX(x + .5), cy = FY(y) - wallH + cellH * .72;
           drawSprite(lampSprite(d === 3 ? 1 : d), cx, cy, cs * .05, d === 3, glowFor(k, pulse));
@@ -1284,6 +1324,19 @@ function draw(now) {
     }
     guardsAt(y); dogsAt(y); thiefAt(y);
   }
+  // wires: a coloured dashed line from each panel to the things it drives, and a coloured badge on each of them
+  const topCentre = c => [FX(c % L.w + .5), FY((c / L.w) | 0) - wallH + cellH * .5];
+  L.panels.forEach((pn, j) => {
+    const col = PANEL_COL[j % 3], k = panelBase() + j, [px0, py0] = topCentre(pn.c);
+    pn.links.forEach(i => {
+      const cell = watcherCell(i), open = kindOf(i) === 'door' && dg[i] === 0, [qx, qy] = open ? [FX(cell % L.w + .5), FY((cell / L.w) | 0) + cellH * .5] : topCentre(cell);
+      ctx.strokeStyle = col; ctx.globalAlpha = sel === k ? .95 : .5; ctx.lineWidth = sel === k ? 2.5 : 1.6; ctx.setLineDash([cs * .08, cs * .07]);
+      ctx.beginPath(); ctx.moveTo(px0, py0); ctx.lineTo(qx, py0); ctx.lineTo(qx, qy); ctx.stroke(); ctx.setLineDash([]); ctx.globalAlpha = 1;
+      const bs = Math.max(5, cs * .15), bx = FX(cell % L.w) + cs - bs - 2, by = (open ? FY((cell / L.w) | 0) : FY((cell / L.w) | 0) - wallH) + 2;
+      ctx.fillStyle = '#16101f'; ctx.fillRect(bx - 1, by - 1, bs + 2, bs + 2); ctx.fillStyle = col; ctx.fillRect(bx, by, bs, bs);
+      if (sel === k) { ctx.strokeStyle = col; ctx.lineWidth = 2; ctx.globalAlpha = .4 + .6 * pulse; ctx.strokeRect(FX(cell % L.w) - 1, (open ? FY((cell / L.w) | 0) : FY((cell / L.w) | 0) - wallH) - 1, cs + 2, cellH + (open ? 0 : wallH) + 2); ctx.globalAlpha = 1; }
+    });
+  });
   ctx.restore();
 }
 setFavicon(); applyLang(); syncSettingsUI();

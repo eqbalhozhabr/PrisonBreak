@@ -20,6 +20,7 @@ python3 -m http.server 8123      # from the repo root
 | `play/levels.js` | the 185 shipped levels (generated, each re-solved exactly) |
 | `tools/level-specs.js` | the difficulty ramp: what level n is made of |
 | `tools/gen-levels.js` | generates levels for a range: `node tools/gen-levels.js 1 30 out.jsonl` |
+| `tools/regen-low.js` | rebuilds shipped levels whose walk count is below their block's target (keeps a new one only if walks go up and par does not go down): `node tools/regen-low.js low out.jsonl` |
 | `tools/build-levels.js` | merges generated files, re-solves every level, writes `play/levels.js` |
 | `tools/build-single.js` | inlines everything into `play/prisonbreak.html` |
 | `tools/play-test.js` | plays levels in a real browser with real clicks and checks par |

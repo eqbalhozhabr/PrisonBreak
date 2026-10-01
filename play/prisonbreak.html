@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="fa" dir="rtl">
+<html lang="en" dir="ltr">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
@@ -8,17 +8,18 @@
 <style>
   :root { color-scheme:dark; --bg:#0d1017; --panel:#161b26; --ink:#e8ecf4; --mute:#8b94a8; --red:#ff3b52; --gold:#ffc54a; --ok:#41d392; --line:#262d3d; }
   * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
-  html,body { height:100%; margin:0; background:var(--bg); color:var(--ink); font-family:system-ui,"Segoe UI",Tahoma,sans-serif; overscroll-behavior:none; }
+  html,body { height:100%; margin:0; background:var(--bg); color:var(--ink); font-family:system-ui,"Segoe UI",Tahoma,sans-serif; overscroll-behavior:none; -webkit-user-select:none; user-select:none; }
   #app { height:100%; display:flex; flex-direction:column; max-width:760px; margin:0 auto; padding:env(safe-area-inset-top) 12px env(safe-area-inset-bottom); }
-  header { display:flex; align-items:center; gap:6px; padding:8px 0; }
-  header h1 { font-size:16px; margin:0; flex:1; letter-spacing:.02em; }
-  header h1 small { display:block; font-weight:400; color:var(--mute); font-size:11px; }
-  button { font:inherit; color:var(--ink); background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:8px 11px; cursor:pointer; min-height:40px; }
+  header { display:flex; align-items:center; gap:8px; padding:8px 0 4px; }
+  header .ttl { flex:1; min-width:0; font-size:13px; color:var(--mute); line-height:1.35; }
+  header .ttl b { color:var(--ink); font-size:15px; }
+  button { font:inherit; color:var(--ink); background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:8px 12px; cursor:pointer; min-height:42px; }
   button:active { transform:translateY(1px); }
-  button:disabled { opacity:.4; cursor:default; }
+  button:disabled { opacity:.38; cursor:default; }
   button.primary { background:var(--red); border-color:var(--red); color:#fff; font-weight:600; }
   button.on { border-color:var(--red); color:var(--red); }
-  #stats { display:flex; gap:8px; font-size:13px; color:var(--mute); padding-bottom:4px; align-items:center; flex-wrap:wrap; }
+  button.big { width:100%; min-height:50px; font-size:17px; }
+  #stats { display:flex; gap:8px; font-size:13px; color:var(--mute); padding-bottom:2px; align-items:center; flex-wrap:wrap; }
   #stats b { color:var(--ink); font-size:16px; }
   #hearts { letter-spacing:2px; font-size:16px; direction:ltr; }
   #hearts .off { color:#3a4052; } #hearts .on { color:var(--red); }
@@ -29,37 +30,73 @@
   #bar { display:flex; flex-wrap:wrap; gap:8px; justify-content:center; padding:10px 0 12px; direction:ltr; }
   #bar .sep { width:1px; background:var(--line); margin:0 4px; }
   #bar button { min-width:48px; }
-  .overlay { position:fixed; inset:0; background:rgba(5,7,12,.84); display:none; align-items:center; justify-content:center; padding:20px; z-index:5; }
+  .overlay { position:fixed; inset:0; background:rgba(5,7,12,.86); display:none; align-items:center; justify-content:center; padding:16px; z-index:10; }
   .overlay.on { display:flex; }
-  .card { background:var(--panel); border:1px solid var(--line); border-radius:16px; padding:18px; max-width:440px; width:100%; text-align:center; max-height:92%; overflow:auto; }
-  .card h2 { margin:0 0 6px; } .stars { font-size:34px; letter-spacing:6px; color:var(--gold); margin:6px 0 10px; }
-  .grid { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin:8px 0 14px; }
-  .grid button { padding:10px 0; position:relative; } .grid button small { display:block; color:var(--gold); font-size:11px; min-height:14px; }
-  .chap { text-align:start; font-size:13px; color:var(--mute); margin-top:10px; display:flex; justify-content:space-between; gap:8px; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:16px; padding:18px; max-width:460px; width:100%; text-align:center; max-height:94%; overflow:auto; }
+  .card h2 { margin:0 0 8px; }
+  .stars { font-size:34px; letter-spacing:6px; color:var(--gold); margin:6px 0 10px; }
+  .grid { display:grid; grid-template-columns:repeat(5,1fr); gap:6px; margin:6px 0 10px; direction:ltr; }
+  .grid button { padding:8px 0; min-height:46px; } .grid button small { display:block; color:var(--gold); font-size:10px; min-height:12px; }
+  .chap { font-size:13px; color:var(--mute); margin-top:10px; display:flex; justify-content:space-between; gap:8px; text-align:start; }
   .chap b { color:var(--ink); }
   .row { display:flex; gap:8px; justify-content:center; flex-wrap:wrap; margin-top:8px; }
+  .col { display:flex; flex-direction:column; gap:10px; margin-top:6px; }
   .muted { color:var(--mute); font-size:12px; margin-top:8px; line-height:1.6; }
   #adCount { font-size:34px; font-weight:700; margin:10px 0; }
+  /* main menu */
+  #menu { position:fixed; inset:0; z-index:8; display:none; flex-direction:column; align-items:center; justify-content:center; gap:18px; padding:24px; background:radial-gradient(circle at 50% 28%, #1c2433 0%, #0d1017 62%); }
+  #menu.on { display:flex; }
+  #menu .logo { width:128px; height:128px; }
+  #menu h1 { margin:0; font-size:44px; letter-spacing:.14em; text-transform:uppercase; line-height:1; text-align:center; }
+  #menu h1 span { color:var(--red); }
+  #menu .tag { color:var(--mute); font-size:14px; text-align:center; max-width:300px; line-height:1.6; }
+  #menu .col { width:100%; max-width:320px; margin-top:6px; }
+  #menu .foot { color:#566079; font-size:11px; position:absolute; bottom:calc(10px + env(safe-area-inset-bottom)); }
+  /* settings */
+  .set { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:10px 0; border-bottom:1px solid var(--line); text-align:start; }
+  .set:last-of-type { border-bottom:0; }
+  .set label { font-size:15px; } .set small { display:block; color:var(--mute); font-size:11px; margin-top:2px; }
+  .seg { display:flex; gap:6px; } .seg button { min-height:38px; padding:6px 12px; }
+  .seg button.sel { background:var(--red); border-color:var(--red); color:#fff; }
+  .tog { min-width:64px; } input[type=range] { width:120px; accent-color:#ff3b52; }
+  .howl { text-align:start; line-height:1.7; font-size:14px; color:var(--ink); padding-inline-start:18px; margin:8px 0; }
+  .howl li { margin-bottom:6px; }
 </style>
 </head>
 <body>
 <div id="app">
   <header>
-    <h1 id="title">Blind Eye<small id="subtitle"></small></h1>
-    <button id="btnMute" aria-label="sound">🔊</button>
-    <button id="btnHearts">♥</button>
-    <button id="btnLevels"></button>
-    <button id="btnLang">EN</button>
+    <button id="btnMenu" aria-label="menu">☰</button>
+    <div class="ttl"><b id="lvLabel"></b><br><span id="blockLabel"></span></div>
+    <div id="stats"><span id="movesLabel"></span> <b id="moves">0</b><span>·</span><span id="parLabel"></span> <b id="par">0</b><span id="heartsWrap"> · <span id="hearts"></span></span></div>
   </header>
-  <div id="stats"><span id="lvLabel"></span><span>·</span><span id="movesLabel"></span> <b id="moves">0</b><span>·</span><span id="parLabel"></span> <b id="par">0</b><span id="heartsWrap">·</span><span id="hearts"></span></div>
   <div id="tip"></div>
   <div id="stage"><canvas id="cv"></canvas></div>
   <div id="bar"></div>
 </div>
 
+<div id="menu" class="on">
+  <svg class="logo" viewBox="0 0 64 64" aria-hidden="true"><rect x="2" y="14" width="60" height="36" rx="18" fill="#161b26" stroke="#2c3550" stroke-width="2"/><circle cx="32" cy="32" r="13" fill="#0d1017" stroke="#ff3b52" stroke-width="3"/><circle cx="32" cy="32" r="6" fill="#ff3b52"/><circle cx="35" cy="29" r="2" fill="#fff"/><path d="M6 32 L58 32" stroke="#ff3b52" stroke-opacity=".25" stroke-width="2"/></svg>
+  <h1>Blind <span>Eye</span></h1>
+  <div class="tag" id="menuTag"></div>
+  <div class="col">
+    <button class="primary big" id="mPlay"></button>
+    <button class="big" id="mLevels"></button>
+    <button class="big" id="mHow"></button>
+    <button class="big" id="mSettings"></button>
+  </div>
+  <div class="foot" id="menuFoot"></div>
+</div>
+
+<div class="overlay" id="pauseOv"><div class="card">
+  <h2 id="pauseTitle"></h2>
+  <div class="col"><button class="primary big" id="pResume"></button><button class="big" id="pRestart"></button><button class="big" id="pLevels"></button><button class="big" id="pSettings"></button><button class="big" id="pMenu"></button></div>
+</div></div>
+
 <div class="overlay" id="winOv"><div class="card">
   <h2 id="winTitle"></h2><div class="stars" id="winStars"></div><div id="winText"></div><div class="muted" id="winGate"></div>
   <div class="row"><button id="winRetry"></button><button class="primary" id="winNext"></button></div>
+  <div class="row"><button id="winLevels"></button></div>
 </div></div>
 
 <div class="overlay" id="caughtOv"><div class="card">
@@ -69,7 +106,25 @@
 
 <div class="overlay" id="lvOv"><div class="card">
   <h2 id="lvTitle"></h2><div id="lvChapters"></div>
-  <div class="row"><button id="btnUnlock"></button><button id="lvClose"></button></div>
+  <div class="row"><button id="lvClose"></button></div>
+</div></div>
+
+<div class="overlay" id="howOv"><div class="card">
+  <h2 id="howTitle"></h2><ul class="howl" id="howList"></ul>
+  <div class="row"><button class="primary" id="howClose"></button></div>
+</div></div>
+
+<div class="overlay" id="setOv"><div class="card">
+  <h2 id="setTitle"></h2>
+  <div class="set"><div><label id="sLangL"></label></div><div class="seg"><button id="langEn">English</button><button id="langFa">فارسی</button></div></div>
+  <div class="set"><div><label id="sSfxL"></label></div><button class="tog" id="sSfx"></button></div>
+  <div class="set"><div><label id="sVolL"></label></div><input type="range" id="sVol" min="0" max="100" step="5"></div>
+  <div class="set"><div><label id="sVibL"></label></div><button class="tog" id="sVib"></button></div>
+  <div class="set"><div><label id="sHeartsL"></label><small id="sHeartsS"></small></div><button class="tog" id="sHearts"></button></div>
+  <div class="set"><div><label id="sMotionL"></label><small id="sMotionS"></small></div><button class="tog" id="sMotion"></button></div>
+  <div class="set"><div><label id="sUnlockL"></label><small id="sUnlockS"></small></div><button class="tog" id="sUnlock"></button></div>
+  <div class="set"><div><label id="sResetL"></label></div><button id="sReset"></button></div>
+  <div class="row"><button class="primary" id="setClose"></button></div>
 </div></div>
 
 <div class="overlay" id="adOv"><div class="card">
@@ -78,22 +133,30 @@
 </div></div>
 
 <script>
-/* PrisonBreak proof-of-concept: rules, exact solver, generator.
+/* Blind Eye: rules, exact solver, and the level generator.
  *
- * Rules (v0):
+ * Rules
  *  - Grid with walls. The thief starts on S and must reach E.
- *  - Cameras sit in wall cells and face N/E/S/W. One action turns a camera 90 degrees (either way).
- *  - Guards stand on a straight rail of floor cells. One action steps a guard along its rail
- *    (and makes it face that way) or flips it. A guard sees `range` cells ahead.
- *  - Walls and guards stop sight. Guards block movement.
- *  - The thief may stand only on dark cells. Walking is free; only watcher actions are counted.
- *    A watcher action is illegal if it lights the thief's cell (the thief picks the best cell in
- *    his dark region before each action).
- *  - Par = minimum number of watcher actions (exact, by BFS).
+ *  - Cameras sit in wall cells and face N/E/S/W. One action turns a camera 90 degrees either way.
+ *  - Guards stand on a straight rail of floor cells. One action steps a guard along its rail (it keeps
+ *    facing the way it faced) or flips it around. A guard sees `range` cells ahead.
+ *  - Doors (floor cells) open or close with one action. A closed door blocks movement and sight.
+ *  - Mirrors (floor cells, pillars) flip between "/" and "\" with one action and bend any sight line
+ *    that reaches them by 90 degrees.
+ *  - Walls, guards and closed doors stop sight. Guards, closed doors and mirrors block movement.
+ *  - The thief may stand only on dark cells. Walking is free; only actions on watchers/objects count.
+ *    An action is illegal if it lights the thief's cell (he picks the best cell in his dark region
+ *    before each action).
+ *  - Par = the fewest actions, by exact search.
+ *
+ * Cameras only turn clockwise (a 270 degree turn costs 3). Every other action can be undone by one action.
+ * The generator searches backwards from "the exit is reachable" over the whole state graph, which gives the
+ * par of every possible starting state at once.
  */
 (function () {
 'use strict';
 const DX = [0, 1, 0, -1], DY = [-1, 0, 1, 0];
+const MIRROR = [[1, 0, 3, 2], [3, 2, 1, 0]];       // state 0 = "/", state 1 = "\"; indexed by travel direction
 
 function mulberry32(a) {
   return function () {
@@ -103,141 +166,143 @@ function mulberry32(a) {
     return ((t ^ t >>> 14) >>> 0) / 4294967296;
   };
 }
+function hash2(a, b) { let h = Math.imul(a ^ 0x9E3779B9, 0x85EBCA6B) ^ Math.imul(b + 0x7F4A7C15, 0xC2B2AE35); h ^= h >>> 15; h = Math.imul(h, 0x2C1B3C6D); h ^= h >>> 12; return h >>> 0; }
 
-/* level = { w,h, wall:Uint8Array, S, E, cams:[{c,d}], guards:[{rail:[cells], i, f, range}] }
-   watcher state digits: cam -> facing 0..3 ; guard -> i*2+f  (f=0 faces toward rail[last], 1 toward rail[0]) */
+/* level = { w,h, wall:Uint8Array, S, E, cams:[{c,d}], guards:[{rail:[cells], i, f, range}], toggles:[{c, kind:'door'|'mirror', s}] }
+   digits: cameras (facing 0..3), guards (i*2+f), toggles (0/1: door 1 = closed, mirror 0 = "/" 1 = "\"). */
+let L_W = 0;
+function prepare(L) { L_W = L.w; }
+const counts = L => [L.cams.length, L.guards.length, (L.toggles || []).length];
 function radices(L) {
-  return L.cams.map(() => 4).concat(L.guards.map(g => g.rail.length * 2));
+  return L.cams.map(() => 4).concat(L.guards.map(g => g.rail.length * 2), (L.toggles || []).map(() => 2));
 }
 function initialDigits(L) {
-  return L.cams.map(c => c.d).concat(L.guards.map(g => g.i * 2 + g.f));
+  return L.cams.map(c => c.d).concat(L.guards.map(g => g.i * 2 + g.f), (L.toggles || []).map(t => t.s));
 }
-function guardFacingDir(g, f) {            // direction index the guard looks
-  const a = g.rail[0], b = g.rail[g.rail.length - 1];
-  const w = L_W;                           // set by prepare()
+function guardFacingDir(g, f) {            // direction index the guard looks (f=0 toward the last rail cell)
+  const w = L_W, a = g.rail[0], b = g.rail[g.rail.length - 1];
   const ax = a % w, ay = (a / w) | 0, bx = b % w, by = (b / w) | 0;
-  let d;
-  if (ax === bx) d = by > ay ? 2 : 0; else d = bx > ax ? 1 : 3;
+  const d = ax === bx ? (by > ay ? 2 : 0) : (bx > ax ? 1 : 3);
   return f === 0 ? d : (d + 2) % 4;
 }
-let L_W = 0;
 
-/* Lit cells + blocked cells for one configuration. With wantRays it also returns, per watcher,
-   the cells its sight line covers (the renderer draws cones from these). */
+/* Lit cells + blocked cells for one configuration. With wantRays it also returns the sight-line
+   segments (a mirror starts a new segment) so the renderer can draw cones. */
 function evalConfig(L, digits, wantRays) {
-  const { w, h, wall } = L, n = w * h;
-  const lit = new Uint8Array(n), occ = new Uint8Array(n);
-  const gpos = L.guards.map((g, k) => g.rail[digits[L.cams.length + k] >> 1]);
-  for (const c of gpos) occ[c] = 1;
+  const { w, h, wall } = L, n = w * h, [nc, ng] = counts(L), tog = L.toggles || [];
+  const lit = new Uint8Array(n), occ = new Uint8Array(n), opq = new Uint8Array(n), mir = new Int8Array(n).fill(-1);
+  const gpos = L.guards.map((g, k) => g.rail[digits[nc + k] >> 1]);
+  for (const c of gpos) { occ[c] = 1; opq[c] = 1; }
+  tog.forEach((t, j) => {
+    const v = digits[nc + ng + j];
+    if (t.kind === 'door') { if (v === 1) { occ[t.c] = 1; opq[t.c] = 1; } }
+    else { occ[t.c] = 1; mir[t.c] = v; }
+  });
   const rays = wantRays ? [] : null;
-  const cast = (start, d, range, who) => {
-    const cells = [];
-    let x = start % w, y = (start / w) | 0;
+  const cast = (start, d0, range, who) => {
+    let d = d0, x = start % w, y = (start / w) | 0, cur = { src: start, d, cells: [], who, first: true };
+    const segs = [];
     for (let s = 0; s < range; s++) {
       x += DX[d]; y += DY[d];
       if (x < 0 || y < 0 || x >= w || y >= h) break;
       const c = y * w + x;
-      if (wall[c] || occ[c]) break;
-      lit[c] = 1; cells.push(c);
+      if (wall[c]) break;
+      if (mir[c] >= 0) { segs.push(cur); d = MIRROR[mir[c]][d]; cur = { src: c, d, cells: [], who, first: false }; continue; }
+      if (opq[c]) break;
+      lit[c] = 1; cur.cells.push(c);
     }
-    if (rays) rays.push({ src: start, d, cells, who });
+    segs.push(cur);
+    if (rays) for (const sg of segs) rays.push(sg);
   };
   L.cams.forEach((cm, k) => cast(cm.c, digits[k], 99, k));
-  L.guards.forEach((g, k) => {
-    const v = digits[L.cams.length + k];
-    cast(gpos[k], guardFacingDir(g, v & 1), g.range, L.cams.length + k);
-  });
+  L.guards.forEach((g, k) => cast(gpos[k], guardFacingDir(g, digits[nc + k] & 1), g.range, nc + k));
   return { lit, occ, rays };
 }
 
-function prepare(L) { L_W = L.w; }
+/* dark, free regions of one configuration */
+function labelConfig(L, dg) {
+  const { w, h, wall } = L, n = w * h, { lit, occ } = evalConfig(L, dg, false), lab = new Int8Array(n).fill(-1);
+  let k = 0;
+  const st = [];
+  for (let s = 0; s < n; s++) {
+    if (wall[s] || lit[s] || occ[s] || lab[s] >= 0) continue;
+    st.push(s); lab[s] = k;
+    while (st.length) {
+      const c0 = st.pop(), x = c0 % w, y = (c0 / w) | 0;
+      for (let d = 0; d < 4; d++) {
+        const nx = x + DX[d], ny = y + DY[d];
+        if (nx < 0 || ny < 0 || nx >= w || ny >= h) continue;
+        const q = ny * w + nx;
+        if (wall[q] || lit[q] || occ[q] || lab[q] >= 0) continue;
+        lab[q] = k; st.push(q);
+      }
+    }
+    k++;
+  }
+  return { lab, k };
+}
 
-/* Exact BFS over (configuration, dark region the thief is in). */
+/* every single action from a configuration: [newDigits, which watcher] */
+function actions(L, dg) {
+  const [nc, ng] = counts(L), out = [];
+  L.cams.forEach((cm, k) => { const d2 = dg.slice(); d2[k] = (dg[k] + 1) % 4; out.push([d2, k]); });   // clockwise only
+  L.guards.forEach((g, j) => {
+    const k = nc + j, v = dg[k], i = v >> 1, f = v & 1;
+    const taken = ni => L.guards.some((o, q) => q !== j && o.rail[dg[nc + q] >> 1] === g.rail[ni]);
+    for (const s of [1, -1]) {
+      const ni = i + s;
+      if (ni < 0 || ni >= g.rail.length || taken(ni)) continue;
+      const d2 = dg.slice(); d2[k] = ni * 2 + f; out.push([d2, k]);
+    }
+    const d2 = dg.slice(); d2[k] = i * 2 + (1 - f); out.push([d2, k]);
+  });
+  (L.toggles || []).forEach((t, j) => {
+    const k = nc + ng + j, d2 = dg.slice(); d2[k] = 1 - dg[k]; out.push([d2, k]);
+  });
+  return out;
+}
+
+/* Exact BFS over (configuration, dark region the thief is in). opts: digits/thief to start elsewhere. */
 function solve(L, opts) {
   prepare(L);
-  const { w, h, wall } = L, n = w * h;
-  const rad = radices(L);
+  const n = L.w * L.h, rad = radices(L);
   let total = 1; for (const r of rad) total *= r;
   if (total > 2.5e6) return null;
   const mul = new Array(rad.length); { let m = 1; for (let i = rad.length - 1; i >= 0; i--) { mul[i] = m; m *= rad[i]; } }
   const encode = d => d.reduce((s, v, i) => s + v * mul[i], 0);
   const decode = id => rad.map((r, i) => ((id / mul[i]) | 0) % r);
-
-  const compCache = new Map();
-  const comps = (id) => {                  // region labelling for a configuration
-    let c = compCache.get(id);
-    if (c) return c;
-    const dg = decode(id), { lit, occ } = evalConfig(L, dg);
-    const lab = new Int8Array(n).fill(-1);
-    let k = 0;
-    for (let s = 0; s < n; s++) {
-      if (wall[s] || lit[s] || occ[s] || lab[s] >= 0) continue;
-      const st = [s]; lab[s] = k;
-      while (st.length) {
-        const c0 = st.pop(), x = c0 % w, y = (c0 / w) | 0;
-        for (let d = 0; d < 4; d++) {
-          const nx = x + DX[d], ny = y + DY[d];
-          if (nx < 0 || ny < 0 || nx >= w || ny >= h) continue;
-          const q = ny * w + nx;
-          if (wall[q] || lit[q] || occ[q] || lab[q] >= 0) continue;
-          lab[q] = k; st.push(q);
-        }
-      }
-      k++;
-    }
-    c = { lab, k };
-    compCache.set(id, c);
-    return c;
-  };
-  const neighbours = (id) => {             // [{id2, w}] watcher actions
-    const dg = decode(id), out = [];
-    L.cams.forEach((cm, k) => {
-      for (const dd of [1, 3]) { const d2 = dg.slice(); d2[k] = (dg[k] + dd) % 4; out.push([encode(d2), k]); }
-    });
-    L.guards.forEach((g, j) => {
-      const k = L.cams.length + j, v = dg[k], i = v >> 1, f = v & 1;
-      const others = L.guards.map((_, q) => q === j ? -1 : g.rail.length && L.guards[q].rail[dg[L.cams.length + q] >> 1]);
-      const free = ni => !others.includes(g.rail[ni]);
-      const dirF = f === 0 ? 1 : -1;       // f=0 looks toward rail end
-      for (const s of [1, -1]) {
-        const ni = i + s;
-        if (ni < 0 || ni >= g.rail.length || !free(ni)) continue;
-        const nf = s === 1 ? 0 : 1;
-        const d2 = dg.slice(); d2[k] = ni * 2 + nf; out.push([encode(d2), k]);
-      }
-      const d2 = dg.slice(); d2[k] = i * 2 + (1 - f); out.push([encode(d2), k]);
-    });
-    return out;
-  };
+  const cache = new Map();
+  const comps = id => { let c = cache.get(id); if (!c) { c = labelConfig(L, decode(id)); cache.set(id, c); } return c; };
 
   const start = encode((opts && opts.digits) || initialDigits(L));
   const S0 = opts && opts.thief != null ? opts.thief : L.S;
   const c0 = comps(start);
-  if (c0.lab[S0] < 0) return { solvable: false, reason: 'start lit' };
+  if (S0 < 0 || c0.lab[S0] < 0) return { solvable: false, reason: 'start lit' };
+  if (L.E < 0) return { solvable: false, reason: 'no exit' };
+  const frozen = opts && opts.frozen;
   const key = (id, k) => id * 16 + k;
   const dist = new Map(), par = new Map();
-  let frontier = [[start, c0.lab[S0]]];
+  let frontier = [[start, c0.lab[S0]]], goal = null, depth = 0;
   dist.set(key(start, c0.lab[S0]), 0);
-  let goal = null, depth = 0;
-  const isGoal = (id, k) => comps(id).lab[L.E] === k;
-  if (isGoal(start, c0.lab[S0])) goal = key(start, c0.lab[S0]);
+  if (c0.lab[L.E] === c0.lab[S0]) goal = key(start, c0.lab[S0]);
   while (frontier.length && goal === null) {
     const next = [];
     depth++;
     for (const [id, k] of frontier) {
       const cur = comps(id);
-      for (const [id2, who] of neighbours(id)) {
-        const nc = comps(id2), seen = new Set();
+      for (const [d2, who] of actions(L, decode(id))) {
+        if (frozen && frozen.has(who)) continue;
+        const id2 = encode(d2), nc2 = comps(id2), seen = new Set();
         for (let x = 0; x < n; x++) {
           if (cur.lab[x] !== k) continue;
-          const k2 = nc.lab[x];
+          const k2 = nc2.lab[x];
           if (k2 < 0 || seen.has(k2)) continue;
           seen.add(k2);
           const kk = key(id2, k2);
           if (dist.has(kk)) continue;
           dist.set(kk, depth); par.set(kk, [key(id, k), who]);
           next.push([id2, k2]);
-          if (nc.lab[L.E] === k2) { goal = kk; }
+          if (nc2.lab[L.E] === k2) goal = kk;
         }
       }
       if (goal !== null) break;
@@ -246,18 +311,17 @@ function solve(L, opts) {
     if (depth > (opts && opts.maxDepth || 60)) break;
   }
   if (goal === null) return { solvable: false, explored: dist.size };
-  const path = [], who = [];
+  const who = [], ids = [];
   let kk = goal;
-  while (par.has(kk)) { const [p, wh] = par.get(kk); path.push(Math.floor(kk / 16)); who.push(wh); kk = p; }
-  path.reverse(); who.reverse();
-  return { solvable: true, par: depth, explored: dist.size, configs: path.map(decode), who, rad };
+  while (par.has(kk)) { const [p, wh] = par.get(kk); ids.push(Math.floor(kk / 16)); who.push(wh); kk = p; }
+  ids.reverse(); who.reverse();
+  return { solvable: true, par: depth, explored: dist.size, configs: ids.map(decode), who, rad };
 }
 
-/* ASCII picture of a configuration: # wall, . dark, ~ lit, G guard, C camera, S/E. */
+/* ASCII of a configuration: # wall . dark ~ lit, S/E, arrows = cameras, a-d guards, X/x doors, / \ mirrors */
 function draw(L, digits) {
   prepare(L);
-  const { lit, occ } = evalConfig(L, digits);
-  const ar = ['^', '>', 'v', '<'];
+  const { lit } = evalConfig(L, digits, false), [nc, ng] = counts(L), ar = ['^', '>', 'v', '<'];
   let s = '';
   for (let y = 0; y < L.h; y++) {
     for (let x = 0; x < L.w; x++) {
@@ -267,10 +331,8 @@ function draw(L, digits) {
       if (c === L.E) ch = lit[c] ? 'e' : 'E';
       const cam = L.cams.findIndex(q => q.c === c);
       if (cam >= 0) ch = ar[digits[cam]];
-      L.guards.forEach((g, k) => {
-        const v = digits[L.cams.length + k];
-        if (g.rail[v >> 1] === c) ch = 'abcdefgh'[k];
-      });
+      L.guards.forEach((g, k) => { if (g.rail[digits[nc + k] >> 1] === c) ch = 'abcd'[k]; });
+      (L.toggles || []).forEach((t, j) => { if (t.c === c) ch = t.kind === 'door' ? (digits[nc + ng + j] ? 'X' : 'x') : (digits[nc + ng + j] ? '\\' : '/'); });
       s += ch;
     }
     s += '\n';
@@ -278,113 +340,11 @@ function draw(L, digits) {
   return s;
 }
 
-/* ------------------------------------------------------------ generator */
-function randomLevel(rnd, W, H, nCam, nGuard) {
-  const n = W * H, wall = new Uint8Array(n);
-  const wallCount = Math.floor(n * (0.14 + rnd() * 0.12));
-  for (let i = 0; i < wallCount; i++) wall[(rnd() * n) | 0] = 1;
-  // border cells are mounts for cameras, so keep a free ring of floor but allow camera mounts as extra wall
-  const floor = []; for (let c = 0; c < n; c++) if (!wall[c]) floor.push(c);
-  const pick = arr => arr[(rnd() * arr.length) | 0];
-  const S = pick(floor);
-  let E = pick(floor), guard = 0;
-  while ((E === S || Math.abs(E % W - S % W) + Math.abs(((E / W) | 0) - ((S / W) | 0)) < 4) && guard++ < 50) E = pick(floor);
-  const L = { w: W, h: H, wall, S, E, cams: [], guards: [] };
-  const mounts = [];
-  for (let c = 0; c < n; c++) {
-    if (!wall[c]) continue;
-    for (let d = 0; d < 4; d++) {
-      const x = c % W + DX[d], y = ((c / W) | 0) + DY[d];
-      if (x >= 0 && y >= 0 && x < W && y < H && !wall[y * W + x]) { mounts.push([c, d]); break; }
-    }
-  }
-  const usedMount = new Set();
-  for (let i = 0; i < nCam && mounts.length; i++) {
-    const [c] = pick(mounts);
-    if (usedMount.has(c)) continue;
-    usedMount.add(c);
-    L.cams.push({ c, d: (rnd() * 4) | 0 });
-  }
-  for (let i = 0; i < nGuard; i++) {
-    for (let tries = 0; tries < 30; tries++) {
-      const len = 3 + ((rnd() * 2) | 0), horiz = rnd() < 0.5;
-      const x0 = (rnd() * W) | 0, y0 = (rnd() * H) | 0, rail = [];
-      for (let k = 0; k < len; k++) {
-        const x = x0 + (horiz ? k : 0), y = y0 + (horiz ? 0 : k);
-        if (x >= W || y >= H) break;
-        const c = y * W + x;
-        if (wall[c] || c === S || c === E) break;
-        rail.push(c);
-      }
-      if (rail.length >= 3 && !L.guards.some(g => g.rail.some(c => rail.includes(c)))) {
-        L.guards.push({ rail, i: (rnd() * rail.length) | 0, f: (rnd() * 2) | 0, range: 3 });
-        break;
-      }
-    }
-  }
-  return L;
-}
-function clone(L) {
-  return { w: L.w, h: L.h, wall: L.wall.slice(), S: L.S, E: L.E,
-    cams: L.cams.map(c => ({ ...c })), guards: L.guards.map(g => ({ ...g, rail: g.rail.slice() })) };
-}
-function score(L) {
-  const r = solve(L, { maxDepth: 40 });
-  if (!r || !r.solvable) return { s: -1, r };
-  const used = new Set(r.who).size;
-  return { s: r.par * 10 + used * 6, r };
-}
-function mutate(L, rnd) {
-  const M = clone(L), n = L.w * L.h, k = rnd();
-  if (k < 0.3) {                         // flip a wall (keeping S, E, watchers valid)
-    const c = (rnd() * n) | 0;
-    const busy = c === L.S || c === L.E || L.cams.some(q => q.c === c) || L.guards.some(g => g.rail.includes(c));
-    if (!busy) M.wall[c] ^= 1;
-  } else if (k < 0.5 && M.cams.length) {
-    const q = M.cams[(rnd() * M.cams.length) | 0]; q.d = (rnd() * 4) | 0;
-  } else if (k < 0.7 && M.guards.length) {
-    const g = M.guards[(rnd() * M.guards.length) | 0];
-    g.i = (rnd() * g.rail.length) | 0; g.f = (rnd() * 2) | 0;
-  } else if (k < 0.8) {
-    const fl = []; for (let c = 0; c < n; c++) if (!M.wall[c]) fl.push(c);
-    M.S = fl[(rnd() * fl.length) | 0];
-  } else if (k < 0.9) {
-    const fl = []; for (let c = 0; c < n; c++) if (!M.wall[c]) fl.push(c);
-    M.E = fl[(rnd() * fl.length) | 0];
-  } else if (M.cams.length) {
-    const q = M.cams[(rnd() * M.cams.length) | 0];
-    const mounts = [];
-    for (let c = 0; c < n; c++) if (M.wall[c] && !M.cams.some(z => z.c === c)) {
-      for (let d = 0; d < 4; d++) { const x = c % L.w + DX[d], y = ((c / L.w) | 0) + DY[d]; if (x >= 0 && y >= 0 && x < L.w && y < L.h && !M.wall[y * L.w + x]) { mounts.push(c); break; } }
-    }
-    if (mounts.length) q.c = mounts[(rnd() * mounts.length) | 0];
-  }
-  // camera mounts must stay walls with a floor neighbour; guard rails must stay floor
-  for (const q of M.cams) if (!M.wall[q.c]) return L;
-  for (const g of M.guards) for (const c of g.rail) if (M.wall[c]) return L;
-  if (M.wall[M.S] || M.wall[M.E] || M.S === M.E) return L;
-  for (const g of M.guards) if (g.rail.includes(M.S) || g.rail.includes(M.E)) return L;   // ASCII format cannot show S/E on a rail
-  return M;
-}
-function generate(seed, W, H, nCam, nGuard, iters) {
-  const rnd = mulberry32(seed);
-  let best = null, bs = { s: -1 };
-  for (let t = 0; t < 40 && bs.s < 0; t++) { const L = randomLevel(rnd, W, H, nCam, nGuard); const sc = score(L); if (sc.s > bs.s) { best = L; bs = sc; } }
-  if (!best) return null;
-  for (let i = 0; i < iters; i++) {
-    const M = mutate(best, rnd);
-    if (M === best) continue;
-    const sc = score(M);
-    if (sc.s > bs.s) { best = M; bs = sc; }
-  }
-  return { level: best, result: bs.r, score: bs.s };
-}
-
-/* ASCII level format: # wall, . floor, S start, E exit, ^ > v < camera (on a wall cell, facing that way),
-   a..d = rail cells of guard a..d (floor). meta.guards: {a:{i,f,range}} start index on rail and facing. */
+/* ASCII level format: # wall, . floor, S start, E exit, ^ > v < camera (on a wall cell), a..d guard rail cells,
+   X closed door, x open door, / \ mirror. meta.guards: {a:{i,f,range}} start index on the rail, facing, range. */
 function parseLevel(map, meta) {
   const h = map.length, w = map[0].length, wall = new Uint8Array(w * h);
-  const L = { w, h, wall, S: -1, E: -1, cams: [], guards: [] };
+  const L = { w, h, wall, S: -1, E: -1, cams: [], guards: [], toggles: [] };
   const rails = {};
   map.forEach((row, y) => {
     if (row.length !== w) throw new Error('ragged map row ' + y);
@@ -395,6 +355,8 @@ function parseLevel(map, meta) {
       else if (ch === 'E') L.E = c;
       else if ('^>v<'.includes(ch)) { wall[c] = 1; L.cams.push({ c, d: '^>v<'.indexOf(ch) }); }
       else if (/[a-d]/.test(ch)) (rails[ch] = rails[ch] || []).push(c);
+      else if (ch === 'X' || ch === 'x') L.toggles.push({ c, kind: 'door', s: ch === 'X' ? 1 : 0 });
+      else if (ch === '/' || ch === '\\') L.toggles.push({ c, kind: 'mirror', s: ch === '/' ? 0 : 1 });
     });
   });
   Object.keys(rails).sort().forEach(k => {
@@ -404,10 +366,8 @@ function parseLevel(map, meta) {
   });
   return L;
 }
-
 function toMap(L) {
-  const rows = [];
-  const ar = ['^', '>', 'v', '<'];
+  const rows = [], ar = ['^', '>', 'v', '<'];
   for (let y = 0; y < L.h; y++) {
     let r = '';
     for (let x = 0; x < L.w; x++) {
@@ -418,6 +378,7 @@ function toMap(L) {
       const cam = L.cams.find(q => q.c === c);
       if (cam) ch = ar[cam.d];
       L.guards.forEach((g, k) => { if (g.rail.includes(c)) ch = 'abcd'[k]; });
+      (L.toggles || []).forEach(t => { if (t.c === c) ch = t.kind === 'door' ? (t.s ? 'X' : 'x') : (t.s ? '\\' : '/'); });
       r += ch;
     }
     rows.push(r);
@@ -427,276 +388,370 @@ function toMap(L) {
   return { map: rows, meta: { guards } };
 }
 
-const api = { toMap, solve, draw, generate, mulberry32, initialDigits, evalConfig, prepare, parseLevel, guardFacingDir, radices };
+/* ------------------------------------------------------------- generator */
+/* Whole state graph of a layout: every configuration, its dark regions, and the distance (in actions) from
+   every (configuration, region) to "the exit is reachable". Returns null if the layout has too many states. */
+function buildGraph(L, cap) {
+  prepare(L);
+  const n = L.w * L.h, rad = radices(L);
+  let total = 1; for (const r of rad) total *= r;
+  if (total > cap) return null;
+  const mul = new Array(rad.length); { let m = 1; for (let i = rad.length - 1; i >= 0; i--) { mul[i] = m; m *= rad[i]; } }
+  const encode = d => d.reduce((s, v, i) => s + v * mul[i], 0);
+  const decode = id => rad.map((r, i) => ((id / mul[i]) | 0) % r);
+  const labs = new Int8Array(total * n), kc = new Uint8Array(total), base = new Int32Array(total + 1);
+  for (let id = 0; id < total; id++) {
+    const { lab, k } = labelConfig(L, decode(id));
+    labs.set(lab, id * n); kc[id] = k; base[id + 1] = base[id] + k;
+  }
+  const nodes = base[total];
+  const dist = new Int16Array(nodes).fill(-1), parent = new Int32Array(nodes).fill(-1), via = new Int16Array(nodes).fill(-1);
+  const cfgOf = new Int32Array(nodes);
+  for (let id = 0; id < total; id++) for (let k = 0; k < kc[id]; k++) cfgOf[base[id] + k] = id;
+  const queue = new Int32Array(nodes); let qh = 0, qt = 0;
+  for (let id = 0; id < total; id++) { const k = labs[id * n + L.E]; if (k >= 0) { const nd = base[id] + k; dist[nd] = 0; queue[qt++] = nd; } }
+  const rev = Array.from({ length: total }, () => []);              // rev[c2] = [[c, who]] for every action c -> c2
+  for (let id = 0; id < total; id++) for (const [d2, who] of actions(L, decode(id))) rev[encode(d2)].push([id, who]);
+  while (qh < qt) {
+    const nd = queue[qh++], id = cfgOf[nd], k = nd - base[id], d0 = dist[nd];
+    for (const [id2, who] of rev[id]) {
+      let seen = 0;
+      for (let x = 0; x < n; x++) {
+        if (labs[id * n + x] !== k) continue;
+        const k2 = labs[id2 * n + x];
+        if (k2 < 0 || (seen >> k2 & 1)) continue;
+        seen |= 1 << k2;
+        const nd2 = base[id2] + k2;
+        if (dist[nd2] >= 0) continue;
+        dist[nd2] = d0 + 1; parent[nd2] = nd; via[nd2] = who; queue[qt++] = nd2;
+      }
+    }
+  }
+  return { n, total, rad, labs, kc, base, dist, parent, via, cfgOf, decode };
+}
+
+function floorConnected(L, extraBlock) {
+  const { w, h, wall } = L, n = w * h, seen = new Uint8Array(n);
+  let s = -1, count = 0;
+  for (let c = 0; c < n; c++) if (!wall[c] && !(extraBlock && extraBlock[c])) { count++; if (s < 0) s = c; }
+  if (s < 0) return false;
+  const st = [s]; seen[s] = 1; let got = 1;
+  while (st.length) {
+    const c = st.pop(), x = c % w, y = (c / w) | 0;
+    for (let d = 0; d < 4; d++) {
+      const nx = x + DX[d], ny = y + DY[d]; if (nx < 0 || ny < 0 || nx >= w || ny >= h) continue;
+      const q = ny * w + nx;
+      if (wall[q] || (extraBlock && extraBlock[q]) || seen[q]) continue;
+      seen[q] = 1; got++; st.push(q);
+    }
+  }
+  return got === count;
+}
+
+/* spec: { w,h, blocks, cams, guards, doors, mirrors, cap, minUnused } */
+function randomLayout(rnd, spec) {
+  const { w, h } = spec, n = w * h, wall = new Uint8Array(n);
+  for (let x = 0; x < w; x++) { wall[x] = 1; wall[(h - 1) * w + x] = 1; }
+  for (let y = 0; y < h; y++) { wall[y * w] = 1; wall[y * w + w - 1] = 1; }
+  const pick = a => a[(rnd() * a.length) | 0];
+  const shapes = [[[0, 0]], [[0, 0], [1, 0]], [[0, 0], [0, 1]], [[0, 0], [1, 0], [2, 0]], [[0, 0], [0, 1], [0, 2]], [[0, 0], [1, 0], [0, 1]]];
+  const L = { w, h, wall, S: -1, E: -1, cams: [], guards: [], toggles: [] };
+  for (let b = 0, tries = 0; b < spec.blocks && tries < 60; tries++) {
+    const sh = pick(shapes), x0 = 1 + ((rnd() * (w - 2)) | 0), y0 = 1 + ((rnd() * (h - 2)) | 0), cells = sh.map(([dx, dy]) => (y0 + dy) * w + x0 + dx);
+    if (sh.some(([dx, dy]) => x0 + dx >= w - 1 || y0 + dy >= h - 1) || cells.some(c => wall[c])) continue;
+    cells.forEach(c => { wall[c] = 1; });
+    if (!floorConnected(L)) { cells.forEach(c => { wall[c] = 0; }); continue; }
+    b++;
+  }
+  const floor = []; for (let c = 0; c < n; c++) if (!wall[c]) floor.push(c);
+  if (floor.length < 6) return null;
+  L.E = pick(floor);
+  const used = new Set([L.E]);
+  // guards: straight rails of 3-4 floor cells
+  for (let g = 0; g < spec.guards; g++) {
+    let placed = false;
+    for (let tries = 0; tries < 60 && !placed; tries++) {
+      const len = 3 + ((rnd() * 2) | 0), horiz = rnd() < .5, x0 = (rnd() * w) | 0, y0 = (rnd() * h) | 0, rail = [];
+      for (let k = 0; k < len; k++) {
+        const x = x0 + (horiz ? k : 0), y = y0 + (horiz ? 0 : k);
+        if (x >= w || y >= h) break;
+        const c = y * w + x; if (wall[c] || used.has(c)) break; rail.push(c);
+      }
+      if (rail.length < 3) continue;
+      rail.forEach(c => used.add(c));
+      L.guards.push({ rail, i: 0, f: 0, range: spec.range || 3 }); placed = true;
+    }
+    if (!placed) return null;
+  }
+  const free = () => floor.filter(c => !used.has(c));
+  // doors prefer corridor cells (walls on two opposite sides)
+  for (let d = 0; d < spec.doors; d++) {
+    const cand = free(), corr = cand.filter(c => { const x = c % w, y = (c / w) | 0; return (wall[c - 1] && wall[c + 1] && !wall[c - w] && !wall[c + w]) || (wall[c - w] && wall[c + w] && !wall[c - 1] && !wall[c + 1]); });
+    const pool = corr.length && rnd() < .8 ? corr : cand; if (!pool.length) return null;
+    const c = pick(pool); used.add(c); L.toggles.push({ c, kind: 'door', s: 0 });
+  }
+  const pillars = new Uint8Array(n);
+  for (let m = 0; m < spec.mirrors; m++) {
+    const cand = free(); if (!cand.length) return null;
+    const c = pick(cand); used.add(c); pillars[c] = 1; L.toggles.push({ c, kind: 'mirror', s: 0 });
+  }
+  if (!floorConnected(L, pillars)) return null;
+  // cameras on wall cells that touch the floor
+  const mounts = [];
+  for (let c = 0; c < n; c++) {
+    if (!wall[c]) continue;
+    const x = c % w, y = (c / w) | 0;
+    if (x > 0 && !wall[c - 1] || x < w - 1 && !wall[c + 1] || y > 0 && !wall[c - w] || y < h - 1 && !wall[c + w]) mounts.push(c);
+  }
+  for (let k = 0; k < spec.cams; k++) {
+    if (!mounts.length) return null;
+    const c = mounts.splice((rnd() * mounts.length) | 0, 1)[0];
+    L.cams.push({ c, d: 0 });
+  }
+  return L;
+}
+
+function mounts(L) {
+  const { w, h, wall } = L, out = [];
+  for (let c = 0; c < w * h; c++) {
+    if (!wall[c]) continue;
+    const x = c % w, y = (c / w) | 0;
+    if (x > 0 && !wall[c - 1] || x < w - 1 && !wall[c + 1] || y > 0 && !wall[c - w] || y < h - 1 && !wall[c + w]) out.push(c);
+  }
+  return out;
+}
+function cloneLevel(L) {
+  return { w: L.w, h: L.h, wall: L.wall.slice(), S: L.S, E: L.E, cams: L.cams.map(c => ({ ...c })),
+    guards: L.guards.map(g => ({ ...g, rail: g.rail.slice() })), toggles: L.toggles.map(t => ({ ...t })) };
+}
+/* One random change to a layout (walls, exit, a camera mount, a guard rail, a door or a mirror). null if it breaks the layout. */
+function mutateLayout(L, rnd) {
+  const M = cloneLevel(L), { w, h } = M, n = w * h, pick = a => a[(rnd() * a.length) | 0];
+  const busy = new Set([M.E]);
+  M.guards.forEach(g => g.rail.forEach(c => busy.add(c))); M.toggles.forEach(t => busy.add(t.c)); M.cams.forEach(c => busy.add(c.c));
+  const k = rnd();
+  if (k < .35) {                                                   // flip an interior wall cell
+    const c = (1 + ((rnd() * (h - 2)) | 0)) * w + 1 + ((rnd() * (w - 2)) | 0);
+    if (busy.has(c)) return null;
+    M.wall[c] ^= 1;
+  } else if (k < .5) {                                             // move the exit
+    const fl = []; for (let c = 0; c < n; c++) if (!M.wall[c] && !busy.has(c)) fl.push(c);
+    if (!fl.length) return null; M.E = pick(fl);
+  } else if (k < .72 && M.cams.length) {                           // move a camera to another mount
+    const ms = mounts(M).filter(c => !M.cams.some(q => q.c === c)); if (!ms.length) return null;
+    pick(M.cams).c = pick(ms);
+  } else if (k < .84 && M.guards.length) {                         // slide or re-draw a guard rail
+    const g = pick(M.guards), len = g.rail.length, horiz = (g.rail[0] % w) !== (g.rail[len - 1] % w);
+    const x0 = (g.rail[0] % w) + (rnd() < .5 ? 0 : (horiz ? (rnd() < .5 ? -1 : 1) : 0)), y0 = ((g.rail[0] / w) | 0) + (rnd() < .5 ? 0 : (horiz ? 0 : (rnd() < .5 ? -1 : 1)));
+    const nr = []; for (let q = 0; q < len; q++) { const x = x0 + (horiz ? q : 0), y = y0 + (horiz ? 0 : q); if (x < 0 || y < 0 || x >= w || y >= h) return null; nr.push(y * w + x); }
+    if (nr.some(c => M.wall[c] || c === M.E || (busy.has(c) && !g.rail.includes(c)))) return null;
+    g.rail = nr; g.i = Math.min(g.i, len - 1);
+  } else if (M.toggles.length) {                                   // move a door or mirror
+    const t = pick(M.toggles), fl = []; for (let c = 0; c < n; c++) if (!M.wall[c] && !busy.has(c)) fl.push(c);
+    if (!fl.length) return null; t.c = pick(fl);
+  } else return null;
+  for (const c of M.cams) if (!M.wall[c.c]) return null;
+  if (!mounts(M).length || M.wall[M.E]) return null;
+  for (const g of M.guards) if (g.rail.some(c => M.wall[c])) return null;
+  for (const t of M.toggles) if (M.wall[t.c]) return null;
+  const pillars = new Uint8Array(n); M.toggles.forEach(t => { if (t.kind === 'mirror') pillars[t.c] = 1; });
+  if (!floorConnected(M, pillars)) return null;
+  // a camera whose neighbours became all wall can light nothing
+  for (const c of M.cams) {
+    const x = c.c % w, y = (c.c / w) | 0;
+    if (!(x > 0 && !M.wall[c.c - 1] || x < w - 1 && !M.wall[c.c + 1] || y > 0 && !M.wall[c.c - w] || y < h - 1 && !M.wall[c.c + w])) return null;
+  }
+  return M;
+}
+
+/* How many watchers/objects the level cannot be solved without: freeze each one and see whether par gets worse. */
+function necessary(L, par) {
+  const total = L.cams.length + L.guards.length + L.toggles.length;
+  let cnt = 0;
+  for (let k = 0; k < total; k++) { const r = solve(L, { frozen: new Set([k]), maxDepth: par }); if (!r || !r.solvable || r.par > par) cnt++; }
+  return cnt;
+}
+
+/* Chooses a starting state at exactly `t` actions from the exit in which enough of the watchers matter. */
+function pickStart(L, g, rnd, t, minUsed) {
+  const cands = [];
+  for (let nd = 0; nd < g.dist.length; nd++) if (g.dist[nd] === t) cands.push(nd);
+  if (!cands.length) return null;
+  let best = -1, bestScore = -1;
+  for (let s = 0; s < Math.min(120, cands.length); s++) {
+    const nd = cands[(rnd() * cands.length) | 0], users = new Set();
+    for (let q = nd; g.parent[q] >= 0; q = g.parent[q]) users.add(g.via[q]);
+    const sc = users.size + rnd() * .5;
+    if (users.size >= minUsed && sc > bestScore) { best = nd; bestScore = sc; }
+  }
+  return best < 0 ? null : best;
+}
+function applyStart(L, g, nd, rnd) {
+  const id = g.cfgOf[nd], k = nd - g.base[id], dg = g.decode(id), nc = L.cams.length, ng = L.guards.length;
+  const marked = new Set(L.toggles.map(t => t.c)); L.guards.forEach(gd => gd.rail.forEach(c => marked.add(c)));      // the ASCII form cannot show S on these
+  const cells = []; for (let x = 0; x < g.n; x++) if (g.labs[id * g.n + x] === k && x !== L.E && !marked.has(x)) cells.push(x);
+  if (!cells.length) return false;
+  L.S = cells[(rnd() * cells.length) | 0];
+  L.cams.forEach((c, i) => { c.d = dg[i]; });
+  L.guards.forEach((gd, i) => { gd.i = dg[nc + i] >> 1; gd.f = dg[nc + i] & 1; });
+  L.toggles.forEach((tg, i) => { tg.s = dg[nc + ng + i]; });
+  return true;
+}
+
+/* Builds one level whose par is `target` (or one less). A random layout is grown by hill-climbing on the largest
+   par its whole state graph contains, then a starting state at the wanted par is chosen. null when attempts run out. */
+function genLevel(spec, seed, target, iters) {
+  const rnd = mulberry32(seed);
+  let L = null;
+  for (let t = 0; t < 40 && !L; t++) L = randomLayout(rnd, spec);
+  if (!L) return null;
+  const total = L.cams.length + L.guards.length + L.toggles.length, minUsed = total - (total <= 3 ? 0 : (spec.minUnused == null ? 1 : spec.minUnused));
+  let cur = buildGraph(L, spec.cap || 20000), curScore = -1;
+  const maxOf = g => { let m = 0; for (let i = 0; i < g.dist.length; i++) if (g.dist[i] > m) m = g.dist[i]; return m; };
+  if (cur) curScore = maxOf(cur);
+  const t0 = Date.now(), budget = spec.timeMs || 25000;
+  for (let it = 0; it < (iters || 400); it++) {
+    if (Date.now() - t0 > budget) return null;
+    if (cur && curScore >= target - 1) {
+      for (let tryNo = 0; tryNo < 8; tryNo++) {
+        const t = tryNo % 2 ? Math.max(1, target - 1) : target;
+        const nd = pickStart(L, cur, rnd, t, Math.max(1, minUsed - 1));
+        if (nd === null) continue;
+        if (!applyStart(L, cur, nd, rnd)) continue;
+        const r = solve(L, { maxDepth: 40 });
+        if (!r || !r.solvable || r.par !== t) continue;
+        const need = necessary(L, t);
+        if (need >= minUsed) return { level: L, par: t, used: need, total, states: r.explored, iters: it };
+      }
+    }
+    const M = mutateLayout(L, rnd); if (!M) continue;
+    const g = buildGraph(M, spec.cap || 20000); if (!g) continue;
+    const sc = Math.min(maxOf(g), target + 1);
+    if (!cur || sc >= curScore) { L = M; cur = g; curScore = sc; }
+  }
+  return null;
+}
+
+const api = { _layout: randomLayout, solve, draw, mulberry32, hash2, initialDigits, evalConfig, prepare, parseLevel, toMap, guardFacingDir, radices, actions, genLevel, buildGraph };
 if (typeof module !== 'undefined' && module.exports) module.exports = api;
 if (typeof window !== 'undefined') window.Prison = api;
 })();
 
 </script>
 <script>
-/* generated by tools/build-levels.js; each level re-solved exactly (par = fewest watcher actions) */
-window.PRISON_LEVELS = [
- {
-  "id": 1,
-  "map": [
-   "#####",
-   "#S#v#",
-   "#.#E#",
-   "#.#.#",
-   "#...#",
-   "#####"
-  ],
-  "meta": {},
-  "par": 1,
-  "src": "hand 1"
- },
- {
-  "id": 2,
-  "map": [
-   ">....",
-   "..>E#",
-   "...#.",
-   "S....",
-   "....#"
-  ],
-  "meta": {
-   "guards": {}
-  },
-  "par": 2,
-  "src": "gen 5x5 s1"
- },
- {
-  "id": 3,
-  "map": [
-   "....S",
-   ".....",
-   ".^...",
-   "..#..",
-   "#E<.."
-  ],
-  "meta": {
-   "guards": {}
-  },
-  "par": 2,
-  "src": "gen 5x5 s10"
- },
- {
-  "id": 4,
-  "map": [
-   "....a.",
-   "..>.a#",
-   ".<#.aE",
-   ".#....",
-   ".S#..."
-  ],
-  "meta": {
-   "guards": {
-    "a": {
-     "i": 1,
-     "f": 0,
-     "range": 3
-    }
-   }
-  },
-  "par": 3,
-  "src": "gen 6x5 s21"
- },
- {
-  "id": 5,
-  "map": [
-   "E.a#..",
-   "^#a.#.",
-   ".#a...",
-   "..S...",
-   "..#..."
-  ],
-  "meta": {
-   "guards": {
-    "a": {
-     "i": 0,
-     "f": 1,
-     "range": 3
-    }
-   }
-  },
-  "par": 3,
-  "src": "gen 6x5 s22"
- },
- {
-  "id": 6,
-  "map": [
-   "...E<",
-   "...#S",
-   "#.>..",
-   ".....",
-   "....."
-  ],
-  "meta": {
-   "guards": {}
-  },
-  "par": 3,
-  "src": "gen 5x5 s14"
- },
- {
-  "id": 7,
-  "map": [
-   "..##..",
-   "..#S..",
-   ".E.v..",
-   ".aaaa.",
-   "....^."
-  ],
-  "meta": {
-   "guards": {
-    "a": {
-     "i": 3,
-     "f": 0,
-     "range": 3
-    }
-   }
-  },
-  "par": 5,
-  "src": "gen 6x5 s24"
- },
- {
-  "id": 8,
-  "map": [
-   "...va.",
-   "#..Ea.",
-   "..##a<",
-   "#bbba.",
-   "...^#S",
-   ".....#"
-  ],
-  "meta": {
-   "guards": {
-    "a": {
-     "i": 2,
-     "f": 0,
-     "range": 3
-    },
-    "b": {
-     "i": 0,
-     "f": 0,
-     "range": 3
-    }
-   }
-  },
-  "par": 5,
-  "src": "gen 6x6 s111"
- },
- {
-  "id": 9,
-  "map": [
-   ".ccc...",
-   ".#..<..",
-   ".E.>.a.",
-   "..^.ba#",
-   ".^#.baS",
-   ".#..ba.",
-   "..##..."
-  ],
-  "meta": {
-   "guards": {
-    "a": {
-     "i": 0,
-     "f": 0,
-     "range": 3
-    },
-    "b": {
-     "i": 2,
-     "f": 1,
-     "range": 3
-    },
-    "c": {
-     "i": 1,
-     "f": 0,
-     "range": 3
-    }
-   }
-  },
-  "par": 8,
-  "src": "gen 7x7 s211"
- }
-];
+/* generated by tools/gen-levels.js + tools/build-levels.js; every level re-solved exactly (par = fewest actions) */
+window.PRISON_LEVELS = [{"id":1,"map":["#####","##.E#","#S#.#",">...#","#####"],"meta":{"guards":{}},"par":1},{"id":2,"map":["#####",">E#.#","#..S#","##..#","#####"],"meta":{"guards":{}},"par":1},{"id":3,"map":["#####","##.S#","#>..#","#.#.#","#E..#","#####"],"meta":{"guards":{}},"par":2},{"id":4,"map":["##vv##","#S.E##","###.##","##..##","######"],"meta":{"guards":{}},"par":2},{"id":5,"map":["###v##","#..E##","###.<#","##S..#","######"],"meta":{"guards":{}},"par":2},{"id":6,"map":["####v#","####.#","####E#","#....<","#S.#.#","######"],"meta":{"guards":{}},"par":2},{"id":7,"map":["####v#","##..E#","#....#","##.<##","#.S.##","######"],"meta":{"guards":{}},"par":3},{"id":8,"map":["######","##S.##","#>..##","#....<","#E...#","######"],"meta":{"guards":{}},"par":3},{"id":9,"map":["######","##..E#","#...<#","##.<##","##S###","######"],"meta":{"guards":{}},"par":4},{"id":10,"map":["######","#.##S#","#.#..<","#E>.##","#....#","######"],"meta":{"guards":{}},"par":4},{"id":11,"map":["######","#.Ev.#","#....#","#....#","###^S#","######"],"meta":{"guards":{}},"par":3},{"id":12,"map":["###v##","#.#.S#","#E>.##","#...##","###.##","######"],"meta":{"guards":{}},"par":4},{"id":13,"map":["######","###.##","##S..#","###^.<","#.#..#","#.E..#","######"],"meta":{"guards":{}},"par":4},{"id":14,"map":["######","#.S.##","#>.<.#","#....#",">.##.#","#..E##","######"],"meta":{"guards":{}},"par":4},{"id":15,"map":["####v##","##.#.S#","##E>..#","#.....#","#.^.#.#","#######"],"meta":{"guards":{}},"par":5},{"id":16,"map":["#######","##.v.##",">....##","#.<..##","#S##E.#","#######"],"meta":{"guards":{}},"par":5},{"id":17,"map":["#######","####.##","#E.#.S#","#>.>.<#","#....##","##.#..#","#######"],"meta":{"guards":{}},"par":5},{"id":18,"map":["#######","##...E#","#.##..#","#.#..<#",">...v##","###..S#","#######"],"meta":{"guards":{}},"par":6},{"id":19,"map":["#######","###..##","#..E.##","#..v###","#...v##","##...S#","###^###"],"meta":{"guards":{}},"par":6},{"id":20,"map":["##v####","#S....#","#.###.#","###>..#","#.#E>.#","#.....#","#######"],"meta":{"guards":{}},"par":6},{"id":21,"map":["#######","#S....#","##^..<#","#.....#","#.....<","#E#.#.#","#######"],"meta":{"guards":{}},"par":5},{"id":22,"map":["#######","#.E####",">..#S.#","#.>...#","#..v..#","#....##","#######"],"meta":{"guards":{}},"par":7},{"id":23,"map":["#######","#S...##","##^..##","##.^..#","#.E..<#","#..^..#","#######"],"meta":{"guards":{}},"par":8},{"id":24,"map":["#######","#.....#","##.<^.#","##.S>.#","##.#>.#","##.#..#","####E##","#######"],"meta":{"guards":{}},"par":7},{"id":25,"map":["########","#..#S..#","#...#^.#","#.#E>..<","#......#","#.##...#","#####^##"],"meta":{"guards":{}},"par":8},{"id":26,"map":["########","#..#v.##",">E#..S##","#..>..##","#.>....#","#...#.##","########"],"meta":{"guards":{}},"par":8},{"id":27,"map":["########","#...#.##","<.#v#..#","#...E.##","#...v###","#>.>...#","#....#S#","########"],"meta":{"guards":{}},"par":9},{"id":28,"map":["######v#","#......#",">.#..^E#","#..v#.##","#.....##","#...v#.#","###...S#","########"],"meta":{"guards":{}},"par":9},{"id":29,"map":["######v#","#.#.##.#","#....#.#","##.v...#","#...<#.#","###.v#E#","#....S^#","########"],"meta":{"guards":{}},"par":10},{"id":30,"map":["########","#S.....#","##^...##","#.>..###",">.E^...#","#....#.#","#.#..#.#","###^^###"],"meta":{"guards":{}},"par":11},{"id":31,"map":["##v###","#S...#","####.#","#.aaa#","##E..#","######"],"meta":{"guards":{"a":{"i":0,"f":0,"range":3}}},"par":2},{"id":32,"map":["######","#Saaa#","##...#","#v##.#","#E...#","######"],"meta":{"guards":{"a":{"i":0,"f":0,"range":3}}},"par":2},{"id":33,"map":["######","#S#..#","#..<.#","##.#.#","#Eaaa#","######"],"meta":{"guards":{"a":{"i":0,"f":1,"range":3}}},"par":3},{"id":34,"map":["#######","##.#.E#","#.S#..<","#aaa..#","###...#","####^##"],"meta":{"guards":{"a":{"i":2,"f":0,"range":3}}},"par":5},{"id":35,"map":["#######","#.E.<S#","##..#a#","##...a#","##..#a#","###^###"],"meta":{"guards":{"a":{"i":0,"f":0,"range":3}}},"par":4},{"id":36,"map":["#v#####","#.....#","#...E.#","#a#..##","#aS^..#","#a##..#","#######"],"meta":{"guards":{"a":{"i":0,"f":1,"range":3}}},"par":5},{"id":37,"map":["#######","#..v#S#","##..a.#","#...a##","####a##","##..E##","#######"],"meta":{"guards":{"a":{"i":2,"f":1,"range":3}}},"par":5},{"id":38,"map":["#######","##S.a.#","###^a.#","####a.#","##>..##","##E...#","#######"],"meta":{"guards":{"a":{"i":2,"f":1,"range":3}}},"par":6},{"id":39,"map":["#######","#aaaS##","#..##E#","#.^...#","#...<##","#..####","#######"],"meta":{"guards":{"a":{"i":2,"f":1,"range":3}}},"par":6},{"id":40,"map":["#######","#aaaa.#","#..<#E#","#.<#..#","#S#...#","#####.#","#######"],"meta":{"guards":{"a":{"i":3,"f":0,"range":3}}},"par":8},{"id":41,"map":["##v####","#...S.#","#>....#","#E.a###","##.a#.#","##.a..#","#######"],"meta":{"guards":{"a":{"i":1,"f":1,"range":3}}},"par":4},{"id":42,"map":["#######","#...###","#.#..E<",">.###.#","#aaa#.#","##..S##","#######"],"meta":{"guards":{"a":{"i":0,"f":1,"range":3}}},"par":5},{"id":43,"map":["#######","##.#..#","##.v.a#",">.E..a#","#...#a#","#.##S.#","#######"],"meta":{"guards":{"a":{"i":2,"f":0,"range":3}}},"par":5},{"id":44,"map":["###v###","#.E...#","###a#b#",">..a#b#","#.#a#b#","##S.#b#","#######"],"meta":{"guards":{"a":{"i":1,"f":0,"range":3},"b":{"i":2,"f":0,"range":3}}},"par":7},{"id":45,"map":["#######","#..##b#","#..#>b#","#.##vb#","#.aaaa#","#.E.<S#","#######"],"meta":{"guards":{"a":{"i":3,"f":0,"range":3},"b":{"i":1,"f":0,"range":3}}},"par":7},{"id":46,"map":["#######","#bbb..#","#.#>.E<","##S#a##","##.#a.<","##..a.#","#######"],"meta":{"guards":{"a":{"i":0,"f":0,"range":3},"b":{"i":0,"f":0,"range":3}}},"par":7},{"id":47,"map":["##v#####",">.E##S.#","#.##bbb#","#.#...##","#aaa#.##",">...#.##","########"],"meta":{"guards":{"a":{"i":0,"f":0,"range":3},"b":{"i":2,"f":1,"range":3}}},"par":7},{"id":48,"map":["########","#S...#E#","#b.^.#a<","#b^...a#","#b.#.#a#","#....#.#","########"],"meta":{"guards":{"a":{"i":0,"f":1,"range":3},"b":{"i":0,"f":0,"range":3}}},"par":8},{"id":49,"map":["########","#a.S####","#ab<...#","#ab..#.#","#.b#...#","##E.<#.#","##^#####"],"meta":{"guards":{"a":{"i":2,"f":1,"range":3},"b":{"i":0,"f":1,"range":3}}},"par":8},{"id":50,"map":["########","#.Ev#Sa#","##..v#a#","##....a#","##..#^a#","##.bbb.#","########"],"meta":{"guards":{"a":{"i":0,"f":1,"range":3},"b":{"i":0,"f":1,"range":3}}},"par":9},{"id":51,"map":["#######","#aaaaS#","####>.#","#.bbb.#","##.E#.#","##..#.#","###^###"],"meta":{"guards":{"a":{"i":0,"f":0,"range":3},"b":{"i":2,"f":0,"range":3}}},"par":6},{"id":52,"map":["#######","#aaa.##","#S.b.##","#.^b..#","##Eb#.#","##^#..#","#######"],"meta":{"guards":{"a":{"i":2,"f":1,"range":3},"b":{"i":0,"f":1,"range":3}}},"par":8},{"id":53,"map":["#######","#Eb##.#","#.bvaS#","##b.a.<","#...a.#","####^##","#######"],"meta":{"guards":{"a":{"i":0,"f":0,"range":3},"b":{"i":2,"f":0,"range":3}}},"par":8},{"id":54,"map":["########","##..####","#..###b<","#.E##Sb#","#..vv#b#","#aaa...#","########"],"meta":{"guards":{"a":{"i":2,"f":1,"range":3},"b":{"i":2,"f":0,"range":3}}},"par":8},{"id":55,"map":["########","#E.<.S.#",">.#>..##","#bbb.###","#aaaa###","###...##","########"],"meta":{"guards":{"a":{"i":3,"f":1,"range":3},"b":{"i":2,"f":0,"range":3}}},"par":8},{"id":56,"map":["########","####v.##","#.S#.E.#","#b##.<##","#b.aaa.#","#b^#####","########"],"meta":{"guards":{"a":{"i":0,"f":1,"range":3},"b":{"i":0,"f":1,"range":3}}},"par":10},{"id":57,"map":["#####v##","###.#.##","#.#.#.S#",">.E.#.##","#.a#...#","#.a#v..#","##a.bbb#","########"],"meta":{"guards":{"a":{"i":2,"f":0,"range":3},"b":{"i":0,"f":1,"range":3}}},"par":10},{"id":58,"map":["####v###",">..bbbE#","#.S^.###","####.###","#.##.###","#.#..###","#aaa####","########"],"meta":{"guards":{"a":{"i":2,"f":1,"range":3},"b":{"i":0,"f":1,"range":3}}},"par":10},{"id":59,"map":["########","#..#S..#","#.##...#","#...##a#","#.v##ba#","#.E.#ba#","#v#..b.#","######^#"],"meta":{"guards":{"a":{"i":0,"f":1,"range":3},"b":{"i":0,"f":1,"range":3}}},"par":11},{"id":60,"map":["########","#aaa.#.#","##S^bbb#","#.>....#","#......#","#.<#####","#E...###","########"],"meta":{"guards":{"a":{"i":2,"f":0,"range":3},"b":{"i":0,"f":1,"range":3}}},"par":11},{"id":61,"map":["######","#..E.#","#..###","#..#S#","##..X<","######"],"meta":{"guards":{}},"par":2},{"id":62,"map":["######","##.XS#","##>.##","##E.##","#..###","######"],"meta":{"guards":{}},"par":3},{"id":63,"map":["######","#.#.##","#.#S.#",">..X##","###.E<","######"],"meta":{"guards":{}},"par":3},{"id":64,"map":["######","###..#","##..S#","#.##X#","#..>.#","#.E..#","####^#"],"meta":{"guards":{}},"par":4},{"id":65,"map":["###v###","#SX.###","##^..E#","##..X.#","##....#","#######"],"meta":{"guards":{}},"par":4},{"id":66,"map":["#######","#E##..#","#.#S#.#","#.>X#.#","#.X...#","###^###"],"meta":{"guards":{}},"par":6},{"id":67,"map":["#######","#...###","##..#.#","##X.X.#","#..#..<","##S#^E#","#######"],"meta":{"guards":{}},"par":5},{"id":68,"map":["#######","#SX.###","##^.#.#","#.aaaa#","#>E...#","##...x#","#######"],"meta":{"guards":{"a":{"i":1,"f":0,"range":3}}},"par":6},{"id":69,"map":["#######","#aaaaS#","#E<X###","##..###","#.....#","#.X.###","#######"],"meta":{"guards":{"a":{"i":3,"f":1,"range":3}}},"par":7},{"id":70,"map":["#######","##.E#.#","##.#a.#","#.X#a##","#.v#a##","#..XaS#","####^##"],"meta":{"guards":{"a":{"i":3,"f":0,"range":3}}},"par":8},{"id":71,"map":["##vv###","#SXX..#","####..#","#..E..#","#..#..#","#....##","#######"],"meta":{"guards":{}},"par":4},{"id":72,"map":["#######","###..S#","#.##X##","#.E#.##","#.v...#","#..X..#","#^#####"],"meta":{"guards":{}},"par":6},{"id":73,"map":["#######","###..##","#.##E##","#.....#","#..v###","#XX..S#","###^###"],"meta":{"guards":{}},"par":5},{"id":74,"map":["#######","#..S..#","##X##a<","#E>..a#","#X...a#","#..####","#######"],"meta":{"guards":{"a":{"i":0,"f":0,"range":3}}},"par":7},{"id":75,"map":["#######","#...XE#","###.#a#","#S#X#a#",">.X..a#","##^#..#","#######"],"meta":{"guards":{"a":{"i":2,"f":1,"range":3}}},"par":6},{"id":76,"map":["###v####","###.####","#S#..###","#X<.##.#","#X..#Ex#","#.aaaa.#","########"],"meta":{"guards":{"a":{"i":3,"f":0,"range":3}}},"par":8},{"id":77,"map":["###v####","#.X..XX#","##.#.#.#","##..#..#","##.#...#","#SaaaE.<","########"],"meta":{"guards":{"a":{"i":0,"f":0,"range":3}}},"par":7},{"id":78,"map":["########","#......#","#aaa.#E#","###X<###","##.X#S##","##..X.<#","########"],"meta":{"guards":{"a":{"i":2,"f":0,"range":3}}},"par":8},{"id":79,"map":["######v#","#..#..E#","#.#XX..#","#aaav###","###.XS##","###..###","##...###","########"],"meta":{"guards":{"a":{"i":2,"f":0,"range":3}}},"par":9},{"id":80,"map":["########","#...Ev##","#..aaaa#","##.v##X#","###.XX.#","###.#..#","#S..####","########"],"meta":{"guards":{"a":{"i":3,"f":0,"range":3}}},"par":10},{"id":81,"map":["######","#....#","#..#.#","#>E#.#","#\\S###","######"],"meta":{"guards":{}},"par":2},{"id":82,"map":["######","###..#","#S\\.##","#.<..#","#E..##","######"],"meta":{"guards":{}},"par":2},{"id":83,"map":["######","#S...#","##^\\.#","#....#","#E..##","######"],"meta":{"guards":{}},"par":2},{"id":84,"map":["######","#.##.#","#....#",">./..#","#.<E##","#S/###","######"],"meta":{"guards":{}},"par":3},{"id":85,"map":["######","##...#","#S/v.#","#....#","##^\\.#","#.E..#","######"],"meta":{"guards":{}},"par":4},{"id":86,"map":["#######","#>E#..#","#\\....#","###.>.#","##..\\S#","#######"],"meta":{"guards":{}},"par":4},{"id":87,"map":["#######","#.##/##","#.....#","##./..#","#..<.##","#S^.E##","#######"],"meta":{"guards":{}},"par":4},{"id":88,"map":["#######","#...###","#...###","#.>..E#","#./.v##","#.\\..S#","#######"],"meta":{"guards":{}},"par":5},{"id":89,"map":["#######","###E###","##....#","##..\\##","#>..v##","#\\...S#","#######"],"meta":{"guards":{}},"par":5},{"id":90,"map":["#######","##/...#","#.../.#","##.<..#","#...<E#","##S#..#","#######"],"meta":{"guards":{}},"par":5},{"id":91,"map":["#######","#\\#.###","##....#","#..>.##","#>./S##","#E..###","#######"],"meta":{"guards":{}},"par":4},{"id":92,"map":["#######","#...#\\#","#.^E###","#..#.##","#....S#","#...^/#","#######"],"meta":{"guards":{}},"par":4},{"id":93,"map":["#######","##..###","#.#..S#","#E>.^/#","#./..\\#","#.....#","#######"],"meta":{"guards":{}},"par":4},{"id":94,"map":["#######","#...###","##./#.#","#>....#","#.X#>.#","#\\.E\\S#","#######"],"meta":{"guards":{}},"par":6},{"id":95,"map":["#######","#/>E..#","##/..v#","##....#","#..##.#","#.\\.SX#","#######"],"meta":{"guards":{}},"par":5},{"id":96,"map":["#######","#\\/..##","##.E#v#","##....<","#./v#.#","#S.X..#","#######"],"meta":{"guards":{}},"par":5},{"id":97,"map":["########","#E.#S###","#\\.>..##","#../..##","#...X..<","#.^/#.##","########"],"meta":{"guards":{}},"par":6},{"id":98,"map":["########","#.E.\\#S#","#.<..#X#","#../>..#","##....<#","###\\####","########"],"meta":{"guards":{}},"par":7},{"id":99,"map":["########","##>...\\#","##\\S/.<#","####>..#","###...##","###X.###","#.E.####","########"],"meta":{"guards":{}},"par":7},{"id":100,"map":["########","#...X.S#","####.^/#","##...\\##","####...#","##/v#>.#","#E.....#","########"],"meta":{"guards":{}},"par":7},{"id":101,"map":["#######","#..#v##","#.#a.##","#..a.E#","###a<##","#SXa.##","#######"],"meta":{"guards":{"a":{"i":3,"f":0,"range":3}}},"par":8},{"id":102,"map":["#######","#.E##S#","#.#..X#","#..v#.#","#.#...#","#aaaa.#","####v##"],"meta":{"guards":{"a":{"i":0,"f":1,"range":3}}},"par":7},{"id":103,"map":["#######","##S.a##","#>..a.#","###^a\\#","#.E#a##","#.X..##","#######"],"meta":{"guards":{"a":{"i":3,"f":0,"range":3}}},"par":8},{"id":104,"map":["#######","####.a#","#>...a<","##>.#a#","##E.#X#","#####S#","#######"],"meta":{"guards":{"a":{"i":2,"f":0,"range":3}}},"par":8},{"id":105,"map":["########","###..#.#","#..#.#a#","#>E>..a#","#...X#a#","#.#X#Sa#","########"],"meta":{"guards":{"a":{"i":3,"f":0,"range":3}}},"par":9},{"id":106,"map":["########","#a..#v.#","#a.X...#","#a##\\^X#","#a###E.#","#S######","########"],"meta":{"guards":{"a":{"i":3,"f":1,"range":3}}},"par":9},{"id":107,"map":["########","##S#...#","#.X##.##","##a##.##","#>a.X.##","#Ea.<###","##^#####"],"meta":{"guards":{"a":{"i":0,"f":1,"range":3}}},"par":10},{"id":108,"map":["########","##.aaaX#","###>.<E#","####X#.#","##....##","#####.<#","#/##..S#","########"],"meta":{"guards":{"a":{"i":2,"f":0,"range":3}}},"par":10},{"id":109,"map":["####v###","####E.<#","##..X..#","#S##.<##","#aaaX..#","##.#...#","#.../###","########"],"meta":{"guards":{"a":{"i":0,"f":1,"range":3}}},"par":11},{"id":110,"map":["########","##X..a.#","#vS#.a.#","#.###a##","#E..>.##","#.X>..##","##.../##","########"],"meta":{"guards":{"a":{"i":2,"f":0,"range":3}}},"par":12},{"id":111,"map":["########","#...####","#.aaa..#","#>.#S..#","#..v/###","##...XE#","########"],"meta":{"guards":{"a":{"i":2,"f":0,"range":3}}},"par":8},{"id":112,"map":["########","##v.#..#","#SXaaaa#","###^/E.#","#.....##","###.#.##","########"],"meta":{"guards":{"a":{"i":0,"f":1,"range":3}}},"par":8},{"id":113,"map":["#####v##","#S..#E/#","##a#...<","#.a<##.#","#.aX.X.#","####.#.#","########"],"meta":{"guards":{"a":{"i":0,"f":1,"range":3}}},"par":10},{"id":114,"map":["##v#####","#......#","#X...#.#","#S#.aaa#","#/#^.#.#","###.X#.#","##.E..##","###^####"],"meta":{"guards":{"a":{"i":0,"f":1,"range":3}}},"par":9},{"id":115,"map":["########","#..X..E<","##..v#.#","#.#.../#","#..#..##","##S#.<##","#aaaX..#","########"],"meta":{"guards":{"a":{"i":2,"f":0,"range":3}}},"par":10},{"id":116,"map":["########","#..###.#","#..#.S.#","#E#.>..#","#X...#.#","#..#.#X<","#.\\aaa.#","#^######"],"meta":{"guards":{"a":{"i":2,"f":0,"range":3}}},"par":10},{"id":117,"map":["########","##>.Ea/#","##S##aX<","#..#ba.#","#..Xb###","#..#b###","#>##b###","########"],"meta":{"guards":{"a":{"i":2,"f":0,"range":3},"b":{"i":2,"f":1,"range":3}}},"par":9},{"id":118,"map":["####vv##","#..X..E#","##..#.##","##.v#.##","#.a.####","#/aX.###","#Sa.bbb#","########"],"meta":{"guards":{"a":{"i":2,"f":0,"range":3},"b":{"i":1,"f":1,"range":3}}},"par":11},{"id":119,"map":["##v#####","#..\\bbb#","#.Xaaa.#","#.S##..#","#/.#.#.#","#....>X#","##.##>E#","########"],"meta":{"guards":{"a":{"i":0,"f":0,"range":3},"b":{"i":0,"f":1,"range":3}}},"par":12},{"id":120,"map":["########","#\\.bX.E<","#..b####","##^b..##","###./a##","###X.a##","##..>aS#","########"],"meta":{"guards":{"a":{"i":2,"f":1,"range":3},"b":{"i":2,"f":0,"range":3}}},"par":12}];
 
 </script>
 <script>
 'use strict';
 const P = window.Prison, LEVELS = window.PRISON_LEVELS;
 const DX = [0, 1, 0, -1], DY = [-1, 0, 1, 0];
-
-/* ------------------------------------------------------- progression */
-/* Chapters group levels; the next chapter needs a minimum number of stars earned in the earlier ones. */
-const CHAPTERS = [
-  { name: { fa: 'بند ۱ · سلول', en: 'Block 1 · Cells' }, from: 1, to: 3, need: 0 },
-  { name: { fa: 'بند ۲ · حیاط', en: 'Block 2 · Yard' }, from: 4, to: 6, need: 5 },
-  { name: { fa: 'بند ۳ · اتاق کنترل', en: 'Block 3 · Control room' }, from: 7, to: 9, need: 11 },
-];
-const FREE_HINTS_PER_LEVEL = 1, HEARTS_MAX = 3;
-
-/* ---------------------------------------------------------------- text */
-const T = {
-  fa: {
-    sub: 'پیش‌نمایش — تاریکی را جابه‌جا کن', level: 'مرحله', moves: 'عمل', par: 'بهترین',
-    undo: '↶ برگشت', reset: '⟲ از اول', hint: '💡 راهنما', hintAd: '💡 ▶ تبلیغ',
-    levels: 'مرحله‌ها', close: 'بستن', pick: 'یک دوربین یا نگهبان را لمس کن، بعد دکمه‌های پایین را بزن. برای حرکت دزد، یک خانهٔ تاریک را لمس کن.',
-    refused: 'ممنوع! با این کار دزد دیده می‌شود. اول دزد را به جای امن ببر.', unreach: 'دزد از اینجا نمی‌تواند به آن خانه برود.',
-    pathClear: 'راه باز است؛ دزد را به سمت خروج ببر.', hintWho: 'پیشنهاد: ', hintCam: 'این دوربین را بچرخان', hintGuard: 'این نگهبان را جابه‌جا کن',
-    escaped: 'فرار کرد!', winText: (m, p, l) => `${m} عمل — بهترین ممکن ${p}` + (l ? ` — ${l} جان از دست رفت` : ''),
-    retry: 'دوباره', next: 'مرحلهٔ بعد', done: 'همهٔ مرحله‌ها تمام شد 🎉',
-    heartsOn: 'روشن', heartsOff: 'خاموش',
-    heartsTip: 'حالت جان: می‌توانی از نور رد شوی، ولی هر بار دیده شدن یک جان می‌برد. جان‌ها تمام شود دزد گرفتار می‌شود.',
-    seen: 'دیده شدی! یک جان کم شد.', caught: 'گرفتار شد!', caughtText: 'جان‌هایت تمام شد.', revive: '▶ تبلیغ و ادامه با ۱ جان',
-    chapter: 'بخش', lockedNeed: (n, h) => `قفل: ${n} ستاره لازم است (داری ${h})`, unlockAll: '🔓 باز کردن همه (تست)', lockAll: '🔒 قفل‌ها فعال',
-    gate: (n, h) => `برای بخش بعد ${n} ستاره لازم است. تا الان ${h} داری.`,
-    adTitle: 'تبلیغ آزمایشی', adText: 'اینجا در بازی واقعی یک ویدیوی جایزه‌ای پخش می‌شود. این فقط یک نمونه برای دیدن جریان بازی است و هیچ تبلیغ واقعی ندارد.',
-    adWait: s => `${s} ثانیه…`, adReady: 'آماده', adClaim: 'دریافت جایزه', adCancel: 'انصراف',
-    tips: {
-      1: 'دوربین نور قرمز می‌اندازد و دزد نباید در آن باشد. دوربین را لمس کن، ↻ را بزن، بعد خانهٔ خروج (سبز) را لمس کن.',
-      2: 'شمارش فقط عمل‌های روی دوربین/نگهبان است؛ راه رفتن دزد رایگان است. عملی که دزد را روشن کند ممنوع است، پس اول دزد را جای امن ببر.',
-      4: 'نگهبان روی ریلش جلو و عقب می‌رود یا برمی‌گردد. فقط ۳ خانه جلوی خودش را می‌بیند و پشتش کور است.',
-      7: 'دیوار و نگهبان‌ها دید را می‌برند. نگهبان را جلوی دوربین بگذار تا سپر شود.',
-    },
-  },
-  en: {
-    sub: 'preview — move the darkness', level: 'Level', moves: 'Actions', par: 'Best',
-    undo: '↶ Undo', reset: '⟲ Restart', hint: '💡 Hint', hintAd: '💡 ▶ Ad',
-    levels: 'Levels', close: 'Close', pick: 'Tap a camera or guard, then use the buttons. To move the thief, tap a dark cell.',
-    refused: 'Not allowed — that would expose the thief. Move him somewhere safe first.', unreach: 'The thief cannot get there from here.',
-    pathClear: 'The way is clear — walk the thief to the exit.', hintWho: 'Try: ', hintCam: 'turn this camera', hintGuard: 'move this guard',
-    escaped: 'Escaped!', winText: (m, p, l) => `${m} actions — best possible ${p}` + (l ? ` — ${l} heart(s) lost` : ''),
-    retry: 'Retry', next: 'Next level', done: 'All levels cleared 🎉',
-    heartsOn: 'on', heartsOff: 'off',
-    heartsTip: 'Hearts mode: you may cross light, but every time you get spotted you lose a heart. At zero hearts the thief is caught.',
-    seen: 'Spotted! You lost a heart.', caught: 'Caught!', caughtText: 'You ran out of hearts.', revive: '▶ Ad: continue with 1 heart',
-    chapter: 'Block', lockedNeed: (n, h) => `Locked: needs ${n} stars (you have ${h})`, unlockAll: '🔓 Unlock all (testing)', lockAll: '🔒 Locks on',
-    gate: (n, h) => `The next block needs ${n} stars. You have ${h}.`,
-    adTitle: 'Placeholder ad', adText: 'In the real game a rewarded video plays here. This is only a stand-in to show the flow; no real ad is shown.',
-    adWait: s => `${s}s…`, adReady: 'Ready', adClaim: 'Claim reward', adCancel: 'Cancel',
-    tips: {
-      1: 'Cameras throw red light and the thief must stay out of it. Tap the camera, press ↻, then tap the green exit.',
-      2: 'Only actions on cameras/guards are counted; walking is free. An action that would light the thief is refused, so move him to safety first.',
-      4: 'A guard walks back and forth on its rail, or turns around. It only sees 3 cells ahead and is blind behind.',
-      7: 'Walls and guards stop sight. Park a guard in front of a camera to use it as a shield.',
-    },
-  },
-};
-let lang = 'fa';
+const $ = id => document.getElementById(id);
 const store = {
   get(k, d) { try { const v = localStorage.getItem(k); return v === null ? d : JSON.parse(v); } catch (e) { return d; } },
   set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} },
 };
-lang = store.get('pb_lang', 'fa');
-const tr = () => T[lang];
+
+/* ------------------------------------------------------------ settings */
+const DEFAULTS = { lang: 'en', sfx: true, vol: 70, vibrate: true, hearts: false, reduceMotion: false, unlockAll: false };
+const settings = Object.assign({}, DEFAULTS, store.get('pb_settings', {}));
+const saveSettings = () => store.set('pb_settings', settings);
+
+/* ----------------------------------------------------------- progression */
+const HEARTS_MAX = 3, FREE_HINTS = 1, STARS_PER_BLOCK = 12;
+const CHAPTERS = [
+  { en: 'Cells I', fa: 'سلول‌ها ۱' }, { en: 'Cells II', fa: 'سلول‌ها ۲' }, { en: 'Cells III', fa: 'سلول‌ها ۳' },
+  { en: 'Yard I', fa: 'حیاط ۱' }, { en: 'Yard II', fa: 'حیاط ۲' }, { en: 'Yard III', fa: 'حیاط ۳' },
+  { en: 'Gates I', fa: 'دروازه‌ها ۱' }, { en: 'Gates II', fa: 'دروازه‌ها ۲' },
+  { en: 'Mirrors I', fa: 'آینه‌ها ۱' }, { en: 'Mirrors II', fa: 'آینه‌ها ۲' },
+  { en: 'Control I', fa: 'کنترل ۱' }, { en: 'Control II', fa: 'کنترل ۲' },
+];
+const chapterOf = i => Math.floor(i / 10);                       // level index -> chapter index
+const chapNeed = ci => ci * STARS_PER_BLOCK;                     // stars (from earlier chapters) needed to enter
+let best = store.get('pb_best3', {});
+function starsBefore(ci) { let s = 0; for (let i = 0; i < ci * 10; i++) s += (best[LEVELS[i] && LEVELS[i].id] && best[LEVELS[i].id].stars) || 0; return s; }
+const chapterLocked = ci => !settings.unlockAll && ci > 0 && starsBefore(ci) < chapNeed(ci);
+const levelLocked = i => chapterLocked(chapterOf(i));
+function firstOpenLevel() { for (let i = 0; i < LEVELS.length; i++) if (!levelLocked(i) && !best[LEVELS[i].id]) return i; return Math.max(0, LEVELS.length - 1); }
+
+/* ---------------------------------------------------------------- text */
+const T = {
+  en: {
+    tag: 'Move the darkness. Slip the prisoner past cameras and guards.', foot: 'Playtest build',
+    play: 'Play', cont: lv => 'Continue · Level ' + lv, levels: 'Levels', how: 'How to play', settings: 'Settings', close: 'Close', back: 'Back',
+    pause: 'Paused', resume: 'Resume', restart: 'Restart level', mainMenu: 'Main menu',
+    level: 'Level', moves: 'Actions', best: 'Best', undo: '↶ Undo', hint: '💡 Hint', hintAd: '💡 ▶ Ad', toExit: '🚪 Go to exit',
+    pick: 'Tap a dark tile to walk. Tap a camera to turn it clockwise.',
+    refused: 'Not allowed: that would expose the prisoner. Move him somewhere dark first.', unreach: 'The prisoner cannot get there from here.',
+    pathClear: 'The way is clear. Send the prisoner to the exit.', hintWho: 'Try: ', hintCam: 'turn this camera', hintGuard: 'move this guard', hintDoor: 'use this door', hintMirror: 'flip this mirror',
+    escaped: 'Escaped!', winText: (m, p, l) => `${m} actions · best ${p}` + (l ? ` · ${l} heart(s) lost` : ''), retry: 'Retry', next: 'Next level', done: 'All levels cleared!',
+    seen: 'Spotted! You lost a heart.', caught: 'Caught!', caughtText: 'You ran out of hearts.', revive: '▶ Ad: continue with 1 heart',
+    locked: (n, h) => `Locked: needs ${n} stars (you have ${h})`, gate: (n, h) => `The next block needs ${n} stars. You have ${h}.`,
+    adTitle: 'Placeholder ad', adText: 'In the real game a rewarded video plays here. This is only a stand-in; no real ad is shown.', adWait: s => `${s}s…`, adReady: 'Ready', adClaim: 'Claim reward', adCancel: 'Cancel',
+    sLang: 'Language', sSfx: 'Sound effects', sVol: 'Volume', sVib: 'Vibration', sHearts: 'Hearts mode', sHeartsS: 'You may cross light, but each time you are spotted you lose a heart.',
+    sMotion: 'Reduce motion', sMotionS: 'Less shaking and pulsing.', sUnlock: 'Unlock all levels', sUnlockS: 'For testing.', sReset: 'Reset progress', sResetSure: 'Tap again to erase', sResetDone: 'Progress erased',
+    on: 'On', off: 'Off', setTitle: 'Settings', howTitle: 'How to play',
+    howList: [
+      'Tap a dark tile to walk the prisoner there. Walking is free.',
+      'Only your actions count: tap a camera to turn it clockwise (three taps turn it left). Tap a guard, then use the arrows to walk it along its rail or the turn button to face the other way. Tap a door or a mirror to switch it.',
+      'The prisoner must never stand in red light. An action that would light him is refused, so move him to a dark tile first.',
+      'Walls, guards and closed doors stop sight. Mirrors bend a sight line by 90 degrees.',
+      'Reach the green exit with as few actions as the best solution to earn three stars. Stars open the next block.',
+    ],
+    tips: {
+      1: 'Cameras throw red light and the prisoner must stay out of it. Tap the camera to turn it, then tap the green exit.',
+      2: 'A camera only turns clockwise, so turning it left takes three taps. Walking costs nothing; only actions are counted.',
+      4: 'Move the prisoner to a dark tile before you turn a camera onto the tile he stands on.',
+      31: 'New: a guard walks along its rail. Tap it, then use the arrows to move or the turn button to face the other way. It sees only 3 tiles ahead and is blind behind.',
+      35: 'Walls and guards stop sight. Park a guard in front of a camera to use it as a shield.',
+      61: 'New: doors. Tap a door to open or close it. A closed door blocks sight and movement.',
+      81: 'New: mirrors. Tap a mirror to flip it. Light that hits it bends by 90 degrees.',
+      101: 'Everything together. Take your time.',
+    },
+  },
+  fa: {
+    tag: 'تاریکی را جابه‌جا کن و زندانی را از کنار دوربین‌ها و نگهبان‌ها رد کن.', foot: 'نسخهٔ آزمایشی',
+    play: 'شروع بازی', cont: lv => 'ادامه · مرحلهٔ ' + lv, levels: 'مرحله‌ها', how: 'راهنمای بازی', settings: 'تنظیمات', close: 'بستن', back: 'بازگشت',
+    pause: 'توقف', resume: 'ادامه', restart: 'شروع دوبارهٔ مرحله', mainMenu: 'منوی اصلی',
+    level: 'مرحله', moves: 'عمل', best: 'بهترین', undo: '↶ برگشت', hint: '💡 راهنما', hintAd: '💡 ▶ تبلیغ', toExit: '🚪 رفتن به خروج',
+    pick: 'یک خانهٔ تاریک را لمس کن تا دزد برود. یک دوربین را لمس کن تا ساعتگرد بچرخد.',
+    refused: 'ممنوع! با این کار زندانی دیده می‌شود. اول او را به یک خانهٔ تاریک ببر.', unreach: 'زندانی از اینجا نمی‌تواند به آن خانه برود.',
+    pathClear: 'راه باز است. زندانی را به خروج ببر.', hintWho: 'پیشنهاد: ', hintCam: 'این دوربین را بچرخان', hintGuard: 'این نگهبان را جابه‌جا کن', hintDoor: 'این در را باز/بسته کن', hintMirror: 'این آینه را بچرخان',
+    escaped: 'فرار کرد!', winText: (m, p, l) => `${m} عمل · بهترین ${p}` + (l ? ` · ${l} جان از دست رفت` : ''), retry: 'دوباره', next: 'مرحلهٔ بعد', done: 'همهٔ مرحله‌ها تمام شد!',
+    seen: 'دیده شدی! یک جان کم شد.', caught: 'گرفتار شد!', caughtText: 'جان‌هایت تمام شد.', revive: '▶ تبلیغ و ادامه با ۱ جان',
+    locked: (n, h) => `قفل: ${n} ستاره لازم است (داری ${h})`, gate: (n, h) => `برای بخش بعد ${n} ستاره لازم است. تا الان ${h} داری.`,
+    adTitle: 'تبلیغ آزمایشی', adText: 'اینجا در بازی واقعی یک ویدیوی جایزه‌ای پخش می‌شود. این فقط یک نمونه است و تبلیغ واقعی ندارد.', adWait: s => `${s} ثانیه…`, adReady: 'آماده', adClaim: 'دریافت جایزه', adCancel: 'انصراف',
+    sLang: 'زبان', sSfx: 'جلوه‌های صوتی', sVol: 'بلندی صدا', sVib: 'لرزش', sHearts: 'حالت جان', sHeartsS: 'می‌توانی از نور رد شوی، ولی هر بار دیده شدن یک جان می‌برد.',
+    sMotion: 'کاهش حرکت', sMotionS: 'لرزش و چشمک کمتر.', sUnlock: 'باز کردن همهٔ مرحله‌ها', sUnlockS: 'برای تست.', sReset: 'پاک کردن پیشرفت', sResetSure: 'برای پاک کردن دوباره لمس کن', sResetDone: 'پیشرفت پاک شد',
+    on: 'روشن', off: 'خاموش', setTitle: 'تنظیمات', howTitle: 'راهنمای بازی',
+    howList: [
+      'یک خانهٔ تاریک را لمس کن تا زندانی به آنجا برود. راه رفتن رایگان است.',
+      'فقط عمل‌های تو شمرده می‌شوند: دوربین را لمس کن تا ساعتگرد بچرخد (برای چرخش به چپ سه بار). نگهبان را لمس کن، بعد با فلش‌ها روی ریلش حرکت بده یا با دکمهٔ چرخش برگردانش. در یا آینه را لمس کن تا عوض شود.',
+      'زندانی هرگز نباید در نور قرمز بایستد. عملی که او را روشن کند ممنوع است؛ اول او را به خانهٔ تاریک ببر.',
+      'دیوار، نگهبان و در بسته دید را می‌برند. آینه خط دید را ۹۰ درجه می‌شکند.',
+      'با کمترین تعداد عمل به خروج سبز برس تا سه ستاره بگیری. ستاره‌ها بخش بعد را باز می‌کنند.',
+    ],
+    tips: {
+      1: 'دوربین نور قرمز می‌اندازد و زندانی نباید در آن باشد. دوربین را لمس کن تا بچرخد، بعد خروج سبز را لمس کن.',
+      2: 'دوربین فقط ساعتگرد می‌چرخد، پس چرخش به چپ سه لمس می‌خواهد. راه رفتن رایگان است؛ فقط عمل‌ها شمرده می‌شوند.',
+      4: 'قبل از اینکه دوربین را روی خانه‌ای بچرخانی که زندانی در آن است، او را به خانهٔ تاریک دیگری ببر.',
+      31: 'تازه: نگهبان روی ریلش حرکت می‌کند. لمسش کن، بعد با فلش‌ها جابه‌جایش کن یا با دکمهٔ چرخش برگردانش. فقط ۳ خانه جلویش را می‌بیند و پشتش کور است.',
+      35: 'دیوار و نگهبان دید را می‌برند. نگهبان را جلوی دوربین بگذار تا سپر شود.',
+      61: 'تازه: در. در را لمس کن تا باز یا بسته شود. در بسته دید و حرکت را می‌بندد.',
+      81: 'تازه: آینه. آینه را لمس کن تا بچرخد. نوری که به آن بخورد ۹۰ درجه می‌شکند.',
+      101: 'همه‌چیز با هم. با حوصله.',
+    },
+  },
+};
+const tr = () => T[settings.lang] || T.en;
 
 /* ---------------------------------------------------------------- sound */
-/* All sounds are synthesised with WebAudio, so there are no audio files. The context starts on the
-   first touch (browsers require that). Design notes: docs/sound-design.md */
+/* All sounds are synthesised with WebAudio (no audio files); the context starts on the first touch. See docs/sound-design.md. */
 const Sfx = (() => {
-  let ac = null, master = null, muted = store.get('pb_mute', false);
+  let ac = null, master = null;
   const get = () => {
-    if (ac === null) { try { ac = new (window.AudioContext || window.webkitAudioContext)(); master = ac.createGain(); master.gain.value = .55; master.connect(ac.destination); } catch (e) { ac = false; } }
+    if (ac === null) { try { ac = new (window.AudioContext || window.webkitAudioContext)(); master = ac.createGain(); master.gain.value = settings.vol / 100 * .8; master.connect(ac.destination); } catch (e) { ac = false; } }
     if (ac && ac.state === 'suspended') ac.resume();
     return ac;
   };
@@ -716,9 +771,11 @@ const Sfx = (() => {
   const S = {
     click: (a, t) => tone(a, t, 900, 700, .03, 'square', .04),
     step: (a, t) => { tone(a, t, 150 + Math.random() * 25, 90, .06, 'triangle', .13); noise(a, t, .03, .03, 0, 3000); },
-    cam: (a, t) => { tone(a, t, 170, 330, .2, 'sawtooth', .07, 0, 900); tone(a, t, 1300, 1300, .02, 'square', .05, .2); },       // servo whirr and a latch click
+    cam: (a, t) => { tone(a, t, 170, 330, .2, 'sawtooth', .07, 0, 900); tone(a, t, 1300, 1300, .02, 'square', .05, .2); },
     guardStep: (a, t) => { tone(a, t, 130, 55, .14, 'sine', .3); noise(a, t, .05, .05, 0, 2000); },
     turn: (a, t) => { tone(a, t, 520, 330, .07, 'square', .05); tone(a, t, 400, 300, .07, 'square', .05, .08); noise(a, t, .12, .03, 0, 4000); },
+    door: (a, t) => { tone(a, t, 210, 110, .16, 'square', .07, 0, 700); noise(a, t, .08, .05, .02, 1200); tone(a, t, 90, 60, .1, 'sine', .22, .12); },
+    mirror: (a, t) => { tone(a, t, 1900, 2600, .1, 'sine', .07); tone(a, t, 2600, 3100, .08, 'sine', .04, .05); },
     refuse: (a, t) => { tone(a, t, 110, 100, .2, 'square', .09, 0, 700); tone(a, t, 117, 104, .2, 'square', .07, 0, 700); },
     spotted: (a, t) => { for (let i = 0; i < 4; i++) tone(a, t, i % 2 ? 660 : 880, i % 2 ? 660 : 880, .09, 'square', .07, i * .1, 2400); },
     caught: (a, t) => { tone(a, t, 440, 90, .55, 'sawtooth', .1, 0, 1400); tone(a, t, 90, 50, .3, 'sine', .3, .45); },
@@ -726,29 +783,25 @@ const Sfx = (() => {
     hint: (a, t) => { tone(a, t, 1318, 1318, .45, 'sine', .1); tone(a, t, 1976, 1976, .35, 'sine', .05, .02); },
     undo: (a, t) => tone(a, t, 520, 280, .09, 'triangle', .1),
   };
+  const BUZZ = { spotted: [60, 40, 60], caught: [200], win: [30, 30, 60], refuse: [40] };
   return {
-    play(name) { if (muted) return; const a = get(); if (!a) return; try { S[name](a, a.currentTime); } catch (e) {} },
-    unlock() { if (!muted) get(); },
-    toggle() { muted = !muted; store.set('pb_mute', muted); if (!muted) { get(); this.play('click'); } return muted; },
-    get muted() { return muted; },
+    play(name) {
+      if (settings.vibrate && BUZZ[name] && navigator.vibrate) { try { navigator.vibrate(BUZZ[name]); } catch (e) {} }
+      if (!settings.sfx) return; const a = get(); if (!a) return; try { S[name](a, a.currentTime); } catch (e) {}
+    },
+    unlock() { if (settings.sfx) get(); },
+    volume() { if (master) master.gain.value = settings.vol / 100 * .8; },
   };
 })();
 window.addEventListener('pointerdown', () => Sfx.unlock());
 
 /* ---------------------------------------------------------------- state */
-let li = 0, L, dg, thief, thiefDir = 2, hist = [], moves = 0, sel = -1, hintWho = -1, walking = null;
+let li = 0, L, dg, thief, thiefDir = 2, hist = [], moves = 0, sel = -1, hintWho = -1, walking = null, inGame = false;
 let flash = 0, flashCell = -1, shake = 0, hearts = HEARTS_MAX, lost = 0, hintsUsed = 0, caughtOn = false;
-let best = store.get('pb_best2', {}), heartsMode = store.get('pb_hearts', false), unlockAll = store.get('pb_unlock', false);
-const gdraw = [];   // eased drawn positions of guards
-function setHeartsMode(v) { heartsMode = !!v; store.set('pb_hearts', heartsMode); if (L) { hearts = HEARTS_MAX; lost = 0; } syncUI(); }
-
-function totalStars(upToChapterExclusive) {
-  let s = 0;
-  for (let c = 0; c < upToChapterExclusive; c++) for (let id = CHAPTERS[c].from; id <= CHAPTERS[c].to; id++) s += (best[id] && best[id].stars) || 0;
-  return s;
-}
-const chapterOf = id => CHAPTERS.findIndex(c => id >= c.from && id <= c.to);
-function chapterLocked(ci) { return !unlockAll && ci > 0 && totalStars(ci) < CHAPTERS[ci].need; }
+const gdraw = [];
+const heartsOn = () => settings.hearts;
+function setHeartsMode(v) { settings.hearts = !!v; saveSettings(); if (L) { hearts = HEARTS_MAX; lost = 0; } syncUI(); }   // test hook
+const tipFor = id => tr().tips[id] || '';
 
 function load(i) {
   li = Math.max(0, Math.min(LEVELS.length - 1, i));
@@ -757,29 +810,32 @@ function load(i) {
   dg = P.initialDigits(L); thief = L.S; thiefDir = 2; hist = []; moves = 0; sel = -1; hintWho = -1; walking = null;
   hearts = HEARTS_MAX; lost = 0; hintsUsed = 0; caughtOn = false; gdraw.length = 0;
   document.querySelectorAll('.overlay.on').forEach(o => o.classList.remove('on'));
-  setTip(heartsMode ? tr().heartsTip : (tr().tips[LEVELS[li].id] || tr().pick));
+  $('menu').classList.remove('on'); inGame = true; store.set('pb_last', li);
+  setTip(heartsOn() ? tr().sHeartsS : (tipFor(LEVELS[li].id) || tr().pick));
   syncUI(); buildBar(); resize();
 }
 function ev(d) { P.prepare(L); return P.evalConfig(L, d || dg, false); }
-const nc = () => L.cams.length;
-function watcherCell(k) { return k < nc() ? L.cams[k].c : L.guards[k - nc()].rail[dg[k] >> 1]; }
-function watcherAt(c) { for (let k = 0; k < nc() + L.guards.length; k++) if (watcherCell(k) === c) return k; return -1; }
+const nCam = () => L.cams.length, nGuard = () => L.guards.length, nTog = () => L.toggles.length, nAll = () => nCam() + nGuard() + nTog();
+/* watcher index space: cameras, then guards, then doors/mirrors, the same order as the digits */
+function watcherCell(k) { return k < nCam() ? L.cams[k].c : k < nCam() + nGuard() ? L.guards[k - nCam()].rail[dg[k] >> 1] : L.toggles[k - nCam() - nGuard()].c; }
+const kindOf = k => k < nCam() ? 'cam' : k < nCam() + nGuard() ? 'guard' : L.toggles[k - nCam() - nGuard()].kind;
 
 /* ------------------------------------------------------------- actions */
-function guardOptions(k) {
-  const g = L.guards[k - nc()], v = dg[k], i = v >> 1, f = v & 1, out = [];
-  const blocked = ni => L.guards.some((o, q) => q !== k - nc() && o.rail[dg[nc() + q] >> 1] === g.rail[ni]);
-  const horiz = (g.rail[0] % L.w) !== (g.rail[g.rail.length - 1] % L.w);
-  for (const s of [-1, 1]) {
-    const ni = i + s;
-    out.push({ kind: 'guardStep', label: horiz ? (s < 0 ? '◀' : '▶') : (s < 0 ? '▲' : '▼'), dg: (ni >= 0 && ni < g.rail.length && !blocked(ni)) ? Object.assign(dg.slice(), { [k]: ni * 2 + (s === 1 ? 0 : 1) }) : null });
-  }
-  out.push({ kind: 'turn', label: '⟲', dg: Object.assign(dg.slice(), { [k]: i * 2 + (1 - f) }) });
-  return out;
-}
 function options(k) {
-  if (k < nc()) return [{ kind: 'cam', label: '↺', dg: Object.assign(dg.slice(), { [k]: (dg[k] + 3) % 4 }) }, { kind: 'cam', label: '↻', dg: Object.assign(dg.slice(), { [k]: (dg[k] + 1) % 4 }) }];
-  return guardOptions(k);
+  if (k < nCam()) return [{ kind: 'cam', label: '↻', dg: Object.assign(dg.slice(), { [k]: (dg[k] + 1) % 4 }) }];
+  if (k < nCam() + nGuard()) {
+    const g = L.guards[k - nCam()], v = dg[k], i = v >> 1, f = v & 1, out = [];
+    const blocked = ni => L.guards.some((o, q) => q !== k - nCam() && o.rail[dg[nCam() + q] >> 1] === g.rail[ni]);
+    const horiz = (g.rail[0] % L.w) !== (g.rail[g.rail.length - 1] % L.w);
+    for (const s of [-1, 1]) {
+      const ni = i + s;
+      out.push({ kind: 'guardStep', label: horiz ? (s < 0 ? '◀' : '▶') : (s < 0 ? '▲' : '▼'), dg: (ni >= 0 && ni < g.rail.length && !blocked(ni)) ? Object.assign(dg.slice(), { [k]: ni * 2 + f }) : null });
+    }
+    out.push({ kind: 'turn', label: '⟲', dg: Object.assign(dg.slice(), { [k]: i * 2 + (1 - f) }) });
+    return out;
+  }
+  const t = L.toggles[k - nCam() - nGuard()];
+  return [{ kind: t.kind, label: '⇄', dg: Object.assign(dg.slice(), { [k]: 1 - dg[k] }) }];
 }
 function push() { hist.push({ dg: dg.slice(), thief, moves, hearts, lost, thiefDir }); }
 function damage() {
@@ -793,17 +849,17 @@ function caught() {
   $('caughtRetry').textContent = tr().retry; $('caughtRevive').textContent = tr().revive;
   $('caughtOv').classList.add('on');
 }
+function refuse() { setTip(tr().refused, 'warn'); flashCell = thief; flash = 1; shake = 1; Sfx.play('refuse'); }
 function tryAction(nd, kind) {
   if (!nd || walking || caughtOn) return;
   const e = ev(nd), wasLit = ev().lit[thief];
-  if (e.occ[thief] || (e.lit[thief] && !heartsMode)) { setTip(tr().refused, 'warn'); flashCell = thief; flash = 1; shake = 1; Sfx.play('refuse'); return; }
+  if (e.occ[thief] || (e.lit[thief] && !heartsOn())) return refuse();
   push(); dg = nd; moves++; hintWho = -1; setTip(''); Sfx.play(kind || 'cam');
   if (e.lit[thief] && !wasLit) damage();
   syncUI(); buildBar();
 }
 
-/* Walking: free in the puzzle. In hearts mode a lit cell may be crossed, at a price that
-   makes the search prefer shadows. */
+/* Walking is free in the puzzle. In hearts mode a lit tile may be crossed; the search then prefers shadows. */
 function pathTo(target) {
   const e = ev(), n = L.w * L.h, cost = new Float64Array(n).fill(Infinity), prev = new Int16Array(n).fill(-2);
   const open = [thief]; cost[thief] = 0; prev[thief] = -1;
@@ -814,9 +870,9 @@ function pathTo(target) {
     for (let d = 0; d < 4; d++) {
       const nx = x + DX[d], ny = y + DY[d]; if (nx < 0 || ny < 0 || nx >= L.w || ny >= L.h) continue;
       const m = ny * L.w + nx;
-      if (L.wall[m] || e.occ[m] || (e.lit[m] && !heartsMode)) continue;
-      const nc2 = cost[c] + (e.lit[m] ? 6 : 1);
-      if (nc2 < cost[m]) { cost[m] = nc2; prev[m] = c; open.push(m); }
+      if (L.wall[m] || e.occ[m] || (e.lit[m] && !heartsOn())) continue;
+      const c2 = cost[c] + (e.lit[m] ? 6 : 1);
+      if (c2 < cost[m]) { cost[m] = c2; prev[m] = c; open.push(m); }
     }
   }
   if (prev[target] === -2) return null;
@@ -840,58 +896,104 @@ function stepWalk(dt) {
     const dx = next % L.w - thief % L.w, dy = ((next / L.w) | 0) - ((thief / L.w) | 0);
     thiefDir = dy < 0 ? 0 : dx > 0 ? 1 : dy > 0 ? 2 : 3;
     thief = next; Sfx.play('step');
-    if (heartsMode && e.lit[thief] && !wasLit) { damage(); if (caughtOn) return; }
+    if (heartsOn() && e.lit[thief] && !wasLit) { damage(); if (caughtOn) return; }
     if (!walking.path.length) { walking = null; if (thief === L.E) win(); }
   }
 }
 
 /* ---------------------------------------------------------------- input */
-const cv = document.getElementById('cv'), ctx = cv.getContext('2d');
-let cs = 40, cellH = 30, wallH = 18, ox = 0, oy = 0, W = 0, H = 0;
-const KY = 0.78, KW = 0.46;
+const cv = $('cv'), ctx = cv.getContext('2d');
+let cs = 40, cellH = 30, wallH = 16, ox = 0, oy = 0, W = 0, H = 0;
+const KY = 0.78, KW = 0.34;
 function resize() {
   const r = cv.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
   W = r.width; H = r.height; cv.width = W * dpr; cv.height = H * dpr; ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   if (!L) return;
-  cs = Math.floor(Math.min(W / L.w, H / (L.h * KY + KW + 0.2))); cellH = cs * KY; wallH = cs * KW;
+  cs = Math.floor(Math.min(W / L.w, H / (L.h * KY + KW + 0.25))); cellH = cs * KY; wallH = cs * KW;
   ox = (W - cs * L.w) / 2; oy = (H - (L.h * cellH + wallH)) / 2;
 }
 window.addEventListener('resize', resize);
 const FX = x => x * cs, FY = y => wallH + y * cellH;
-cv.addEventListener('pointerdown', e0 => {
-  if (walking || caughtOn || document.querySelector('.overlay.on')) return;
-  const r = cv.getBoundingClientRect(), px = e0.clientX - r.left - ox, py = e0.clientY - r.top - oy;
-  for (let k = 0; k < nc() + L.guards.length; k++) {                    // watchers first (they stand taller than their tile)
-    const c = watcherCell(k), x = c % L.w, y = (c / L.w) | 0;
-    const top = k < nc() ? FY(y) - wallH : FY(y) - cs * .75;
-    if (px >= FX(x) && px < FX(x) + cs && py >= top && py < FY(y) + cellH) { sel = k; buildBar(); return; }
+/* screen points a real tap would use (also used by tools/play-test.js) */
+function tapPoint(k) {
+  const c = watcherCell(k), x = c % L.w, y = (c / L.w) | 0, kind = kindOf(k), r = cv.getBoundingClientRect();
+  let px, py;
+  if (kind === 'guard') { px = FX(x + .5); py = FY(y) + cellH * .9 - cs * .5; }
+  else if (kind === 'cam') { px = FX(x + .5); py = FY(y) - wallH + cellH * .4; }
+  else if (kind === 'mirror' || dg[k] === 1) { px = FX(x + .5); py = FY(y) - wallH + cellH * .5; }
+  else { px = FX(x) + cs * .2; py = FY(y) + cellH * .25; }
+  return [r.left + ox + px, r.top + oy + py];
+}
+function cellPoint(c) { const x = c % L.w, y = (c / L.w) | 0, r = cv.getBoundingClientRect(); return [r.left + ox + FX(x + .5), r.top + oy + FY(y) + cellH * .3]; }
+
+/* What a tap lands on: a standing guard or a mounted camera (their sprites), a door or mirror, otherwise the floor tile. */
+function hitTest(px, py) {
+  let bestK = -1, bestD = 1e9;
+  for (let k = 0; k < nAll(); k++) {
+    const c = watcherCell(k), x = c % L.w, y = (c / L.w) | 0, kind = kindOf(k);
+    let x0, x1, y0, y1;
+    if (kind === 'guard') { x0 = FX(x + .5) - cs * .34; x1 = FX(x + .5) + cs * .34; y1 = FY(y) + cellH * .9; y0 = y1 - cs * 1.05; }
+    else if (kind === 'cam') { x0 = FX(x + .5) - cs * .36; x1 = FX(x + .5) + cs * .36; y0 = FY(y) - wallH; y1 = FY(y) - wallH + cellH * .85; }
+    else if (kind === 'mirror' || dg[k] === 1) { x0 = FX(x); x1 = FX(x + 1); y0 = FY(y) - wallH; y1 = FY(y) + cellH; }
+    else { x0 = FX(x); x1 = FX(x) + cs * .42; y0 = FY(y); y1 = FY(y) + cellH * .5; }       // open door: only its small switch box
+    if (px >= x0 && px < x1 && py >= y0 && py < y1) {
+      const d = Math.hypot(px - (x0 + x1) / 2, py - (y0 + y1) / 2);
+      if (d < bestD) { bestD = d; bestK = k; }
+    }
   }
+  if (bestK >= 0) return { watcher: bestK };
   const gx = Math.floor(px / cs), gy = Math.floor((py - wallH) / cellH);
-  if (gx < 0 || gy < 0 || gx >= L.w || gy >= L.h) return;
-  const c = gy * L.w + gx;
-  if (!L.wall[c]) walkTo(c);
+  if (gx < 0 || gy < 0 || gx >= L.w || gy >= L.h) return null;
+  return { cell: gy * L.w + gx };
+}
+function onTap(px, py) {
+  const h = hitTest(px, py); if (!h) return;
+  if (h.watcher !== undefined) {
+    sel = h.watcher; const kind = kindOf(sel);
+    if (kind !== 'guard') { const o = options(sel)[0]; tryAction(o.dg, o.kind); }        // cameras, doors, mirrors act on one tap
+    buildBar(); return;
+  }
+  if (!L.wall[h.cell]) walkTo(h.cell);
+}
+cv.addEventListener('pointerdown', e0 => {
+  if (!inGame || walking || caughtOn || document.querySelector('.overlay.on')) return;
+  const r = cv.getBoundingClientRect(); onTap(e0.clientX - r.left - ox, e0.clientY - r.top - oy);
 });
 window.addEventListener('keydown', e => {
-  const m = { ArrowUp: 0, ArrowRight: 1, ArrowDown: 2, ArrowLeft: 3 }[e.key]; if (m === undefined || walking) return;
+  const m = { ArrowUp: 0, ArrowRight: 1, ArrowDown: 2, ArrowLeft: 3 }[e.key]; if (m === undefined || walking || !inGame) return;
   e.preventDefault();
   const x = thief % L.w + DX[m], y = ((thief / L.w) | 0) + DY[m];
   if (x >= 0 && y >= 0 && x < L.w && y < L.h) walkTo(y * L.w + x);
 });
 
 /* ------------------------------------------------------------------- UI */
-const $ = id => document.getElementById(id);
 function setTip(t, cls) { const el = $('tip'); el.textContent = t; el.className = cls || ''; }
+function applyLang() {
+  const t = tr(), fa = settings.lang === 'fa';
+  document.documentElement.lang = settings.lang; document.documentElement.dir = fa ? 'rtl' : 'ltr';
+  const set = (id, v) => { $(id).textContent = v; };
+  set('menuTag', t.tag); set('menuFoot', t.foot); set('mLevels', t.levels); set('mHow', t.how); set('mSettings', t.settings);
+  set('pauseTitle', t.pause); set('pResume', t.resume); set('pRestart', t.restart); set('pLevels', t.levels); set('pSettings', t.settings); set('pMenu', t.mainMenu);
+  set('winRetry', t.retry); set('winLevels', t.levels); set('lvTitle', t.levels); set('lvClose', t.close); set('howTitle', t.howTitle); set('howClose', t.close);
+  set('setTitle', t.setTitle); set('setClose', t.close); set('sLangL', t.sLang); set('sSfxL', t.sSfx); set('sVolL', t.sVol); set('sVibL', t.sVib);
+  set('sHeartsL', t.sHearts); set('sHeartsS', t.sHeartsS); set('sMotionL', t.sMotion); set('sMotionS', t.sMotionS); set('sUnlockL', t.sUnlock); set('sUnlockS', t.sUnlockS);
+  set('adTitle', t.adTitle); set('adText', t.adText); set('adCancel', t.adCancel); set('adClaim', t.adClaim);
+  $('howList').innerHTML = t.howList.map(s => `<li>${s}</li>`).join('');
+  set('mPlay', best[LEVELS[0].id] ? t.cont(LEVELS[firstOpenLevel()].id) : t.play);
+  syncSettingsUI();
+}
+function syncSettingsUI() {
+  const t = tr(), tog = (id, on) => { $(id).textContent = on ? t.on : t.off; $(id).className = 'tog' + (on ? ' on' : ''); };
+  tog('sSfx', settings.sfx); tog('sVib', settings.vibrate); tog('sHearts', settings.hearts); tog('sMotion', settings.reduceMotion); tog('sUnlock', settings.unlockAll);
+  $('sVol').value = settings.vol; $('langEn').className = settings.lang === 'en' ? 'sel' : ''; $('langFa').className = settings.lang === 'fa' ? 'sel' : '';
+  $('sReset').textContent = t.sReset; $('sReset').className = '';
+}
 function syncUI() {
-  const t = tr();
-  document.documentElement.lang = lang; document.documentElement.dir = lang === 'fa' ? 'rtl' : 'ltr';
-  $('subtitle').textContent = t.sub; $('btnLevels').textContent = t.levels; $('btnLang').textContent = lang === 'fa' ? 'EN' : 'فا';
-  $('lvLabel').textContent = t.level + ' ' + LEVELS[li].id; $('movesLabel').textContent = t.moves; $('parLabel').textContent = t.par;
-  $('moves').textContent = moves; $('par').textContent = LEVELS[li].par;
-  $('btnHearts').textContent = '♥ ' + (heartsMode ? t.heartsOn : t.heartsOff); $('btnHearts').className = heartsMode ? 'on' : '';
-  $('hearts').innerHTML = heartsMode ? Array.from({ length: HEARTS_MAX }, (_, i) => `<span class="${i < hearts ? 'on' : 'off'}">♥</span>`).join('') : '';
-  $('heartsWrap').style.display = heartsMode ? '' : 'none';
-  $('winRetry').textContent = t.retry; $('lvTitle').textContent = t.levels; $('lvClose').textContent = t.close;
-  $('adTitle').textContent = t.adTitle; $('adText').textContent = t.adText; $('adCancel').textContent = t.adCancel; $('adClaim').textContent = t.adClaim;
+  const t = tr(), lv = LEVELS[li];
+  $('lvLabel').textContent = t.level + ' ' + lv.id; $('blockLabel').textContent = CHAPTERS[chapterOf(li)][settings.lang];
+  $('movesLabel').textContent = t.moves; $('parLabel').textContent = t.best; $('moves').textContent = moves; $('par').textContent = lv.par;
+  $('hearts').innerHTML = Array.from({ length: HEARTS_MAX }, (_, i) => `<span class="${i < hearts ? 'on' : 'off'}">♥</span>`).join('');
+  $('heartsWrap').style.display = heartsOn() ? '' : 'none';
 }
 function buildBar() {
   const bar = $('bar'), t = tr(); bar.innerHTML = '';
@@ -900,8 +1002,9 @@ function buildBar() {
     options(sel).forEach(o => add(o.label, () => tryAction(o.dg, o.kind), 'primary', !o.dg));
     const sep = document.createElement('span'); sep.className = 'sep'; bar.appendChild(sep);
   }
-  add(t.undo, undo, '', !hist.length || !!walking); add(t.reset, () => load(li));
-  add(hintsUsed < FREE_HINTS_PER_LEVEL ? t.hint : t.hintAd, onHint);
+  add(t.undo, undo, '', !hist.length || !!walking);
+  add(t.toExit, () => { Sfx.play('click'); walkTo(L.E); }, '', !!walking);
+  add(hintsUsed < FREE_HINTS ? t.hint : t.hintAd, onHint);
 }
 function undo() {
   if (!hist.length || walking) return;
@@ -910,8 +1013,8 @@ function undo() {
 }
 function onHint() {
   if (walking || caughtOn) return;
-  if (hintsUsed < FREE_HINTS_PER_LEVEL) { hintsUsed++; doHint(); buildBar(); return; }
-  Ads.rewarded().then(ok => { if (ok) { doHint(); } });
+  if (hintsUsed < FREE_HINTS) { hintsUsed++; doHint(); buildBar(); return; }
+  Ads.rewarded().then(ok => { if (ok) doHint(); });
 }
 function doHint() {
   Sfx.play('hint');
@@ -919,10 +1022,11 @@ function doHint() {
   if (!r || !r.solvable) { setTip('—', 'warn'); return; }
   if (r.par === 0) { setTip(tr().pathClear, 'good'); return; }
   hintWho = r.who[0]; sel = hintWho;
-  setTip(tr().hintWho + (hintWho < nc() ? tr().hintCam : tr().hintGuard), 'good'); buildBar();
+  const kind = kindOf(hintWho), t = tr();
+  setTip(t.hintWho + (kind === 'cam' ? t.hintCam : kind === 'guard' ? t.hintGuard : kind === 'door' ? t.hintDoor : t.hintMirror), 'good'); buildBar();
 }
 
-/* Stand-in for a real rewarded-ad SDK. Ads are only ever shown after the player asks for a hint or a revive. */
+/* Stand-in for a real rewarded-ad SDK. Ads only ever appear after the player asks for a hint or a revive. */
 const Ads = {
   rewarded() {
     return new Promise(resolve => {
@@ -935,60 +1039,83 @@ const Ads = {
   },
 };
 
-function stars() {
-  const p = LEVELS[li].par; let s = moves <= p ? 3 : moves <= p + 2 ? 2 : 1;
-  if (heartsMode && lost > 0) s = Math.max(1, s - 1);
+function starsNow() {
+  const p = LEVELS[li].par; let s = moves <= p ? 3 : moves <= p + Math.max(2, Math.ceil(p * .3)) ? 2 : 1;
+  if (heartsOn() && lost > 0) s = Math.max(1, s - 1);
   return s;
 }
 function win() {
-  Sfx.play('win'); const id = LEVELS[li].id, st = stars();
-  if (!best[id] || best[id].stars < st || (best[id].stars === st && best[id].moves > moves)) { best[id] = { stars: st, moves }; store.set('pb_best2', best); }
-  $('winTitle').textContent = tr().escaped; $('winStars').textContent = '★'.repeat(st) + '☆'.repeat(3 - st); $('winText').textContent = tr().winText(moves, LEVELS[li].par, heartsMode ? lost : 0);
-  const last = li === LEVELS.length - 1, ci = chapterOf(id), nextCi = last ? -1 : chapterOf(LEVELS[li + 1].id);
-  const locked = !last && nextCi !== ci && chapterLocked(nextCi);
-  $('winGate').textContent = locked ? tr().gate(CHAPTERS[nextCi].need, totalStars(nextCi)) : '';
+  Sfx.play('win'); const id = LEVELS[li].id, st = starsNow();
+  if (!best[id] || best[id].stars < st || (best[id].stars === st && best[id].moves > moves)) { best[id] = { stars: st, moves }; store.set('pb_best3', best); }
+  $('winTitle').textContent = tr().escaped; $('winStars').textContent = '★'.repeat(st) + '☆'.repeat(3 - st); $('winText').textContent = tr().winText(moves, LEVELS[li].par, heartsOn() ? lost : 0);
+  const last = li === LEVELS.length - 1, nextCi = last ? -1 : chapterOf(li + 1), locked = !last && levelLocked(li + 1);
+  $('winGate').textContent = locked ? tr().gate(chapNeed(nextCi), starsBefore(nextCi)) : '';
   $('winNext').textContent = last ? tr().done : tr().next; $('winNext').disabled = last || locked;
   $('winOv').classList.add('on');
 }
+function openLevels() {
+  const wrap = $('lvChapters'); wrap.innerHTML = '';
+  for (let ci = 0; ci * 10 < LEVELS.length; ci++) {
+    const locked = chapterLocked(ci), head = document.createElement('div'); head.className = 'chap';
+    let got = 0; for (let i = ci * 10; i < Math.min(LEVELS.length, ci * 10 + 10); i++) got += (best[LEVELS[i].id] && best[LEVELS[i].id].stars) || 0;
+    head.innerHTML = `<b>${ci + 1}. ${CHAPTERS[ci][settings.lang]}</b><span>${locked ? '🔒 ' + tr().locked(chapNeed(ci), starsBefore(ci)) : '★ ' + got + '/30'}</span>`;
+    wrap.appendChild(head);
+    const g = document.createElement('div'); g.className = 'grid';
+    for (let i = ci * 10; i < Math.min(LEVELS.length, ci * 10 + 10); i++) {
+      const b = document.createElement('button'), id = LEVELS[i].id, s = best[id] ? '★'.repeat(best[id].stars) : '';
+      b.innerHTML = id + '<small>' + (locked ? '🔒' : s) + '</small>'; b.disabled = locked; b.onclick = () => load(i); g.appendChild(b);
+    }
+    wrap.appendChild(g);
+  }
+  $('lvOv').classList.add('on');
+}
+function show(id) { $(id).classList.add('on'); }
+function hide(id) { $(id).classList.remove('on'); }
+function toMenu() { document.querySelectorAll('.overlay.on').forEach(o => o.classList.remove('on')); inGame = false; applyLang(); $('menu').classList.add('on'); }
+$('btnMenu').onclick = () => show('pauseOv');
+$('pResume').onclick = () => hide('pauseOv');
+$('pRestart').onclick = () => load(li);
+$('pLevels').onclick = () => { hide('pauseOv'); openLevels(); };
+let settingsFrom = 'menu';
+$('pSettings').onclick = () => { hide('pauseOv'); settingsFrom = 'pause'; syncSettingsUI(); show('setOv'); };
+$('pMenu').onclick = toMenu;
+$('mPlay').onclick = () => load(best[LEVELS[0].id] ? firstOpenLevel() : 0);
+$('mLevels').onclick = () => openLevels();
+$('mHow').onclick = () => show('howOv');
+$('mSettings').onclick = () => { settingsFrom = 'menu'; syncSettingsUI(); show('setOv'); };
+$('howClose').onclick = () => hide('howOv');
+$('lvClose').onclick = () => hide('lvOv');
+$('setClose').onclick = () => { hide('setOv'); if (settingsFrom === 'pause' && inGame) show('pauseOv'); };
 $('winRetry').onclick = () => load(li);
 $('winNext').onclick = () => load(li + 1);
+$('winLevels').onclick = () => { hide('winOv'); openLevels(); };
 $('caughtRetry').onclick = () => load(li);
 $('caughtRevive').onclick = () => Ads.rewarded().then(ok => {
   if (!ok) return;
   const h = hist.pop(); if (h) { dg = h.dg; thief = h.thief; moves = h.moves; lost = h.lost; thiefDir = h.thiefDir; }
-  hearts = 1; caughtOn = false; $('caughtOv').classList.remove('on'); setTip(''); syncUI(); buildBar();
+  hearts = 1; caughtOn = false; hide('caughtOv'); setTip(''); syncUI(); buildBar();
 });
-function openLevels() {
-  const wrap = $('lvChapters'); wrap.innerHTML = '';
-  CHAPTERS.forEach((ch, ci) => {
-    const locked = chapterLocked(ci), have = totalStars(ci);
-    const head = document.createElement('div'); head.className = 'chap';
-    const maxS = (ch.to - ch.from + 1) * 3; let got = 0; for (let id = ch.from; id <= ch.to; id++) got += (best[id] && best[id].stars) || 0;
-    head.innerHTML = `<b>${ch.name[lang]}</b><span>${locked ? '🔒 ' + tr().lockedNeed(ch.need, have) : '★ ' + got + '/' + maxS}</span>`;
-    wrap.appendChild(head);
-    const g = document.createElement('div'); g.className = 'grid';
-    for (let id = ch.from; id <= ch.to; id++) {
-      const i = LEVELS.findIndex(l => l.id === id); if (i < 0) continue;
-      const b = document.createElement('button'), s = best[id] ? '★'.repeat(best[id].stars) : '';
-      b.innerHTML = id + '<small>' + (locked ? '🔒' : s) + '</small>'; b.disabled = locked; b.onclick = () => load(i); g.appendChild(b);
-    }
-    wrap.appendChild(g);
-  });
-  $('btnUnlock').textContent = unlockAll ? tr().lockAll : tr().unlockAll;
-  $('lvOv').classList.add('on');
-}
-$('btnLevels').onclick = openLevels;
-$('btnUnlock').onclick = () => { unlockAll = !unlockAll; store.set('pb_unlock', unlockAll); openLevels(); };
-$('lvClose').onclick = () => $('lvOv').classList.remove('on');
-function syncMute() { $('btnMute').textContent = Sfx.muted ? '🔇' : '🔊'; }
-$('btnMute').onclick = () => { Sfx.toggle(); syncMute(); }; syncMute();
-document.addEventListener('click', e => { const b = e.target.closest && e.target.closest('button'); if (b && !b.closest('#bar') && b.id !== 'btnMute') Sfx.play('click'); });
-$('btnHearts').onclick = () => { setHeartsMode(!heartsMode); load(li); };
-$('btnLang').onclick = () => { lang = lang === 'fa' ? 'en' : 'fa'; store.set('pb_lang', lang); setTip(heartsMode ? tr().heartsTip : (tr().tips[LEVELS[li].id] || tr().pick)); syncUI(); buildBar(); };
+/* settings controls */
+const flip = key => { settings[key] = !settings[key]; saveSettings(); syncSettingsUI(); };
+const setLang = lg => { settings.lang = lg; saveSettings(); applyLang(); if (L) { syncUI(); buildBar(); setTip(heartsOn() ? tr().sHeartsS : (tipFor(LEVELS[li].id) || tr().pick)); } };
+$('langEn').onclick = () => setLang('en');
+$('langFa').onclick = () => setLang('fa');
+$('sSfx').onclick = () => flip('sfx'); $('sVib').onclick = () => { flip('vibrate'); Sfx.play('refuse'); };
+$('sHearts').onclick = () => { flip('hearts'); if (inGame) { load(li); settingsFrom = 'menu'; show('setOv'); } };
+$('sMotion').onclick = () => flip('reduceMotion');
+$('sUnlock').onclick = () => { flip('unlockAll'); };
+$('sVol').oninput = e => { settings.vol = Number(e.target.value); saveSettings(); Sfx.volume(); };
+$('sVol').onchange = () => Sfx.play('step');
+let resetArmed = false;
+$('sReset').onclick = () => {
+  if (!resetArmed) { resetArmed = true; $('sReset').textContent = tr().sResetSure; $('sReset').className = 'on'; setTimeout(() => { resetArmed = false; syncSettingsUI(); }, 3000); return; }
+  resetArmed = false; best = {}; store.set('pb_best3', best); store.set('pb_last', 0); $('sReset').textContent = tr().sResetDone; applyLang();
+};
+document.addEventListener('click', e => { const b = e.target.closest && e.target.closest('button'); if (b && !b.closest('#bar') && b.id !== 'sVib') Sfx.play('click'); });
 
 /* ---------------------------------------------------- pixel sprites */
-/* Characters are painted from rectangles onto a 16x20 canvas, outlined automatically, then scaled up
-   without smoothing. They are placeholders for the real sprite sheets (docs/art-spec.md). */
+/* Characters are painted from rectangles on a small canvas, outlined automatically and scaled up without smoothing.
+   They stand in for the real sprite sheets (docs/art-spec.md). The left profile is the right profile mirrored. */
 const sprites = new Map();
 function pxr(c, col, x, y, w, h) { c.fillStyle = col; c.fillRect(x, y, w, h); }
 function outline(cnv, col) {
@@ -1004,41 +1131,37 @@ function person(kind, dir, frame) {
   const cnv = document.createElement('canvas'); cnv.width = 18; cnv.height = 22; const c = cnv.getContext('2d'); c.translate(1, 1);
   const th = kind === 'thief';
   const shirt = th ? '#ff8a1f' : '#2f56c8', shirtD = th ? '#d86a0c' : '#213f9c', pants = th ? '#e07412' : '#1c2a66', skin = '#f3c6a0', hair = th ? '#2b2230' : '#1c2a66';
-  const side = dir === 1 || dir === 3, back = dir === 0, bob = frame === 1 ? 1 : 0;
-  // legs
+  const side = dir === 1, back = dir === 0, bob = frame === 1 ? 1 : 0;
   if (side) { pxr(c, pants, 5, 16, 3, 4 - (frame === 1 ? 1 : 0)); pxr(c, pants, 8, 16, 3, 4 - (frame === 2 ? 1 : 0)); }
   else { pxr(c, pants, 4, 16, 3, 4 - (frame === 1 ? 1 : 0)); pxr(c, pants, 9, 16, 3, 4 - (frame === 2 ? 1 : 0)); }
-  // body
   if (side) { pxr(c, shirt, 4, 9 + bob, 8, 7); pxr(c, shirtD, 4, 9 + bob, 2, 7); pxr(c, shirt, 7, 10 + bob, 3, 5); pxr(c, skin, 7, 14 + bob, 3, 2); }
   else { pxr(c, shirt, 3, 9 + bob, 10, 7); pxr(c, shirtD, 3, 9 + bob, 1, 7); pxr(c, shirt, 1, 10 + bob, 2, 5); pxr(c, shirt, 13, 10 + bob, 2, 5); pxr(c, skin, 1, 14 + bob, 2, 2); pxr(c, skin, 13, 14 + bob, 2, 2);
-    if (!th) pxr(c, '#111827', 3, 14 + bob, 10, 1); else { pxr(c, '#ffd9a0', 7, 11 + bob, 2, 1); } }
-  // head
-  const hx = side ? 4 : 4, hy = 1 + bob;
+    if (!th) pxr(c, '#111827', 3, 14 + bob, 10, 1); else pxr(c, '#ffd9a0', 7, 11 + bob, 2, 1); }
+  const hx = 4, hy = 1 + bob;
   pxr(c, skin, hx, hy + 1, 8, 8);
   if (back) pxr(c, hair, hx, hy + 1, 8, 6);
-  else if (side) { pxr(c, skin, dir === 1 ? 12 : 3, hy + 5, 1, 1); pxr(c, '#1a1420', dir === 1 ? 10 : 5, hy + 4, 1, 2); }
+  else if (side) { pxr(c, skin, 12, hy + 5, 1, 1); pxr(c, '#1a1420', 10, hy + 4, 1, 2); }
   else { pxr(c, '#1a1420', 6, hy + 4, 1, 2); pxr(c, '#1a1420', 9, hy + 4, 1, 2); if (th) pxr(c, '#a56b4a', 7, hy + 7, 2, 1); }
-  if (th) { pxr(c, hair, hx - 1, hy, 10, 3); if (side) pxr(c, hair, dir === 1 ? 4 : 5, hy, 8, 4); }       // beanie
-  else {                                                                                                // cap
+  if (th) { pxr(c, hair, hx - 1, hy, 10, 3); if (side) pxr(c, hair, 4, hy, 8, 4); }
+  else {
     pxr(c, '#16224f', hx - 1, hy, 10, 3); pxr(c, '#0f1738', hx - 1, hy + 3, 10, 1);
     if (!back && !side) pxr(c, '#ffd24a', 7, hy + 1, 2, 2);
-    if (side) pxr(c, '#0f1738', dir === 1 ? 12 : 2, hy + 3, 3, 1);
+    if (side) pxr(c, '#0f1738', 12, hy + 3, 3, 1);
   }
   outline(cnv, '#16101f'); sprites.set(key, cnv); return cnv;
 }
 function camSprite(dir) {
   const key = 'cam' + dir; if (sprites.has(key)) return sprites.get(key);
   const cnv = document.createElement('canvas'); cnv.width = 14; cnv.height = 12; const c = cnv.getContext('2d'); c.translate(1, 1);
-  pxr(c, '#9aa5b8', 2, 6, 8, 2);                                   // bracket
+  pxr(c, '#9aa5b8', 2, 6, 8, 2);
   if (dir === 2) { pxr(c, '#c9d2e6', 1, 1, 10, 6); pxr(c, '#7d889c', 1, 5, 10, 2); pxr(c, '#1a1420', 4, 2, 4, 4); pxr(c, '#ff3b52', 5, 3, 2, 2); }
   else if (dir === 0) { pxr(c, '#aab4c8', 1, 1, 10, 6); pxr(c, '#7d889c', 1, 5, 10, 2); pxr(c, '#41d392', 9, 2, 1, 1); }
-  else { pxr(c, '#c9d2e6', 1, 1, 8, 6); pxr(c, '#7d889c', 1, 5, 8, 2); pxr(c, '#1a1420', 9, 2, 2, 4); pxr(c, '#ff3b52', 10, 3, 1, 2); if (dir === 3) { /* mirrored when drawn */ } }
+  else { pxr(c, '#c9d2e6', 1, 1, 8, 6); pxr(c, '#7d889c', 1, 5, 8, 2); pxr(c, '#1a1420', 9, 2, 2, 4); pxr(c, '#ff3b52', 10, 3, 1, 2); }
   outline(cnv, '#16101f'); sprites.set(key, cnv); return cnv;
 }
-/* A coloured silhouette one sprite-pixel wider than the sprite, used as the selection highlight. */
 const glows = new Map();
 function glowOf(cnv, col) {
-  const key = col + cnv.toString() + cnv.width + 'x' + cnv.height + (cnv._id || (cnv._id = Math.random()));
+  const key = col + (cnv._id || (cnv._id = Math.random()));
   if (glows.has(key)) return glows.get(key);
   const g = document.createElement('canvas'); g.width = cnv.width + 4; g.height = cnv.height + 4; const c = g.getContext('2d');
   for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) c.drawImage(cnv, 2 + dx, 2 + dy);
@@ -1048,7 +1171,7 @@ function glowOf(cnv, col) {
 function drawSprite(cnv, cx, footY, scale, flip, glow) {
   ctx.imageSmoothingEnabled = false; ctx.save(); ctx.translate(cx, footY);
   if (flip) ctx.scale(-1, 1);
-  if (glow) {                                                    // follows the sprite's own outline and breathes in and out
+  if (glow) {                                                      // the selection highlight follows the sprite's own outline and breathes
     const g = glowOf(cnv, glow.col), k = 1 + .05 * glow.pulse;
     ctx.save(); ctx.globalAlpha = .3 + .7 * glow.pulse; ctx.scale(k, k);
     ctx.drawImage(g, -g.width * scale / 2, -(cnv.height + 1) * scale, g.width * scale, g.height * scale); ctx.restore();
@@ -1056,6 +1179,7 @@ function drawSprite(cnv, cx, footY, scale, flip, glow) {
   ctx.drawImage(cnv, -cnv.width * scale / 2, -(cnv.height - 1) * scale, cnv.width * scale, cnv.height * scale); ctx.restore();
 }
 function shadow(cx, cy, rx) { ctx.fillStyle = 'rgba(0,0,0,.35)'; ctx.beginPath(); ctx.ellipse(cx, cy, rx, rx * .38, 0, 0, 7); ctx.fill(); }
+const glowFor = (k, pulse) => sel === k ? { col: hintWho === k ? '#ffc54a' : '#ffffff', pulse } : null;
 
 /* ----------------------------------------------------------------- draw */
 const hash = (x, y, s) => { let h = (x * 374761393 + y * 668265263 + s * 2147483647) | 0; h = (h ^ (h >>> 13)) * 1274126177 | 0; return ((h ^ (h >>> 16)) >>> 0) / 4294967296; };
@@ -1065,27 +1189,51 @@ function drawFloor(x, y) {
   ctx.fillStyle = 'rgba(255,255,255,.04)'; ctx.fillRect(px, py, cs, 1); ctx.fillRect(px, py, 1, cellH);
   for (let i = 0; i < 3; i++) { const h = hash(x, y, i + 1); ctx.fillStyle = h > .5 ? 'rgba(255,255,255,.05)' : 'rgba(0,0,0,.12)'; ctx.fillRect(px + hash(x, y, i + 9) * (cs - 3), py + hash(x, y, i + 17) * (cellH - 3), 2, 2); }
 }
-function drawWall(x, y) {
-  const px = FX(x), py = FY(y) - wallH, brick = hash(x, y, 5) < .38;
-  const topC = brick ? '#b4604a' : '#a3adbd', frontC = brick ? '#8a4332' : '#6c7587', lineC = brick ? '#5e2a1f' : '#4c5466';
+function block(x, y, topC, frontC, lineC, brick) {
+  const px = FX(x), py = FY(y) - wallH;
   ctx.fillStyle = frontC; ctx.fillRect(px, py + cellH, cs, wallH);
   ctx.strokeStyle = lineC; ctx.lineWidth = 1;
   if (brick) {
     const rows = 3, rh = wallH / rows;
     for (let r = 0; r < rows; r++) { const yy = py + cellH + r * rh; ctx.beginPath(); ctx.moveTo(px, yy + .5); ctx.lineTo(px + cs, yy + .5); ctx.stroke();
-      for (let k = (r % 2) * .5; k < 3; k += 1) { const xx = px + (k + .0) * cs / 3 + (r % 2 ? cs / 6 : 0); ctx.beginPath(); ctx.moveTo(xx + .5, yy); ctx.lineTo(xx + .5, yy + rh); ctx.stroke(); } }
+      for (let k = 0; k < 3; k++) { const xx = px + k * cs / 3 + (r % 2 ? cs / 6 : 0); ctx.beginPath(); ctx.moveTo(xx + .5, yy); ctx.lineTo(xx + .5, yy + rh); ctx.stroke(); } }
   } else {
     ctx.beginPath(); ctx.moveTo(px, py + cellH + wallH * .5); ctx.lineTo(px + cs, py + cellH + wallH * .5); ctx.stroke();
     ctx.fillStyle = 'rgba(255,255,255,.08)'; ctx.fillRect(px + cs * .15, py + cellH + wallH * .15, cs * .12, wallH * .2);
-    ctx.fillStyle = 'rgba(0,0,0,.12)'; ctx.fillRect(px + cs * .6, py + cellH + wallH * .62, cs * .2, wallH * .15);
   }
   ctx.fillStyle = topC; ctx.fillRect(px, py, cs, cellH);
   ctx.fillStyle = 'rgba(255,255,255,.18)'; ctx.fillRect(px, py, cs, 2);
   ctx.fillStyle = 'rgba(0,0,0,.18)'; ctx.fillRect(px, py + cellH - 1, cs, 1);
   ctx.fillStyle = 'rgba(0,0,0,.28)'; ctx.fillRect(px, py + cellH + wallH - 2, cs, 2);
 }
-const glowFor = (k, pulse) => sel === k ? { col: hintWho === k ? '#ffc54a' : '#ffffff', pulse } : null;
-/* Beam geometry in floor space: t runs along the sight line from the source cell's centre, w across it. */
+function drawWall(x, y) { const brick = hash(x, y, 5) < .38; block(x, y, brick ? '#b4604a' : '#a3adbd', brick ? '#8a4332' : '#6c7587', brick ? '#5e2a1f' : '#4c5466', brick); }
+function blockGlow(x, y, k, pulse) {
+  if (sel !== k) return;
+  ctx.strokeStyle = hintWho === k ? `rgba(255,197,74,${.3 + .7 * pulse})` : `rgba(255,255,255,${.3 + .7 * pulse})`; ctx.lineWidth = 2.5;
+  ctx.strokeRect(FX(x) - 1.5, FY(y) - wallH - 1.5, cs + 3, cellH + wallH + 3);
+}
+function drawDoorClosed(x, y) {
+  block(x, y, '#7f8a9d', '#4a5466', '#2c3340', false);
+  const px = FX(x), py = FY(y) - wallH;
+  ctx.fillStyle = '#ffc54a'; for (let i = 0; i < 4; i++) { ctx.beginPath(); ctx.moveTo(px + i * cs / 4, py + cellH); ctx.lineTo(px + (i + .5) * cs / 4, py + cellH); ctx.lineTo(px + (i + .5) * cs / 4 - cs * .07, py + cellH + wallH); ctx.lineTo(px + i * cs / 4 - cs * .07, py + cellH + wallH); ctx.fill(); }
+  ctx.fillStyle = '#16101f'; ctx.fillRect(px + cs * .44, py + cellH * .3, cs * .12, cellH * .4);
+}
+function drawDoorOpen(x, y, k, pulse) {
+  const px = FX(x), py = FY(y);
+  ctx.fillStyle = '#2a303d'; ctx.fillRect(px + 1, py + cellH * .08, cs * .1, cellH * .84); ctx.fillRect(px + cs * .9 - 1, py + cellH * .08, cs * .1, cellH * .84);
+  ctx.fillStyle = 'rgba(255,197,74,.55)'; ctx.fillRect(px + cs * .1, py + cellH * .46, cs * .8, 2);
+  ctx.fillStyle = '#16101f'; ctx.fillRect(px + 3, py + 3, cs * .3, cellH * .36);                      // the switch box (tap target)
+  ctx.fillStyle = '#41d392'; ctx.fillRect(px + 3 + cs * .09, py + 3 + cellH * .1, cs * .12, cellH * .16);
+  if (sel === k) { ctx.strokeStyle = hintWho === k ? `rgba(255,197,74,${.3 + .7 * pulse})` : `rgba(255,255,255,${.3 + .7 * pulse})`; ctx.lineWidth = 2.5; ctx.strokeRect(px + 1, py + 1, cs * .36, cellH * .44); }
+}
+function drawMirror(x, y, state, k, pulse) {
+  block(x, y, '#6fa8d6', '#3b5877', '#27394f', false);
+  const px = FX(x), py = FY(y) - wallH;
+  ctx.strokeStyle = '#e8f6ff'; ctx.lineWidth = Math.max(3, cs * .08); ctx.lineCap = 'round';
+  ctx.beginPath(); if (state === 0) { ctx.moveTo(px + cs * .22, py + cellH * .82); ctx.lineTo(px + cs * .78, py + cellH * .18); } else { ctx.moveTo(px + cs * .22, py + cellH * .18); ctx.lineTo(px + cs * .78, py + cellH * .82); } ctx.stroke();
+  ctx.strokeStyle = 'rgba(255,255,255,.35)'; ctx.lineWidth = 1; ctx.strokeRect(px + cs * .1, py + cellH * .1, cs * .8, cellH * .8);
+}
+/* Beam geometry on the floor plane: t runs along the sight line from the source tile's centre, w across it. */
 function beamPts(r) {
   const sx = r.src % L.w + .5, sy = ((r.src / L.w) | 0) + .5, d = r.d, n = r.cells.length, dx = DX[d], dy = DY[d], px = -dy, py = dx;
   return { n, pt: (t, w) => [FX(sx + dx * t + px * w), FY(sy + dy * t + py * w)] };
@@ -1096,82 +1244,85 @@ function fillBeam(poly, o, f, pulse) {
   ctx.fillStyle = g; ctx.beginPath(); poly.forEach((q, i) => i ? ctx.lineTo(q[0], q[1]) : ctx.moveTo(q[0], q[1])); ctx.closePath(); ctx.fill();
   ctx.strokeStyle = 'rgba(255,170,176,.55)'; ctx.lineWidth = 1.2; ctx.stroke();
 }
-function guardBeam(r, pulse) {                       // starts in the guard's own cell
+function floorBeam(r, pulse) {                        // guards (from their own tile) and every bounce off a mirror
   if (!r.cells.length) return;
-  const { n, pt } = beamPts(r);
-  fillBeam([pt(0, -.12), pt(n + .5, -.5), pt(n + .5, .5), pt(0, .12)], pt(0, 0), pt(n + .5, 0), pulse);
+  const { n, pt } = beamPts(r), w0 = r.first ? .12 : .5;
+  fillBeam([pt(0, -w0), pt(n + .5, -.5), pt(n + .5, .5), pt(0, w0)], pt(0, 0), pt(n + .5, 0), pulse);
 }
-function cameraBeam(r, lx, ly, pulse) {              // apex = the camera lens, drawn after the wall so it sits on top of it
-  if (!r.cells.length) return;
+function cameraBeam(r, lx, ly, pulse) {               // apex = the camera lens, drawn after the wall so it sits on top of it
+  if (!r || !r.cells.length) return;
   const { n, pt } = beamPts(r), side = r.d === 1 || r.d === 3;
-  const poly = side ? [[lx, ly], pt(n + .5, -.5), pt(n + .5, .5)]                      // sideways: a cone from the lens to the far end
-                    : [[lx, ly], pt(.5, -.5), pt(n + .5, -.5), pt(n + .5, .5), pt(.5, .5)];
+  const poly = side ? [[lx, ly], pt(n + .5, -.5), pt(n + .5, .5)] : [[lx, ly], pt(.5, -.5), pt(n + .5, -.5), pt(n + .5, .5), pt(.5, .5)];
   fillBeam(poly, [lx, ly], pt(n + .5, 0), pulse);
 }
 let last = performance.now();
 function frame(now) {
   const dt = Math.min(50, now - last); last = now; stepWalk(dt);
   flash = Math.max(0, flash - dt / 500); shake = Math.max(0, shake - dt / 350);
-  draw(now); requestAnimationFrame(frame);
+  if (inGame) draw(now);
+  requestAnimationFrame(frame);
 }
 function draw(now) {
   ctx.clearRect(0, 0, W, H); if (!L) return;
   P.prepare(L);
-  const e = P.evalConfig(L, dg, true), sx = shake ? Math.sin(now / 25) * 4 * shake : 0, pulse = .5 + .5 * Math.sin(now / 280);
+  const calm = settings.reduceMotion, e = P.evalConfig(L, dg, true), sx = shake && !calm ? Math.sin(now / 25) * 4 * shake : 0, pulse = calm ? .6 : .5 + .5 * Math.sin(now / 280);
+  const camOf = new Map(); e.rays.forEach(r => { if (r.first && r.who < nCam()) camOf.set(r.who, r); });
   ctx.save(); ctx.translate(ox + sx, oy);
-  /* floor */
   for (let y = 0; y < L.h; y++) for (let x = 0; x < L.w; x++) if (!L.wall[y * L.w + x]) drawFloor(x, y);
-  /* light on the floor: tinted cells, then the cones */
   for (let c = 0; c < L.w * L.h; c++) if (e.lit[c]) { ctx.fillStyle = `rgba(255,50,70,${.14 + .04 * pulse})`; ctx.fillRect(FX(c % L.w), FY((c / L.w) | 0), cs, cellH); }
-  e.rays.forEach(r => { if (r.who >= nc()) guardBeam(r, pulse); });
-  /* rails */
+  e.rays.forEach(r => { if (!(r.first && r.who < nCam())) floorBeam(r, pulse); });
   L.guards.forEach(g => {
     ctx.strokeStyle = 'rgba(160,190,255,.28)'; ctx.lineWidth = Math.max(2, cs * .07); ctx.lineCap = 'round'; ctx.setLineDash([cs * .08, cs * .14]);
     ctx.beginPath(); g.rail.forEach((c, i) => { const px = FX(c % L.w + .5), py = FY(((c / L.w) | 0) + .5); i ? ctx.lineTo(px, py) : ctx.moveTo(px, py); }); ctx.stroke(); ctx.setLineDash([]);
   });
-  /* exit */
-  { const x = L.E % L.w, y = (L.E / L.w) | 0, px = FX(x), py = FY(y);
-    ctx.fillStyle = `rgba(65,211,146,${.20 + .12 * pulse})`; ctx.fillRect(px, py, cs, cellH);
-    ctx.fillStyle = '#0f3d2a'; ctx.fillRect(px + cs * .18, py + cellH * .08, cs * .64, cellH * .84);
-    ctx.fillStyle = '#41d392'; for (let i = 0; i < 4; i++) ctx.fillRect(px + cs * .22 + i * cs * .15, py + cellH * .14, cs * .07, cellH * .72);
-    ctx.fillStyle = '#d9fff0'; ctx.font = `800 ${cs * .2}px system-ui`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('EXIT', px + cs / 2, py + cellH / 2); }
-  /* refused-move flash on the tile */
+  { const x = L.E % L.w, y = (L.E / L.w) | 0, px = FX(x), py = FY(y);                         // exit
+    ctx.fillStyle = `rgba(65,211,146,${.22 + .12 * pulse})`; ctx.fillRect(px, py, cs, cellH);
+    ctx.fillStyle = '#0f3d2a'; ctx.fillRect(px + cs * .14, py + cellH * .06, cs * .72, cellH * .56);
+    ctx.fillStyle = '#41d392'; for (let i = 0; i < 5; i++) ctx.fillRect(px + cs * .2 + i * cs * .13, py + cellH * .1, cs * .06, cellH * .48);
+    ctx.fillStyle = '#d9fff0'; ctx.font = `800 ${cs * .17}px system-ui`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('EXIT', px + cs / 2, py + cellH * .33); }
   if (flash > 0 && flashCell >= 0) { ctx.fillStyle = `rgba(255,255,255,${.5 * flash})`; ctx.fillRect(FX(flashCell % L.w), FY((flashCell / L.w) | 0), cs, cellH); }
-  /* guards ease toward their cells */
   L.guards.forEach((g, j) => {
-    const c = g.rail[dg[nc() + j] >> 1], tx = c % L.w, ty = (c / L.w) | 0, q = gdraw[j] || (gdraw[j] = { x: tx, y: ty });
-    q.x += (tx - q.x) * .3; q.y += (ty - q.y) * .3; if (Math.abs(tx - q.x) < .01) q.x = tx; if (Math.abs(ty - q.y) < .01) q.y = ty;
+    const c = g.rail[dg[nCam() + j] >> 1], tx = c % L.w, ty = (c / L.w) | 0, q = gdraw[j] || (gdraw[j] = { x: tx, y: ty });
+    const k = calm ? 1 : .3; q.x += (tx - q.x) * k; q.y += (ty - q.y) * k; if (Math.abs(tx - q.x) < .01) q.x = tx; if (Math.abs(ty - q.y) < .01) q.y = ty;
   });
-  /* thief position (animated while walking) */
   let tfx = thief % L.w, tfy = (thief / L.w) | 0, frameIdx = 0;
   if (walking && walking.path.length) { const nx = walking.path[0], k = Math.min(1, walking.t / 110); tfx += (nx % L.w - tfx) * k; tfy += (((nx / L.w) | 0) - tfy) * k; frameIdx = 1 + (Math.floor(now / 110) % 2); }
   const sc = cs * .047, thiefRow = Math.round(tfy);
-  const drawGuardsAt = y => L.guards.forEach((g, j) => {
+  const guardsAt = y => L.guards.forEach((g, j) => {
     const q = gdraw[j]; if (Math.round(q.y) !== y) return;
-    const cx = FX(q.x + .5), fy = FY(q.y) + cellH * .86, d = P.guardFacingDir(g, dg[nc() + j] & 1);
-    shadow(cx, fy, cs * .26); drawSprite(person('guard', d === 3 ? 1 : d, 0), cx, fy, sc, d === 3, glowFor(nc() + j, pulse));
+    const cx = FX(q.x + .5), fy = FY(q.y) + cellH * .86, d = P.guardFacingDir(g, dg[nCam() + j] & 1);
+    shadow(cx, fy, cs * .26); drawSprite(person('guard', d === 3 ? 1 : d, 0), cx, fy, sc, d === 3, glowFor(nCam() + j, pulse));
   });
-  const drawThiefAt = y => {
+  const thiefAt = y => {
     if (thiefRow !== y) return;
     const cx = FX(tfx + .5), fy = FY(tfy) + cellH * .86, bob = frameIdx ? Math.abs(Math.sin(now / 110 * Math.PI)) * cs * .06 : 0;
     shadow(cx, fy, cs * .26); drawSprite(person('thief', thiefDir === 3 ? 1 : thiefDir, frameIdx), cx, fy - bob, sc, thiefDir === 3);
-    if (heartsMode && e.lit[thief]) { ctx.fillStyle = '#ff3b52'; ctx.font = `900 ${cs * .38}px system-ui`; ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic'; ctx.fillText('!', cx, fy - cs * 1.18 - bob); }
+    if (heartsOn() && e.lit[thief]) { ctx.fillStyle = '#ff3b52'; ctx.font = `900 ${cs * .38}px system-ui`; ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic'; ctx.fillText('!', cx, fy - cs * 1.18 - bob); }
   };
-  /* walls, cameras and characters, back to front */
+  const togAt = new Map(); L.toggles.forEach((t, j) => togAt.set(t.c, nCam() + nGuard() + j));
   for (let y = 0; y < L.h; y++) {
-    for (let x = 0; x < L.w; x++) if (L.wall[y * L.w + x]) {
-      drawWall(x, y);
-      const k = L.cams.findIndex(q => q.c === y * L.w + x);
-      if (k >= 0) { const d = dg[k], cx = FX(x + .5), cy = FY(y) - wallH + cellH * .72;
-        drawSprite(camSprite(d === 3 ? 1 : d), cx, cy, cs * .05, d === 3, glowFor(k, pulse));
-        const lens = d === 1 ? 4.5 : d === 3 ? -4.5 : 0;      // the lens sits 4.5 sprite pixels to the side of the sprite centre
-        cameraBeam(e.rays[k], cx + lens * cs * .05, cy - cs * .3, pulse); }
+    for (let x = 0; x < L.w; x++) {
+      const c = y * L.w + x;
+      if (L.wall[c]) {
+        drawWall(x, y);
+        const k = L.cams.findIndex(q => q.c === c);
+        if (k >= 0) { const d = dg[k], cx = FX(x + .5), cy = FY(y) - wallH + cellH * .72;
+          drawSprite(camSprite(d === 3 ? 1 : d), cx, cy, cs * .05, d === 3, glowFor(k, pulse));
+          const lens = d === 1 ? 4.5 : d === 3 ? -4.5 : 0;
+          cameraBeam(camOf.get(k), cx + lens * cs * .05, cy - cs * .3, pulse); }
+      } else if (togAt.has(c)) {
+        const k = togAt.get(c), t = L.toggles[k - nCam() - nGuard()];
+        if (t.kind === 'mirror') { drawMirror(x, y, dg[k], k, pulse); blockGlow(x, y, k, pulse); }
+        else if (dg[k] === 1) { drawDoorClosed(x, y); blockGlow(x, y, k, pulse); }
+        else drawDoorOpen(x, y, k, pulse);
+      }
     }
-    drawGuardsAt(y); drawThiefAt(y);
   }
+  for (let y = 0; y < L.h; y++) { guardsAt(y); thiefAt(y); }       // characters last, so a wall in front never hides the prisoner
   ctx.restore();
 }
-load(0); requestAnimationFrame(frame);
+applyLang(); syncSettingsUI();
+load(store.get('pb_last', 0)); toMenu(); requestAnimationFrame(frame);
 </script>
 </body>
 </html>

@@ -70,6 +70,7 @@
   input[type=range] { -webkit-appearance:none; appearance:none; width:130px; height:14px; background:var(--lo); box-shadow:0 -3px 0 0 var(--edge), 0 3px 0 0 var(--edge), -3px 0 0 0 var(--edge), 3px 0 0 0 var(--edge); border-radius:0; }
   input[type=range]::-webkit-slider-thumb { -webkit-appearance:none; width:14px; height:24px; background:var(--red); border:0; border-radius:0; box-shadow:0 0 0 3px var(--edge), inset 0 3px 0 0 var(--red-hi), inset 0 -3px 0 0 var(--red-lo); }
   input[type=range]::-moz-range-thumb { width:14px; height:24px; background:var(--red); border:0; border-radius:0; box-shadow:0 0 0 3px var(--edge), inset 0 3px 0 0 var(--red-hi), inset 0 -3px 0 0 var(--red-lo); }
+  #introCv { display:block; width:min(100%, 360px); aspect-ratio:120/72; margin:2px auto 14px; image-rendering:pixelated; background:#0a0d13; box-shadow:0 -3px 0 0 var(--edge), 0 3px 0 0 var(--edge), -3px 0 0 0 var(--edge), 3px 0 0 0 var(--edge); }
   .howl { text-align:start; line-height:1.7; font-size:14px; padding-inline-start:20px; margin:8px 0; }
   .howl li { margin-bottom:8px; }
   /* main menu */
@@ -137,8 +138,14 @@
   <div class="row"><button id="lvClose"></button></div>
 </div></div>
 
+<div class="overlay" id="introOv"><div class="card">
+  <h2 id="introTitle"></h2><canvas id="introCv" width="120" height="72"></canvas><ul class="howl" id="introList"></ul>
+  <div class="row"><button class="primary" id="introOk"></button></div>
+</div></div>
+
 <div class="overlay" id="howOv"><div class="card">
   <h2 id="howTitle"></h2><ul class="howl" id="howList"></ul>
+  <div class="muted" id="howItemsL"></div><div class="row" id="howItems"></div>
   <div class="row"><button class="primary" id="howClose"></button></div>
 </div></div>
 
@@ -202,7 +209,15 @@ const T = {
   en: {
     tag: 'Move the darkness. Slip the prisoner past cameras and guards.', foot: 'Playtest build',
     play: 'Play', cont: lv => 'Continue · Level ' + lv, levels: 'Levels', how: 'How to play', settings: 'Settings', close: 'Close', back: 'Back',
-    guardTip: 'Guard selected: tap it again to turn, tap a rail tile to send it, tap the prisoner to let go.', pause: 'Paused', resume: 'Resume', restart: 'Restart level', mainMenu: 'Main menu',
+    guardTip: 'Guard selected: tap it again to turn, tap a rail tile to send it, tap the prisoner to let go.', gotIt: 'Got it', itemsL: 'Items', itemNames: { cam: 'Camera', guard: 'Guard', door: 'Door', mirror: 'Mirror' },
+    intro: {
+      cam: { title: 'New: Camera', list: ['A camera throws red light along a line. The prisoner can never stand in it.', 'Tap a camera to turn it a quarter turn clockwise.', 'Walking is free. Only your taps on cameras count.'] },
+      guard: { title: 'New: Guard', list: ['A guard walks back and forth on its rail and sees 3 tiles ahead. Behind it is a blind spot.', 'Tap it to select it, tap again to turn it round, or tap a tile of its rail to send it there.', 'Every step is one action.'] },
+      door: { title: 'New: Door', list: ['Tap a door to open or close it.', 'A closed door blocks light and movement.', 'Close one to cut a beam, open one to let it through.'] },
+      mirror: { title: 'New: Mirror', list: ['A mirror bends light by 90 degrees.', 'Tap it to flip between the two slants.', 'Now a camera can reach tiles around a corner.'] },
+      all: { title: 'Everything together', list: ['Cameras, guards, doors and mirrors work as you know them.', 'Some levels need several rounds: move the prisoner on, then change the room again.'] },
+    },
+    pause: 'Paused', resume: 'Resume', restart: 'Restart level', mainMenu: 'Main menu',
     level: 'Level', moves: 'Actions', best: 'Best', undo: 'Undo', hint: 'Hint', hintAd: 'Hint · Ad', toExit: 'Escape', turn: 'Turn', flip: 'Switch',
     pick: 'Tap a dark tile to walk. Tap a camera to turn it clockwise.',
     refused: 'Not allowed: that would expose the prisoner. Move him somewhere dark first.', unreach: 'The prisoner cannot get there from here.',
@@ -235,7 +250,15 @@ const T = {
   fa: {
     tag: 'تاریکی را جابه‌جا کن و زندانی را از کنار دوربین‌ها و نگهبان‌ها رد کن.', foot: 'نسخهٔ آزمایشی',
     play: 'شروع بازی', cont: lv => 'ادامه · مرحلهٔ ' + lv, levels: 'مرحله‌ها', how: 'راهنمای بازی', settings: 'تنظیمات', close: 'بستن', back: 'بازگشت',
-    guardTip: 'نگهبان انتخاب شد: دوباره لمسش کن تا برگردد، خانهٔ ریل را لمس کن تا برود، زندانی را لمس کن تا رها شود.', pause: 'توقف', resume: 'ادامه', restart: 'شروع دوبارهٔ مرحله', mainMenu: 'منوی اصلی',
+    guardTip: 'نگهبان انتخاب شد: دوباره لمسش کن تا برگردد، خانهٔ ریل را لمس کن تا برود، زندانی را لمس کن تا رها شود.', gotIt: 'فهمیدم', itemsL: 'آیتم‌ها', itemNames: { cam: 'دوربین', guard: 'نگهبان', door: 'در', mirror: 'آینه' },
+    intro: {
+      cam: { title: 'تازه: دوربین', list: ['دوربین روی یک خط نور قرمز می‌اندازد. زندانی هرگز نباید در آن بایستد.', 'دوربین را لمس کن تا یک‌چهارم دور ساعتگرد بچرخد.', 'راه رفتن رایگان است. فقط لمس‌هایت روی دوربین‌ها شمرده می‌شود.'] },
+      guard: { title: 'تازه: نگهبان', list: ['نگهبان روی ریلش جلو و عقب می‌رود و ۳ خانه جلویش را می‌بیند. پشتش نقطهٔ کور است.', 'لمسش کن تا انتخاب شود، دوباره لمس کن تا برگردد، یا یک خانهٔ ریلش را لمس کن تا به آنجا برود.', 'هر قدم یک عمل است.'] },
+      door: { title: 'تازه: در', list: ['در را لمس کن تا باز یا بسته شود.', 'در بسته نور و حرکت را می‌بندد.', 'برای قطع کردن یک پرتو ببندش، برای عبور نور بازش کن.'] },
+      mirror: { title: 'تازه: آینه', list: ['آینه نور را ۹۰ درجه می‌شکند.', 'لمسش کن تا بین دو شیب عوض شود.', 'حالا یک دوربین می‌تواند خانه‌های پشت گوشه را هم روشن کند.'] },
+      all: { title: 'همه با هم', list: ['دوربین، نگهبان، در و آینه همان‌طور که می‌شناسی کار می‌کنند.', 'بعضی مرحله‌ها چند دور می‌خواهند: زندانی را جلو ببر، بعد اتاق را دوباره عوض کن.'] },
+    },
+    pause: 'توقف', resume: 'ادامه', restart: 'شروع دوبارهٔ مرحله', mainMenu: 'منوی اصلی',
     level: 'مرحله', moves: 'عمل', best: 'بهترین', undo: 'برگشت', hint: 'راهنما', hintAd: 'راهنما · تبلیغ', toExit: 'فرار', turn: 'چرخش', flip: 'تغییر',
     pick: 'یک خانهٔ تاریک را لمس کن تا دزد برود. یک دوربین را لمس کن تا ساعتگرد بچرخد.',
     refused: 'ممنوع! با این کار زندانی دیده می‌شود. اول او را به یک خانهٔ تاریک ببر.', unreach: 'زندانی از اینجا نمی‌تواند به آن خانه برود.',
@@ -421,6 +444,77 @@ const Music = (() => {
   return api;
 })();
 
+/* ---------------------------------------------------- item introductions */
+/* A card with a small looping demonstration appears the first time a level introduces a new item (and can be replayed from How to play). */
+const INTROS = { 1: 'cam', 16: 'guard', 46: 'door', 66: 'mirror', 86: 'all' };
+let introSeen = store.get('pb_intro', {}), introKind = null, introMark = false;
+function showIntro(kind, mark) {
+  introKind = kind; introMark = mark; const t = tr().intro[kind];
+  $('introTitle').textContent = t.title; $('introList').innerHTML = t.list.map(x => `<li>${x}</li>`).join('');
+  $('howOv').classList.remove('on'); $('introOv').classList.add('on');
+}
+function closeIntro() { if (introMark && introKind) { introSeen[introKind] = true; store.set('pb_intro', introSeen); } $('introOv').classList.remove('on'); introKind = null; }
+const ix = $('introCv').getContext('2d');
+/* Each demo is a 5x3 tile room, 8 seconds long: the prisoner is lit, a tap changes something at 2.4 s, then he walks to the exit. */
+function drawIntro(now) {
+  if (!introKind) return;
+  const t = (now % 8000) / 1000;
+  const R = (col, x, y, w, h) => { ix.fillStyle = col; ix.fillRect(Math.round(x), Math.round(y), w, h); };
+  const tile = (c, r, col) => R(col, c * 24, r * 24, 24, 24);
+  const lit = (c, r) => tile(c, r, 'rgba(255,59,82,.32)');
+  const spr = (img, cx, feetY, flip) => { ix.save(); ix.translate(Math.round(cx), Math.round(feetY)); if (flip) ix.scale(-1, 1); ix.drawImage(img, -img.width / 2, -(img.height - 1)); ix.restore(); };
+  const exit = (c, r) => { tile(c, r, 'rgba(65,211,146,.28)'); R('#0f3d2a', c * 24 + 4, r * 24 + 3, 16, 16); for (let i = 0; i < 4; i++) R('#41d392', c * 24 + 6 + i * 4, r * 24 + 5, 2, 12); };
+  const ring = (cx, cy, k) => { ix.strokeStyle = `rgba(255,255,255,${Math.max(0, 1 - k)})`; ix.lineWidth = 2; ix.beginPath(); ix.arc(cx, cy, 4 + k * 12, 0, 7); ix.stroke(); };
+  const bang = (cx, y) => { R('#ff3b52', cx - 1, y, 3, 7); R('#ff3b52', cx - 1, y + 9, 3, 3); };
+  const wall = (x, y, w, h) => { R('#a3adbd', x, y, w, h); R('#6c7587', x, y + h - 5, w, 5); };
+  const walker = (x0, x1, t0, y, speed) => { const x = t < t0 ? x0 : Math.min(x1, x0 + (t - t0) * speed); return { x, img: person('thief', 1, t >= t0 && x < x1 - 2 ? 1 + (Math.floor(t * 6) % 2) : 0), y }; };
+  ix.clearRect(0, 0, 120, 72);
+  for (let r = 0; r < 3; r++) for (let c = 0; c < 5; c++) tile(c, r, (r + c) % 2 ? '#3b4252' : '#363d4d');
+  const turned = t >= 2.4;
+  if (introKind === 'cam' || introKind === 'all') {
+    wall(0, 24, 8, 24);
+    if (!turned) { for (let c = 1; c < 5; c++) lit(c, 1); R('rgba(255,59,82,.5)', 14, 33, 106, 6); } else R('rgba(255,59,82,.35)', 7, 40, 6, 20);
+    exit(4, 1); spr(camSprite(turned ? 2 : 1), 10, 42, false);
+    const w = walker(72, 108, 3, 45, 30);
+    if (!turned && t > 1) bang(w.x, 14);
+    spr(w.img, w.x, w.y, false);
+    if (t > 1.8 && t < 2.8) ring(11, 36, t - 1.8);
+  } else if (introKind === 'guard') {
+    const face = turned ? 3 : 1;
+    if (!turned) { for (let c = 1; c < 4; c++) lit(c, 1); R('rgba(255,59,82,.4)', 20, 33, 76, 6); } else lit(0, 1);
+    for (let i = 0; i < 4; i++) R('rgba(160,190,255,.35)', 4 + i * 8, 46, 4, 2);
+    exit(4, 1);
+    const w = walker(60, 108, 3, 45, 30);
+    if (!turned && t > 1) bang(w.x, 14);
+    spr(w.img, w.x, w.y, false);
+    spr(person('guard', 1, 0), 12, 45, face === 3);
+    if (t > 1.8 && t < 2.8) { ix.strokeStyle = `rgba(255,255,255,${.4 + .6 * Math.abs(Math.sin(t * 8))})`; ix.lineWidth = 2; ix.strokeRect(3, 21, 18, 26); }
+  } else if (introKind === 'door') {
+    wall(0, 24, 8, 24);
+    if (!turned) { R('rgba(255,59,82,.5)', 14, 33, 106, 6); for (let c = 1; c < 5; c++) lit(c, 1); } else { R('rgba(255,59,82,.5)', 14, 33, 38, 6); lit(1, 1); }
+    if (turned) { R('#7f8a9d', 52, 22, 20, 28); for (let i = 0; i < 3; i++) R('#ffc54a', 52 + i * 7, 46, 4, 4); R('#16101f', 60, 32, 3, 8); }
+    else { R('#2a303d', 50, 24, 3, 24); R('#2a303d', 69, 24, 3, 24); R('rgba(255,197,74,.55)', 54, 35, 14, 2); }
+    exit(4, 1); spr(camSprite(1), 10, 42, false);
+    const w = walker(88, 108, 3, 45, 30);
+    if (!turned && t > 1) bang(w.x, 14);
+    spr(w.img, w.x, w.y, false);
+    if (t > 1.8 && t < 2.8) ring(61, 36, t - 1.8);
+  } else if (introKind === 'mirror') {
+    const mx = 84;
+    wall(0, 0, 8, 24);
+    R('rgba(255,59,82,.5)', 14, 9, mx - 14, 6); for (let c = 1; c < 3; c++) lit(c, 0);
+    if (!turned) { R('rgba(255,59,82,.5)', mx - 3, 12, 6, 60); lit(3, 1); lit(3, 2); } else R('rgba(255,59,82,.5)', mx - 3, 0, 6, 14);
+    R('#6fa8d6', mx - 10, 4, 20, 16);
+    ix.strokeStyle = '#e8f6ff'; ix.lineWidth = 3; ix.beginPath(); if (!turned) { ix.moveTo(mx - 7, 17); ix.lineTo(mx + 7, 7); } else { ix.moveTo(mx - 7, 7); ix.lineTo(mx + 7, 17); } ix.stroke();
+    exit(4, 2); spr(camSprite(1), 10, 18, false);
+    const w = walker(84, 108, 3, 66, 24);
+    if (!turned && t > 1) bang(w.x, 38);
+    spr(w.img, w.x, w.y, false);
+    if (t > 1.8 && t < 2.8) ring(mx, 12, t - 1.8);
+  }
+}
+$('introOk').onclick = closeIntro;
+
 /* ---------------------------------------------------------------- state */
 let li = 0, L, dg, thief, thiefDir = 2, hist = [], moves = 0, sel = -1, hintWho = -1, walking = null, inGame = false;
 let flash = 0, flashCell = -1, shake = 0, hearts = HEARTS_MAX, lost = 0, hintsUsed = 0, caughtOn = false;
@@ -439,6 +533,7 @@ function load(i) {
   $('menu').classList.remove('on'); inGame = true; store.set('pb_last', li);
   setTip(heartsOn() ? tr().sHeartsS : (tipFor(LEVELS[li].id) || tr().pick));
   syncUI(); buildBar(); resize();
+  const kind = INTROS[LEVELS[li].id]; if (kind && !introSeen[kind]) showIntro(kind, true);
 }
 function ev(d) { P.prepare(L); return P.evalConfig(L, d || dg, false); }
 const nCam = () => L.cams.length, nGuard = () => L.guards.length, nTog = () => L.toggles.length, nAll = () => nCam() + nGuard() + nTog();
@@ -637,6 +732,8 @@ function applyLang() {
   set('winRetry', t.retry); set('winLevels', t.levels); set('lvTitle', t.levels); set('lvClose', t.close); set('howTitle', t.howTitle); set('howClose', t.close);
   set('setTitle', t.setTitle); set('setClose', t.close); set('sLangL', t.sLang); set('sSfxL', t.sSfx); set('sVolL', t.sVol); set('sMusL', t.sMus); set('sMusVolL', t.sMusVol); set('sVibL', t.sVib);
   set('sHeartsL', t.sHearts); set('sHeartsS', t.sHeartsS); set('sMotionL', t.sMotion); set('sMotionS', t.sMotionS); set('sUnlockL', t.sUnlock); set('sUnlockS', t.sUnlockS);
+  set('howItemsL', t.itemsL); $('howItems').innerHTML = ''; ['cam', 'guard', 'door', 'mirror'].forEach(k => { const b = document.createElement('button'); b.textContent = t.itemNames[k]; b.onclick = () => showIntro(k, false); $('howItems').appendChild(b); });
+  set('introOk', t.gotIt);
   set('adTitle', t.adTitle); set('adText', t.adText); set('adCancel', t.adCancel); set('adClaim', t.adClaim);
   $('howList').innerHTML = t.howList.map(s => `<li>${s}</li>`).join('');
   $('mPlay').innerHTML = icon('play', 3, fa ? 'flipx' : '') + ' ' + (best[LEVELS[0].id] ? t.cont(LEVELS[firstOpenLevel()].id) : t.play);
@@ -994,6 +1091,7 @@ let last = performance.now();
 function frame(now) {
   const dt = Math.min(50, now - last); last = now; stepWalk(dt);
   flash = Math.max(0, flash - dt / 500); shake = Math.max(0, shake - dt / 350);
+  if (introKind) drawIntro(now);
   if (inGame) draw(now); else if ($('menu').classList.contains('on')) { drawMenuBg(now); drawLogo(now); }
   requestAnimationFrame(frame);
 }

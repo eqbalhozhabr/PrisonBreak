@@ -293,7 +293,7 @@ function buildGraph(L, cap) {
       }
     }
   }
-  return { n, total, rad, labs, kc, base, dist, parent, via, cfgOf, decode };
+  return { n, total, rad, labs, kc, base, dist, parent, via, cfgOf, decode, encode };
 }
 
 function floorConnected(L, extraBlock) {
@@ -438,6 +438,43 @@ function necessary(L, par) {
   return cnt;
 }
 
+/* How many times the prisoner has to WALK in the best solutions: the fewest walk segments among solutions with the fewest
+   actions. A walk between two actions counts one however long it is; the final walk to the exit counts one too. So 1 means
+   "stand still, change the cameras, walk out"; 3 means he has to be moved on twice before the way is open. Exact, by dynamic
+   programming over the layers of the solution, using the distances of the whole-graph search. */
+function phasesDP(L, g, id0, S) {
+  const n = g.n, t = g.dist[g.base[id0] + g.labs[id0 * n + S]];
+  if (t < 0) return Infinity;
+  let layer = new Map([[id0 * n + S, 0]]);
+  const actCache = new Map();
+  const acts = c => { let a = actCache.get(c); if (!a) { a = actions(L, g.decode(c)).map(([d2]) => g.encode(d2)); actCache.set(c, a); } return a; };
+  for (let k = 0; k < t; k++) {
+    const next = new Map(), rem = t - k;
+    for (const [key, w] of layer) {
+      const c = (key / n) | 0, x = key % n, comp = g.labs[c * n + x], cells = [];
+      for (let y = 0; y < n; y++) if (g.labs[c * n + y] === comp) cells.push(y);
+      for (const c2 of acts(c)) for (const y of cells) {
+        const k2 = g.labs[c2 * n + y];
+        if (k2 < 0 || g.dist[g.base[c2] + k2] !== rem - 1) continue;
+        const nw = w + (y === x ? 0 : 1), kk = c2 * n + y, old = next.get(kk);
+        if (old === undefined || old > nw) next.set(kk, nw);
+      }
+    }
+    layer = next;
+  }
+  let best = Infinity;
+  for (const [key, w] of layer) best = Math.min(best, w + ((key % n) === L.E ? 0 : 1));
+  return best;
+}
+/* Phases of a finished level, found from scratch (used to check shipped levels). */
+function analyze(L, cap) {
+  prepare(L);
+  const g = buildGraph(L, cap || 400000); if (!g) return null;
+  const id0 = g.encode(initialDigits(L)), k = g.labs[id0 * g.n + L.S];
+  if (k < 0) return null;
+  return { par: g.dist[g.base[id0] + k], phases: phasesDP(L, g, id0, L.S) };
+}
+
 /* Chooses a starting state at exactly `t` actions from the exit in which enough of the watchers matter. */
 function pickStart(L, g, rnd, t, minUsed) {
   const cands = [];
@@ -452,12 +489,46 @@ function pickStart(L, g, rnd, t, minUsed) {
   }
   return best < 0 ? null : best;
 }
-function applyStart(L, g, nd, rnd) {
+/* Like pickStart, but also chooses the prisoner's start tile so that the walk count falls in [wLo, wHi]. */
+function pickStartPhased(L, g, rnd, t, minUsed, wLo, wHi) {
+  const cands = [];
+  for (let nd = 0; nd < g.dist.length; nd++) if (g.dist[nd] === t) cands.push(nd);
+  if (!cands.length) return null;
+  const marked = new Set(L.toggles.map(q => q.c)); L.guards.forEach(gd => gd.rail.forEach(c => marked.add(c)));
+  let best = null, bestScore = -1;
+  for (let s = 0; s < Math.min(90, cands.length); s++) {
+    const nd = cands[(rnd() * cands.length) | 0], users = new Set();
+    for (let q = nd; g.parent[q] >= 0; q = g.parent[q]) users.add(g.via[q]);
+    if (users.size < minUsed) continue;
+    const id = g.cfgOf[nd], k = nd - g.base[id], cells = [];
+    for (let x = 0; x < g.n; x++) if (g.labs[id * g.n + x] === k && x !== L.E && !marked.has(x)) cells.push(x);
+    for (let q = 0; q < Math.min(5, cells.length); q++) {
+      const S = cells[(rnd() * cells.length) | 0], w = phasesDP(L, g, id, S);
+      if (w < wLo || w > wHi) continue;
+      const sc = users.size + w * .3 + rnd() * .5;
+      if (sc > bestScore) { bestScore = sc; best = { nd, S, w }; }
+    }
+  }
+  return best;
+}
+/* The most walk segments any sampled start at distance t can force (a guide for the hill-climb). */
+function sampleMaxPhases(L, g, rnd, t) {
+  const cands = [];
+  for (let nd = 0; nd < g.dist.length; nd++) if (g.dist[nd] === t) cands.push(nd);
+  let best = 0;
+  for (let s = 0; s < Math.min(14, cands.length); s++) {
+    const nd = cands[(rnd() * cands.length) | 0], id = g.cfgOf[nd], k = nd - g.base[id], cells = [];
+    for (let x = 0; x < g.n; x++) if (g.labs[id * g.n + x] === k && x !== L.E) cells.push(x);
+    for (let q = 0; q < Math.min(3, cells.length); q++) best = Math.max(best, phasesDP(L, g, id, cells[(rnd() * cells.length) | 0]));
+  }
+  return best;
+}
+function applyStart(L, g, nd, rnd, forceS) {
   const id = g.cfgOf[nd], k = nd - g.base[id], dg = g.decode(id), nc = L.cams.length, ng = L.guards.length;
   const marked = new Set(L.toggles.map(t => t.c)); L.guards.forEach(gd => gd.rail.forEach(c => marked.add(c)));      // the ASCII form cannot show S on these
   const cells = []; for (let x = 0; x < g.n; x++) if (g.labs[id * g.n + x] === k && x !== L.E && !marked.has(x)) cells.push(x);
   if (!cells.length) return false;
-  L.S = cells[(rnd() * cells.length) | 0];
+  L.S = forceS != null ? forceS : cells[(rnd() * cells.length) | 0];
   L.cams.forEach((c, i) => { c.d = dg[i]; });
   L.guards.forEach((gd, i) => { gd.i = dg[nc + i] >> 1; gd.f = dg[nc + i] & 1; });
   L.toggles.forEach((tg, i) => { tg.s = dg[nc + ng + i]; });
@@ -472,33 +543,36 @@ function genLevel(spec, seed, target, iters) {
   for (let t = 0; t < 40 && !L; t++) L = randomLayout(rnd, spec);
   if (!L) return null;
   const total = L.cams.length + L.guards.length + L.toggles.length, minUsed = total - (total <= 3 ? 0 : (spec.minUnused == null ? 1 : spec.minUnused));
+  const wLo = spec.phasesLo || 1, wHi = spec.phasesHi || 99;
   let cur = buildGraph(L, spec.cap || 20000), curScore = -1;
   const maxOf = g => { let m = 0; for (let i = 0; i < g.dist.length; i++) if (g.dist[i] > m) m = g.dist[i]; return m; };
-  if (cur) curScore = maxOf(cur);
+  const score = (g) => { const m = maxOf(g); return Math.min(m, target + 1) * 100 + (m >= target ? Math.min(sampleMaxPhases(L2, g, rnd, Math.min(m, target)), wLo) * 10 : 0); };
+  let L2 = L;
+  if (cur) curScore = score(cur);
   const t0 = Date.now(), budget = spec.timeMs || 25000;
   for (let it = 0; it < (iters || 400); it++) {
     if (Date.now() - t0 > budget) return null;
-    if (cur && curScore >= target - 1) {
-      for (let tryNo = 0; tryNo < 8; tryNo++) {
+    if (cur && curScore >= (target - 1) * 100) {
+      for (let tryNo = 0; tryNo < 6; tryNo++) {
         const t = tryNo % 2 ? Math.max(1, target - 1) : target;
-        const nd = pickStart(L, cur, rnd, t, Math.max(1, minUsed - 1));
-        if (nd === null) continue;
-        if (!applyStart(L, cur, nd, rnd)) continue;
+        const pick = pickStartPhased(L, cur, rnd, t, Math.max(1, minUsed - 1), wLo, wHi);
+        if (!pick) continue;
+        if (!applyStart(L, cur, pick.nd, rnd, pick.S)) continue;
         const r = solve(L, { maxDepth: 40 });
         if (!r || !r.solvable || r.par !== t) continue;
         const need = necessary(L, t);
-        if (need >= minUsed) return { level: L, par: t, used: need, total, states: r.explored, iters: it };
+        if (need >= minUsed) return { level: L, par: t, phases: pick.w, used: need, total, states: r.explored, iters: it };
       }
     }
     const M = mutateLayout(L, rnd); if (!M) continue;
     const g = buildGraph(M, spec.cap || 20000); if (!g) continue;
-    const sc = Math.min(maxOf(g), target + 1);
+    L2 = M; const sc = score(g);
     if (!cur || sc >= curScore) { L = M; cur = g; curScore = sc; }
   }
   return null;
 }
 
-const api = { _layout: randomLayout, solve, draw, mulberry32, hash2, initialDigits, evalConfig, prepare, parseLevel, toMap, guardFacingDir, radices, actions, genLevel, buildGraph };
+const api = { analyze, _layout: randomLayout, solve, draw, mulberry32, hash2, initialDigits, evalConfig, prepare, parseLevel, toMap, guardFacingDir, radices, actions, genLevel, buildGraph };
 if (typeof module !== 'undefined' && module.exports) module.exports = api;
 if (typeof window !== 'undefined') window.Prison = api;
 })();

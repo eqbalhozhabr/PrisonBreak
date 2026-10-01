@@ -9,7 +9,7 @@ const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
   const pg = await b.newPage({ viewport: { width: 390, height: 800 }, deviceScaleFactor: 2, hasTouch: false });
   const errs = []; pg.on('pageerror', e => errs.push(String(e.stack || e).split('\n').slice(0, 4).join(' | '))); pg.on('console', m => m.type() === 'error' && errs.push(m.text()));
   await pg.goto(url); await pg.waitForTimeout(300);
-  await pg.evaluate(() => { settings.unlockAll = true; settings.hearts = false; settings.sfx = false; settings.vibrate = false; });
+  await pg.evaluate(() => { settings.unlockAll = true; settings.hearts = false; settings.sfx = false; settings.music = false; settings.vibrate = false; introSeen = { cam: 1, guard: 1, door: 1, mirror: 1, all: 1 }; });
   const n = await pg.evaluate(() => LEVELS.length);
   let idx = [];
   if (which === 'all') idx = [...Array(n).keys()];
@@ -107,6 +107,15 @@ const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
   });
   const walkOk = !walkRes || (walkRes.moves === walkRes.steps && walkRes.facing === walkRes.expectFacing);
   console.log('guard: tapping a rail tile walks it, one action per step, facing the way it walks:', JSON.stringify(walkRes), walkOk ? 'OK' : 'FAIL'); ok = ok && walkOk;
+  // item introductions: shown once at the level that brings the item, not again after "Got it"
+  const intro = await pg.evaluate(() => {
+    introSeen = {}; const out = [];
+    for (const idx of [0, 15, 45, 65, 85]) { load(idx); out.push([LEVELS[idx].id, introKind, document.getElementById('introOv').classList.contains('on')]); closeIntro(); }
+    load(15); out.push(['again', introKind]);
+    introSeen = { cam: 1, guard: 1, door: 1, mirror: 1, all: 1 }; return out;
+  });
+  const introOk = JSON.stringify(intro) === JSON.stringify([[1, 'cam', true], [16, 'guard', true], [46, 'door', true], [66, 'mirror', true], [86, 'all', true], ['again', null]]);
+  console.log('introductions:', JSON.stringify(intro), introOk ? 'OK' : 'FAIL'); ok = ok && introOk;
   // hearts mode: crossing a beam costs a heart and the run still ends at the exit
   const hm = await pg.evaluate(async () => {
     settings.hearts = true;

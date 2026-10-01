@@ -11,6 +11,8 @@
  *  - Dogs (optional) stand on a rail like guards, but they do not look along a line: they smell the whole room they stand in,
  *    that is every tile they can reach without crossing a wall, a closed door, a mirror pillar or another watcher. Close a
  *    door behind a dog to trap its scent in the room it is in. One action steps a dog one tile along its rail.
+ *  - Searchlights (optional) sit in wall cells like cameras but nobody turns them: after EVERY action they swing a quarter turn
+ *    clockwise by themselves. "Wait" is an action that changes nothing else, so only the searchlights swing.
  *  - Walls, guards and closed doors stop sight. Guards, closed doors and mirrors block movement.
  *  - The thief may stand only on dark cells. Walking is free; only actions on watchers/objects count.
  *    An action is illegal if it lights the thief's cell (he picks the best cell in his dark region
@@ -41,12 +43,20 @@ function hash2(a, b) { let h = Math.imul(a ^ 0x9E3779B9, 0x85EBCA6B) ^ Math.imul
    digits: cameras (facing 0..3), guards (i*2+f), toggles (0/1: door 1 = closed, mirror 0 = "/" 1 = "\"). */
 let L_W = 0;
 function prepare(L) { L_W = L.w; }
-const counts = L => [L.cams.length, L.guards.length, (L.toggles || []).length, (L.dogs || []).length];
+const counts = L => [L.cams.length, L.guards.length, (L.toggles || []).length, (L.dogs || []).length, (L.lights || []).length];
 function radices(L) {
-  return L.cams.map(() => 4).concat(L.guards.map(g => g.rail.length * 2), (L.toggles || []).map(() => 2), (L.dogs || []).map(d => d.rail.length));
+  return L.cams.map(() => 4).concat(L.guards.map(g => g.rail.length * 2), (L.toggles || []).map(() => 2), (L.dogs || []).map(d => d.rail.length), (L.lights || []).map(() => 4));
 }
 function initialDigits(L) {
-  return L.cams.map(c => c.d).concat(L.guards.map(g => g.i * 2 + g.f), (L.toggles || []).map(t => t.s), (L.dogs || []).map(d => d.i));
+  return L.cams.map(c => c.d).concat(L.guards.map(g => g.i * 2 + g.f), (L.toggles || []).map(t => t.s), (L.dogs || []).map(d => d.i), (L.lights || []).map(l => l.d));
+}
+/* After every action each searchlight swings a quarter turn clockwise (digits are copied). */
+function sweep(L, dg) {
+  const ls = L.lights || [];
+  if (!ls.length) return dg;
+  const d2 = dg.slice(), b = dg.length - ls.length;
+  for (let j = 0; j < ls.length; j++) d2[b + j] = (dg[b + j] + 1) % 4;
+  return d2;
 }
 function guardFacingDir(g, f) {            // direction index the guard looks (f=0 toward the last rail cell)
   const w = L_W, a = g.rail[0], b = g.rail[g.rail.length - 1];
@@ -58,7 +68,7 @@ function guardFacingDir(g, f) {            // direction index the guard looks (f
 /* Lit cells + blocked cells for one configuration. With wantRays it also returns the sight-line
    segments (a mirror starts a new segment) so the renderer can draw cones. */
 function evalConfig(L, digits, wantRays) {
-  const { w, h, wall } = L, n = w * h, [nc, ng, nt] = counts(L), tog = L.toggles || [], dogs = L.dogs || [];
+  const { w, h, wall } = L, n = w * h, [nc, ng, nt, nd] = counts(L), tog = L.toggles || [], dogs = L.dogs || [];
   const lit = new Uint8Array(n), occ = new Uint8Array(n), opq = new Uint8Array(n), mir = new Int8Array(n).fill(-1), scent = new Uint8Array(n);
   const gpos = L.guards.map((g, k) => g.rail[digits[nc + k] >> 1]);
   for (const c of gpos) { occ[c] = 1; opq[c] = 1; }
@@ -96,6 +106,7 @@ function evalConfig(L, digits, wantRays) {
   };
   L.cams.forEach((cm, k) => cast(cm.c, digits[k], 99, k));
   L.guards.forEach((g, k) => cast(gpos[k], guardFacingDir(g, digits[nc + k] & 1), g.range, nc + k));
+  (L.lights || []).forEach((l, j) => cast(l.c, digits[nc + ng + nt + nd + j], 99, nc + ng + nt + nd + j));
   return { lit, occ, rays, scent };
 }
 
@@ -124,6 +135,13 @@ function labelConfig(L, dg) {
 
 /* every single action from a configuration: [newDigits, which watcher] */
 function actions(L, dg) {
+  const out = actions0(L, dg), ls = L.lights || [];
+  if (!ls.length) return out;
+  for (const o of out) o[0] = sweep(L, o[0]);                       // the lights swing after whatever the player did
+  out.push([sweep(L, dg), dg.length - ls.length]);                    // Wait: only the lights swing (attributed to the first light)
+  return out;
+}
+function actions0(L, dg) {
   const [nc, ng] = counts(L), out = [];
   L.cams.forEach((cm, k) => { const d2 = dg.slice(); d2[k] = (dg[k] + 1) % 4; out.push([d2, k]); });   // clockwise only
   L.guards.forEach((g, j) => {
@@ -211,7 +229,7 @@ function solve(L, opts) {
 /* ASCII of a configuration: # wall . dark ~ lit, S/E, arrows = cameras, a-d guards, X/x doors, / \ mirrors */
 function draw(L, digits) {
   prepare(L);
-  const { lit } = evalConfig(L, digits, false), [nc, ng, nt] = counts(L), ar = ['^', '>', 'v', '<'];
+  const { lit } = evalConfig(L, digits, false), [nc, ng, nt, nd] = counts(L), ar = ['^', '>', 'v', '<'];
   let s = '';
   for (let y = 0; y < L.h; y++) {
     for (let x = 0; x < L.w; x++) {
@@ -224,6 +242,7 @@ function draw(L, digits) {
       L.guards.forEach((g, k) => { if (g.rail[digits[nc + k] >> 1] === c) ch = 'abcd'[k]; });
       (L.toggles || []).forEach((t, j) => { if (t.c === c) ch = t.kind === 'door' ? (digits[nc + ng + j] ? 'X' : 'x') : (digits[nc + ng + j] ? '\\' : '/'); });
       (L.dogs || []).forEach((d, j) => { if (d.rail[digits[nc + ng + nt + j]] === c) ch = 'efgh'[j]; });
+      (L.lights || []).forEach((l, j) => { if (l.c === c) ch = String(digits[nc + ng + nt + nd + j]); });
       s += ch;
     }
     s += '\n';
@@ -235,7 +254,7 @@ function draw(L, digits) {
    X closed door, x open door, / \ mirror. meta.guards: {a:{i,f,range}} start index on the rail, facing, range. */
 function parseLevel(map, meta) {
   const h = map.length, w = map[0].length, wall = new Uint8Array(w * h);
-  const L = { w, h, wall, S: -1, E: -1, cams: [], guards: [], toggles: [], dogs: [] };
+  const L = { w, h, wall, S: -1, E: -1, cams: [], guards: [], toggles: [], dogs: [], lights: [] };
   const rails = {};
   map.forEach((row, y) => {
     if (row.length !== w) throw new Error('ragged map row ' + y);
@@ -245,6 +264,7 @@ function parseLevel(map, meta) {
       else if (ch === 'S') L.S = c;
       else if (ch === 'E') L.E = c;
       else if ('^>v<'.includes(ch)) { wall[c] = 1; L.cams.push({ c, d: '^>v<'.indexOf(ch) }); }
+      else if ('0123'.includes(ch)) { wall[c] = 1; L.lights.push({ c, d: Number(ch) }); }       // a searchlight; the digit is the way it faces now
       else if (/[a-d]/.test(ch)) (rails[ch] = rails[ch] || []).push(c);
       else if (/[e-h]/.test(ch)) (rails[ch] = rails[ch] || []).push(c);
       else if (ch === 'X' || ch === 'x') L.toggles.push({ c, kind: 'door', s: ch === 'X' ? 1 : 0 });
@@ -272,6 +292,7 @@ function toMap(L) {
       if (c === L.E) ch = 'E';
       const cam = L.cams.find(q => q.c === c);
       if (cam) ch = ar[cam.d];
+      const lt = (L.lights || []).find(q => q.c === c); if (lt) ch = String(lt.d);
       L.guards.forEach((g, k) => { if (g.rail.includes(c)) ch = 'abcd'[k]; });
       (L.dogs || []).forEach((d, k) => { if (d.rail.includes(c)) ch = 'efgh'[k]; });
       (L.toggles || []).forEach(t => { if (t.c === c) ch = t.kind === 'door' ? (t.s ? 'X' : 'x') : (t.s ? '\\' : '/'); });
@@ -352,7 +373,7 @@ function randomLayout(rnd, spec) {
   for (let y = 0; y < h; y++) { wall[y * w] = 1; wall[y * w + w - 1] = 1; }
   const pick = a => a[(rnd() * a.length) | 0];
   const shapes = [[[0, 0]], [[0, 0], [1, 0]], [[0, 0], [0, 1]], [[0, 0], [1, 0], [2, 0]], [[0, 0], [0, 1], [0, 2]], [[0, 0], [1, 0], [0, 1]]];
-  const L = { w, h, wall, S: -1, E: -1, cams: [], guards: [], toggles: [], dogs: [] };
+  const L = { w, h, wall, S: -1, E: -1, cams: [], guards: [], toggles: [], dogs: [], lights: [] };
   for (let b = 0, tries = 0; b < spec.blocks && tries < 60; tries++) {
     const sh = pick(shapes), x0 = 1 + ((rnd() * (w - 2)) | 0), y0 = 1 + ((rnd() * (h - 2)) | 0), cells = sh.map(([dx, dy]) => (y0 + dy) * w + x0 + dx);
     if (sh.some(([dx, dy]) => x0 + dx >= w - 1 || y0 + dy >= h - 1) || cells.some(c => wall[c])) continue;
@@ -423,6 +444,11 @@ function randomLayout(rnd, spec) {
     const c = mounts.splice((rnd() * mounts.length) | 0, 1)[0];
     L.cams.push({ c, d: 0 });
   }
+  for (let k = 0; k < (spec.lights || 0); k++) {
+    if (!mounts.length) return null;
+    const c = mounts.splice((rnd() * mounts.length) | 0, 1)[0];
+    L.lights.push({ c, d: (rnd() * 4) | 0 });
+  }
   return L;
 }
 
@@ -437,13 +463,13 @@ function mounts(L) {
 }
 function cloneLevel(L) {
   return { w: L.w, h: L.h, wall: L.wall.slice(), S: L.S, E: L.E, cams: L.cams.map(c => ({ ...c })),
-    guards: L.guards.map(g => ({ ...g, rail: g.rail.slice() })), toggles: L.toggles.map(t => ({ ...t })), dogs: (L.dogs || []).map(d => ({ ...d, rail: d.rail.slice() })) };
+    guards: L.guards.map(g => ({ ...g, rail: g.rail.slice() })), toggles: L.toggles.map(t => ({ ...t })), dogs: (L.dogs || []).map(d => ({ ...d, rail: d.rail.slice() })), lights: (L.lights || []).map(l => ({ ...l })) };
 }
 /* One random change to a layout (walls, exit, a camera mount, a guard rail, a door or a mirror). null if it breaks the layout. */
 function mutateLayout(L, rnd) {
   const M = cloneLevel(L), { w, h } = M, n = w * h, pick = a => a[(rnd() * a.length) | 0];
   const busy = new Set([M.E]);
-  M.guards.forEach(g => g.rail.forEach(c => busy.add(c))); M.dogs.forEach(d => d.rail.forEach(c => busy.add(c))); M.toggles.forEach(t => busy.add(t.c)); M.cams.forEach(c => busy.add(c.c));
+  M.guards.forEach(g => g.rail.forEach(c => busy.add(c))); M.dogs.forEach(d => d.rail.forEach(c => busy.add(c))); M.toggles.forEach(t => busy.add(t.c)); M.cams.forEach(c => busy.add(c.c)); M.lights.forEach(c => busy.add(c.c));
   const k = rnd();
   if (k < .35) {                                                   // flip an interior wall cell
     const c = (1 + ((rnd() * (h - 2)) | 0)) * w + 1 + ((rnd() * (w - 2)) | 0);
@@ -452,9 +478,9 @@ function mutateLayout(L, rnd) {
   } else if (k < .5) {                                             // move the exit
     const fl = []; for (let c = 0; c < n; c++) if (!M.wall[c] && !busy.has(c)) fl.push(c);
     if (!fl.length) return null; M.E = pick(fl);
-  } else if (k < .72 && M.cams.length) {                           // move a camera to another mount
-    const ms = mounts(M).filter(c => !M.cams.some(q => q.c === c)); if (!ms.length) return null;
-    pick(M.cams).c = pick(ms);
+  } else if (k < .72 && M.cams.length + M.lights.length) {         // move a camera or searchlight to another mount
+    const ms = mounts(M).filter(c => !M.cams.some(q => q.c === c) && !M.lights.some(q => q.c === c)); if (!ms.length) return null;
+    pick(M.cams.concat(M.lights)).c = pick(ms);
   } else if (k < .84 && M.guards.length + M.dogs.length) {         // slide or re-draw a guard or dog rail
     const g = pick(M.guards.concat(M.dogs)), len = g.rail.length, horiz = (g.rail[0] % w) !== (g.rail[len - 1] % w);
     const x0 = (g.rail[0] % w) + (rnd() < .5 ? 0 : (horiz ? (rnd() < .5 ? -1 : 1) : 0)), y0 = ((g.rail[0] / w) | 0) + (rnd() < .5 ? 0 : (horiz ? 0 : (rnd() < .5 ? -1 : 1)));
@@ -465,14 +491,14 @@ function mutateLayout(L, rnd) {
     const t = pick(M.toggles), fl = []; for (let c = 0; c < n; c++) if (!M.wall[c] && !busy.has(c)) fl.push(c);
     if (!fl.length) return null; t.c = pick(fl);
   } else return null;
-  for (const c of M.cams) if (!M.wall[c.c]) return null;
+  for (const c of M.cams.concat(M.lights)) if (!M.wall[c.c]) return null;
   if (!mounts(M).length || M.wall[M.E]) return null;
   for (const g of M.guards.concat(M.dogs)) if (g.rail.some(c => M.wall[c])) return null;
   for (const t of M.toggles) if (M.wall[t.c]) return null;
   const pillars = new Uint8Array(n); M.toggles.forEach(t => { if (t.kind === 'mirror') pillars[t.c] = 1; });
   if (!floorConnected(M, pillars)) return null;
   // a camera whose neighbours became all wall can light nothing
-  for (const c of M.cams) {
+  for (const c of M.cams.concat(M.lights)) {
     const x = c.c % w, y = (c.c / w) | 0;
     if (!(x > 0 && !M.wall[c.c - 1] || x < w - 1 && !M.wall[c.c + 1] || y > 0 && !M.wall[c.c - w] || y < h - 1 && !M.wall[c.c + w])) return null;
   }
@@ -481,8 +507,14 @@ function mutateLayout(L, rnd) {
 
 /* How many watchers/objects the level cannot be solved without: freeze each one and see whether par gets worse. */
 function necessary(L, par) {
-  const total = L.cams.length + L.guards.length + L.toggles.length + (L.dogs || []).length;
+  const total = L.cams.length + L.guards.length + L.toggles.length + (L.dogs || []).length, nl = (L.lights || []).length;
   let cnt = 0;
+  // a searchlight cannot be frozen (it swings anyway); it counts when taking it away changes the par
+  for (let j = 0; j < nl; j++) {
+    const M = cloneLevel(L); M.lights.splice(j, 1);
+    const r = solve(M, { maxDepth: par + 2 });
+    if (!r || !r.solvable || r.par !== par) cnt++;
+  }
   for (let k = 0; k < total; k++) { const r = solve(L, { frozen: new Set([k]), maxDepth: par }); if (!r || !r.solvable || r.par > par) cnt++; }
   return cnt;
 }
@@ -573,7 +605,7 @@ function sampleMaxPhases(L, g, rnd, t) {
   return best;
 }
 function applyStart(L, g, nd, rnd, forceS) {
-  const id = g.cfgOf[nd], k = nd - g.base[id], dg = g.decode(id), nc = L.cams.length, ng = L.guards.length, nt = L.toggles.length;
+  const id = g.cfgOf[nd], k = nd - g.base[id], dg = g.decode(id), nc = L.cams.length, ng = L.guards.length, nt = L.toggles.length, nd0 = (L.dogs || []).length;
   const marked = new Set(L.toggles.map(t => t.c)); L.guards.forEach(gd => gd.rail.forEach(c => marked.add(c))); (L.dogs || []).forEach(d => d.rail.forEach(c => marked.add(c)));      // the ASCII form cannot show S on these
   const cells = []; for (let x = 0; x < g.n; x++) if (g.labs[id * g.n + x] === k && x !== L.E && !marked.has(x)) cells.push(x);
   if (!cells.length) return false;
@@ -582,6 +614,7 @@ function applyStart(L, g, nd, rnd, forceS) {
   L.guards.forEach((gd, i) => { gd.i = dg[nc + i] >> 1; gd.f = dg[nc + i] & 1; });
   L.toggles.forEach((tg, i) => { tg.s = dg[nc + ng + i]; });
   (L.dogs || []).forEach((d, i) => { d.i = dg[nc + ng + nt + i]; });
+  (L.lights || []).forEach((l, i) => { l.d = dg[nc + ng + nt + nd0 + i]; });
   return true;
 }
 
@@ -592,7 +625,7 @@ function genLevel(spec, seed, target, iters) {
   let L = null;
   for (let t = 0; t < 40 && !L; t++) L = randomLayout(rnd, spec);
   if (!L) return null;
-  const total = L.cams.length + L.guards.length + L.toggles.length + L.dogs.length, minUsed = total - (total <= 3 ? 0 : (spec.minUnused == null ? 1 : spec.minUnused));
+  const total = L.cams.length + L.guards.length + L.toggles.length + L.dogs.length + L.lights.length, minUsed = total - (total <= 3 ? 0 : (spec.minUnused == null ? 1 : spec.minUnused));
   const wLo = spec.phasesLo || 1, wHi = spec.phasesHi || 99;
   let cur = buildGraph(L, spec.cap || 20000), curScore = -1;
   const maxOf = g => { let m = 0; for (let i = 0; i < g.dist.length; i++) if (g.dist[i] > m) m = g.dist[i]; return m; };
@@ -622,7 +655,7 @@ function genLevel(spec, seed, target, iters) {
   return null;
 }
 
-const api = { analyze, _layout: randomLayout, solve, draw, mulberry32, hash2, initialDigits, evalConfig, prepare, parseLevel, toMap, guardFacingDir, radices, actions, genLevel, buildGraph };
+const api = { analyze, _layout: randomLayout, solve, draw, mulberry32, hash2, initialDigits, evalConfig, prepare, parseLevel, toMap, guardFacingDir, radices, actions, genLevel, buildGraph, sweep };
 if (typeof module !== 'undefined' && module.exports) module.exports = api;
 if (typeof window !== 'undefined') window.Prison = api;
 })();

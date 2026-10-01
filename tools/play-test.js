@@ -9,7 +9,7 @@ const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
   const pg = await b.newPage({ viewport: { width: 390, height: 800 }, deviceScaleFactor: 2, hasTouch: false });
   const errs = []; pg.on('pageerror', e => errs.push(String(e.stack || e).split('\n').slice(0, 4).join(' | '))); pg.on('console', m => m.type() === 'error' && errs.push(m.text()));
   await pg.goto(url); await pg.waitForTimeout(300);
-  await pg.evaluate(() => { settings.unlockAll = true; settings.hearts = false; settings.sfx = false; settings.music = false; settings.vibrate = false; introSeen = { cam: 1, guard: 1, door: 1, mirror: 1, all: 1, dog: 1 }; });
+  await pg.evaluate(() => { settings.unlockAll = true; settings.hearts = false; settings.sfx = false; settings.music = false; settings.vibrate = false; introSeen = { cam: 1, guard: 1, door: 1, mirror: 1, all: 1, dog: 1, light: 1 }; });
   const n = await pg.evaluate(() => LEVELS.length);
   let idx = [];
   if (which === 'all') idx = [...Array(n).keys()];
@@ -37,7 +37,7 @@ const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
       if (target < 0) { err = 'no safe tile at step ' + s; break; }
       if (target !== await pg.evaluate(() => thief)) {
         // a selected guard would take a tap on its own rail; let go of it by tapping the prisoner, as a player would
-        if (await pg.evaluate(t => sel >= nCam() && (sel < nCam() + nGuard() || sel >= dogBase()) && walkerRail(sel).rail.includes(t), target)) await click(await pg.evaluate(() => thiefPoint()));
+        if (await pg.evaluate(t => sel >= nCam() && (sel < nCam() + nGuard() || (sel >= dogBase() && sel < lightBase())) && walkerRail(sel).rail.includes(t), target)) await click(await pg.evaluate(() => thiefPoint()));
         await click(await pg.evaluate(c => cellPoint(c), target)); await waitWalk();
         if (await pg.evaluate(() => thief) !== target) { err = `tap on tile ${target} did not walk there (step ${s})`; break; }
       }
@@ -136,11 +136,11 @@ const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
   // item introductions: shown once at the level that brings the item, not again after "Got it"
   const intro = await pg.evaluate(() => {
     introSeen = {}; const out = [];
-    for (const idx of [0, 15, 45, 65, 85, 105]) { load(idx); out.push([LEVELS[idx].id, introKind, document.getElementById('introOv').classList.contains('on')]); closeIntro(); }
+    for (const idx of [0, 15, 45, 65, 85, 105, 125]) { load(idx); out.push([LEVELS[idx].id, introKind, document.getElementById('introOv').classList.contains('on')]); closeIntro(); }
     load(15); out.push(['again', introKind]);
-    introSeen = { cam: 1, guard: 1, door: 1, mirror: 1, all: 1, dog: 1 }; return out;
+    introSeen = { cam: 1, guard: 1, door: 1, mirror: 1, all: 1, dog: 1, light: 1 }; return out;
   });
-  const introOk = JSON.stringify(intro) === JSON.stringify([[1, 'cam', true], [16, 'guard', true], [46, 'door', true], [66, 'mirror', true], [86, 'all', true], [106, 'dog', true], ['again', null]]);
+  const introOk = JSON.stringify(intro) === JSON.stringify([[1, 'cam', true], [16, 'guard', true], [46, 'door', true], [66, 'mirror', true], [86, 'all', true], [106, 'dog', true], [126, 'light', true], ['again', null]]);
   console.log('introductions:', JSON.stringify(intro), introOk ? 'OK' : 'FAIL'); ok = ok && introOk;
   // dogs: tap selects (no turning), tapping a rail tile walks the dog one action per step, a door cannot close on a dog in the doorway, scent is drawn
   const dg1 = await pg.evaluate(async () => {
@@ -159,6 +159,17 @@ const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
   });
   const dgOk = dg1.selected && dg1.movesAfterSelect === 0 && dg1.scent > 0 && (!dg1.walked || (dg1.walked.moves === dg1.walked.steps && dg1.walked.steps > 0)) && (dg1.doorStuck === undefined || dg1.doorStuck === true);
   console.log('dog: select, rail walk, scent, door in the doorway:', JSON.stringify(dg1), dgOk ? 'OK' : 'FAIL'); ok = ok && !!dgOk;
+  // searchlights: a tap on the lamp is a Wait (one action, the lamp swings a quarter turn clockwise); any other action swings it too; the next position is previewed
+  const lt = await pg.evaluate(async () => {
+    const li = LEVELS.findIndex(l => l.map.some(r => /[0-3]/.test(r))); load(li); const k = lightBase(), out = { level: li + 1 };
+    const d0 = dg[k], p = tapPoint(k);
+    out.preview = nLight() > 0 && P.sweep(L, dg)[k] === (d0 + 1) % 4;
+    if (!ev(options(k)[0].dg).lit[thief]) { onTap(p[0] - cv.getBoundingClientRect().left - ox, p[1] - cv.getBoundingClientRect().top - oy); out.waitMoves = moves; out.turned = dg[k] === (d0 + 1) % 4; out.lampOnly = dg.slice(0, k).join() === initialDigitsHead(k); }
+    return out;
+    function initialDigitsHead(n) { return P.initialDigits(L).slice(0, n).join(); }
+  });
+  const ltOk = lt.preview && (lt.waitMoves === undefined || (lt.waitMoves === 1 && lt.turned && lt.lampOnly));
+  console.log('searchlight: tap = wait, swings a quarter turn:', JSON.stringify(lt), ltOk ? 'OK' : 'FAIL'); ok = ok && !!ltOk;
   // hearts mode: crossing a beam costs a heart and the run still ends at the exit
   const hm = await pg.evaluate(async () => {
     settings.hearts = true;

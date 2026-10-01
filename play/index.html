@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
 <link rel="icon" href="data:,">
-<title>Blind Spots</title>
+<title>Blind Eye</title>
 <style>
   :root { color-scheme:dark; --bg:#0d1017; --panel:#161b26; --ink:#e8ecf4; --mute:#8b94a8; --red:#ff3b52; --gold:#ffc54a; --ok:#41d392; --line:#262d3d; }
   * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
@@ -45,7 +45,7 @@
 <body>
 <div id="app">
   <header>
-    <h1 id="title">Blind Spots<small id="subtitle"></small></h1>
+    <h1 id="title">Blind Eye<small id="subtitle"></small></h1>
     <button id="btnMute" aria-label="sound">🔊</button>
     <button id="btnHearts">♥</button>
     <button id="btnLevels"></button>
@@ -559,10 +559,12 @@ function guardBeam(r, pulse) {                       // starts in the guard's ow
   const { n, pt } = beamPts(r);
   fillBeam([pt(0, -.12), pt(n + .5, -.5), pt(n + .5, .5), pt(0, .12)], pt(0, 0), pt(n + .5, 0), pulse);
 }
-function cameraBeam(r, lx, ly, pulse) {              // starts at the camera lens, drawn after the wall so it sits on top of it
+function cameraBeam(r, lx, ly, pulse) {              // apex = the camera lens, drawn after the wall so it sits on top of it
   if (!r.cells.length) return;
-  const { n, pt } = beamPts(r);
-  fillBeam([[lx, ly], pt(.5, -.5), pt(n + .5, -.5), pt(n + .5, .5), pt(.5, .5)], [lx, ly], pt(n + .5, 0), pulse);
+  const { n, pt } = beamPts(r), side = r.d === 1 || r.d === 3;
+  const poly = side ? [[lx, ly], pt(n + .5, -.5), pt(n + .5, .5)]                      // sideways: a cone from the lens to the far end
+                    : [[lx, ly], pt(.5, -.5), pt(n + .5, -.5), pt(n + .5, .5), pt(.5, .5)];
+  fillBeam(poly, [lx, ly], pt(n + .5, 0), pulse);
 }
 let last = performance.now();
 function frame(now) {
@@ -620,7 +622,8 @@ function draw(now) {
       const k = L.cams.findIndex(q => q.c === y * L.w + x);
       if (k >= 0) { const d = dg[k], cx = FX(x + .5), cy = FY(y) - wallH + cellH * .72;
         drawSprite(camSprite(d === 3 ? 1 : d), cx, cy, cs * .05, d === 3, glowFor(k, pulse));
-        cameraBeam(e.rays[k], cx, cy - cs * .3, pulse); }
+        const lens = d === 1 ? 4.5 : d === 3 ? -4.5 : 0;      // the lens sits 4.5 sprite pixels to the side of the sprite centre
+        cameraBeam(e.rays[k], cx + lens * cs * .05, cy - cs * .3, pulse); }
     }
     drawGuardsAt(y); drawThiefAt(y);
   }

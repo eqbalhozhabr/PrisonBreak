@@ -404,9 +404,13 @@ function resize() {
   ox = (W - cs * L.w) / 2; oy = (H - (L.h * cellH + wallH)) / 2;
 }
 window.addEventListener('resize', resize);
+if (window.ResizeObserver) new ResizeObserver(() => resize()).observe(cv);
 const FX = x => x * cs, FY = y => wallH + y * cellH;
+/* the bar can change height between two frames; refresh the geometry before using it for a tap */
+function ensureSize() { const r = cv.getBoundingClientRect(); if (Math.abs(r.width - W) > .5 || Math.abs(r.height - H) > .5) resize(); }
 /* screen points a real tap would use (also used by tools/play-test.js) */
 function tapPoint(k) {
+  ensureSize();
   const c = watcherCell(k), x = c % L.w, y = (c / L.w) | 0, kind = kindOf(k), r = cv.getBoundingClientRect();
   let px, py;
   if (kind === 'guard') { px = FX(x + .5); py = FY(y) + cellH * .9 - cs * .5; }
@@ -415,7 +419,7 @@ function tapPoint(k) {
   else { px = FX(x) + cs * .2; py = FY(y) + cellH * .25; }
   return [r.left + ox + px, r.top + oy + py];
 }
-function cellPoint(c) { const x = c % L.w, y = (c / L.w) | 0, r = cv.getBoundingClientRect(); return [r.left + ox + FX(x + .5), r.top + oy + FY(y) + cellH * .3]; }
+function cellPoint(c) { ensureSize(); const x = c % L.w, y = (c / L.w) | 0, r = cv.getBoundingClientRect(); return [r.left + ox + FX(x + .5), r.top + oy + FY(y) + cellH * .3]; }
 
 /* What a tap lands on: a standing guard or a mounted camera (their sprites), a door or mirror, otherwise the floor tile. */
 function hitTest(px, py) {
@@ -448,7 +452,7 @@ function onTap(px, py) {
 }
 cv.addEventListener('pointerdown', e0 => {
   if (!inGame || walking || caughtOn || document.querySelector('.overlay.on')) return;
-  const r = cv.getBoundingClientRect(); onTap(e0.clientX - r.left - ox, e0.clientY - r.top - oy);
+  ensureSize(); const r = cv.getBoundingClientRect(); onTap((e0.clientX - r.left) * (W / r.width) - ox, (e0.clientY - r.top) * (H / r.height) - oy);
 });
 window.addEventListener('keydown', e => {
   const m = { ArrowUp: 0, ArrowRight: 1, ArrowDown: 2, ArrowLeft: 3 }[e.key]; if (m === undefined || walking || !inGame) return;
@@ -779,17 +783,19 @@ function draw(now) {
   let tfx = thief % L.w, tfy = (thief / L.w) | 0, frameIdx = 0;
   if (walking && walking.path.length) { const nx = walking.path[0], k = Math.min(1, walking.t / 110); tfx += (nx % L.w - tfx) * k; tfy += (((nx / L.w) | 0) - tfy) * k; frameIdx = 1 + (Math.floor(now / 110) % 2); }
   const sc = cs * .047, thiefRow = Math.round(tfy);
-  const guardsAt = y => L.guards.forEach((g, j) => {
-    const q = gdraw[j]; if (Math.round(q.y) !== y) return;
-    const cx = FX(q.x + .5), fy = FY(q.y) + cellH * .86, d = P.guardFacingDir(g, dg[nCam() + j] & 1);
+  const drawGuard = (j, ghost) => {
+    const g = L.guards[j], q = gdraw[j], cx = FX(q.x + .5), fy = FY(q.y) + cellH * .86, d = P.guardFacingDir(g, dg[nCam() + j] & 1);
+    if (ghost) { ctx.save(); ctx.globalAlpha = .4; drawSprite(person('guard', d === 3 ? 1 : d, 0), cx, fy, sc, d === 3); ctx.restore(); return; }
     shadow(cx, fy, cs * .26); drawSprite(person('guard', d === 3 ? 1 : d, 0), cx, fy, sc, d === 3, glowFor(nCam() + j, pulse));
-  });
-  const thiefAt = y => {
-    if (thiefRow !== y) return;
-    const cx = FX(tfx + .5), fy = FY(tfy) + cellH * .86, bob = frameIdx ? Math.abs(Math.sin(now / 110 * Math.PI)) * cs * .06 : 0;
-    shadow(cx, fy, cs * .26); drawSprite(person('thief', thiefDir === 3 ? 1 : thiefDir, frameIdx), cx, fy - bob, sc, thiefDir === 3);
+  };
+  const drawThief = ghost => {
+    const cx = FX(tfx + .5), fy = FY(tfy) + cellH * .86, bob = frameIdx ? Math.abs(Math.sin(now / 110 * Math.PI)) * cs * .06 : 0, spr = person('thief', thiefDir === 3 ? 1 : thiefDir, frameIdx);
+    if (ghost) { ctx.save(); ctx.globalAlpha = .4; drawSprite(spr, cx, fy - bob, sc, thiefDir === 3); ctx.restore(); return; }
+    shadow(cx, fy, cs * .26); drawSprite(spr, cx, fy - bob, sc, thiefDir === 3);
     if (heartsOn() && e.lit[thief]) { ctx.fillStyle = '#ff3b52'; ctx.font = `900 ${cs * .38}px system-ui`; ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic'; ctx.fillText('!', cx, fy - cs * 1.18 - bob); }
   };
+  const guardsAt = y => L.guards.forEach((g, j) => { if (Math.round(gdraw[j].y) === y) drawGuard(j, false); });
+  const thiefAt = y => { if (thiefRow === y) drawThief(false); };
   const togAt = new Map(); L.toggles.forEach((t, j) => togAt.set(t.c, nCam() + nGuard() + j));
   for (let y = 0; y < L.h; y++) {
     for (let x = 0; x < L.w; x++) {
@@ -808,8 +814,9 @@ function draw(now) {
         else drawDoorOpen(x, y, k, pulse);
       }
     }
+    guardsAt(y); thiefAt(y);
   }
-  for (let y = 0; y < L.h; y++) { guardsAt(y); thiefAt(y); }       // characters last, so a wall in front never hides the prisoner
+  L.guards.forEach((g, j) => drawGuard(j, true)); drawThief(true);     // a faint ghost so a wall in front never hides anyone completely
   ctx.restore();
 }
 applyLang(); syncSettingsUI();

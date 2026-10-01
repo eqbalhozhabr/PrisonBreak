@@ -64,6 +64,15 @@ const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
     console.log(`level ${i + 1}: ${err ? 'FAIL ' + err : 'OK par ' + sol.par}`);
     if (shots && !err && (i === 0 || i === 30 || i === 60 || i === 80)) { await pg.evaluate(() => { document.getElementById('winOv').classList.remove('on'); }); await pg.screenshot({ path: `${shots}/won-${i + 1}.png` }); }
   }
+  // layout: selecting a guard wraps the bottom bar and shrinks the stage; the canvas bitmap must follow, or taps land beside what is drawn
+  const lay = await pg.evaluate(async () => {
+    load(30); await new Promise(r => setTimeout(r, 100));
+    const p = tapPoint(nCam()); onTap(p[0] - cv.getBoundingClientRect().left - ox, p[1] - cv.getBoundingClientRect().top - oy);
+    await new Promise(r => setTimeout(r, 200));
+    const r = cv.getBoundingClientRect(); return { css: [Math.round(r.width), Math.round(r.height)], bitmap: [Math.round(W), Math.round(H)] };
+  });
+  const layOk = lay.css.join() === lay.bitmap.join();
+  console.log('canvas follows layout after the bar wraps:', JSON.stringify(lay), layOk ? 'OK' : 'FAIL'); ok = ok && layOk;
   // hearts mode: crossing a beam costs a heart and the run still ends at the exit
   const hm = await pg.evaluate(async () => {
     settings.hearts = true;

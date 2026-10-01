@@ -80,6 +80,31 @@ const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
   });
   const stableOk = stable.before === stable.afterSelect && stable.bitmapMatches;
   console.log('board stays put when a guard is selected:', JSON.stringify(stable), stableOk ? 'OK' : 'FAIL'); ok = ok && stableOk;
+  // nothing may change place as the game goes on: HUD, tip, board, button rows and every button keep their boxes through selections,
+  // actions, the hint label changing, bigger numbers and hearts mode
+  const shift = await pg.evaluate(async () => {
+    const wait = ms => new Promise(r => setTimeout(r, ms));
+    const box = e => { const b = e.getBoundingClientRect(); return [Math.round(b.left), Math.round(b.top), Math.round(b.width), Math.round(b.height)].join(','); };
+    const snap = () => { const o = { hud: box(document.querySelector('.hud')), tip: box(document.getElementById('tip')), stage: box(document.getElementById('stage')), ctx: box(document.getElementById('ctx')), bar: box(document.getElementById('bar')) };
+      document.querySelectorAll('.hud > *').forEach((e, i) => { o['hud' + i] = box(e); }); document.querySelectorAll('#bar button').forEach((e, i) => { o['bar' + i] = box(e); }); return o; };
+    const gi = LEVELS.findIndex(l => l.map.some(r => /[a-d]/.test(r)));
+    load(gi); await wait(150); const base = snap(), bad = [];
+    const check = name => { const now = snap(); for (const k of Object.keys(base)) if (now[k] !== base[k]) bad.push(name + ' ' + k + ': ' + base[k] + ' -> ' + now[k]); };
+    const p = tapPoint(nCam()); onTap(p[0] - cv.getBoundingClientRect().left - ox, p[1] - cv.getBoundingClientRect().top - oy); await wait(150); check('guard selected');
+    const turn = options(sel)[2]; tryAction(turn.dg, turn.kind); await wait(150); check('after an action');
+    hintsUsed = 1; buildBar(); await wait(150); check('hint label with the AD tag');
+    moves = 10; syncUI(); await wait(100); check('moves = 10');
+    settings.hearts = true; syncUI(); await wait(100); check('hearts mode'); settings.hearts = false; syncUI();
+    settings.lang = 'fa'; applyLang(); syncUI(); buildBar(); await wait(150);
+    const fa = snap(); for (const k of ['stage', 'tip', 'ctx', 'bar']) if (fa[k].split(',')[1] !== base[k].split(',')[1] || fa[k].split(',')[3] !== base[k].split(',')[3]) bad.push('persian ' + k + ' moved vertically');
+    settings.lang = 'en'; applyLang(); syncUI(); buildBar();
+    // the middle slot of the context row holds the same kind of button for every object
+    const slots = [];
+    for (const [name, idx] of [['guard', gi], ['camera', 0]]) { load(idx); sel = name === 'guard' ? nCam() : 0; buildBar(); await wait(80); const btns = [...document.querySelectorAll('#ctx button')], tops = new Set(btns.map(b => Math.round(b.getBoundingClientRect().top))); if (tops.size > 1) base.ctxRowSplit = 'x'; const cb = btns.map(b => b.style.gridColumn + ':' + Math.round(b.getBoundingClientRect().left)); slots.push(name + ' ' + cb.join(' ')); }
+    if (base.ctxRowSplit) bad.push('the context buttons are not all in one row');
+    return { bad, slots };
+  });
+  console.log('layout never shifts:', shift.bad.length ? JSON.stringify(shift.bad) : 'no change in any state', '| slots:', shift.slots.join(' ; '), shift.bad.length ? 'FAIL' : 'OK'); ok = ok && shift.bad.length === 0;
   // guard controls on the guard itself: tap selects, tap again turns it, tap a rail tile walks it (one action per step) facing the way it walks
   const gc = await pg.evaluate(() => {
     const gi = LEVELS.findIndex(l => l.map.some(r => /[a-d]/.test(r)));

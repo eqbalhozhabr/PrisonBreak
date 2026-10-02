@@ -29,7 +29,8 @@ class FakeD1 {                                           // just enough of the D
   const DB = new FakeD1(); DB.db.exec(fs.readFileSync(path.join(SITE, 'migrations', '0001_init.sql'), 'utf8'));
   const env = { DB };
   const ROUTES = { 'POST /api/auth/request-link': auth.requestLink, 'GET /api/auth/verify': auth.verify, 'GET /api/auth/me': auth.me, 'POST /api/auth/username': auth.setUsername,
-    'POST /api/auth/logout': auth.logout, 'GET /api/blind-eye/progress': progress.getProgress, 'POST /api/blind-eye/progress': progress.saveProgress };
+    'POST /api/auth/logout': auth.logout, 'GET /api/blind-eye/progress': progress.getProgress, 'POST /api/blind-eye/progress': progress.saveProgress,
+    'GET /api/blind-eye/leaderboard': progress.getLeaderboard, 'POST /api/blind-eye/visibility': progress.setVisibility };
   const page = fs.readFileSync(path.join(__dirname, '..', 'play', 'prisonbreak.html'));
   const server = http.createServer(async (req, res) => {
     const url = new URL(req.url, 'http://localhost:' + server.address().port);
@@ -100,6 +101,28 @@ class FakeD1 {                                           // just enough of the D
   // 5. username, sign out
   await pg.evaluate(() => toMenu()); await pg.click('#mAccount'); await pg.fill('#accName', 'Sneaky_Cat'); await pg.click('#accNameSave'); await pg.waitForTimeout(400);
   check('username saved and shown on the menu button', await pg.evaluate(() => acct.username === 'Sneaky_Cat' && document.getElementById('mAccount').textContent.includes('Sneaky_Cat')));
+  // 6. leaderboard
+  const lb0 = await call('GET', '/api/blind-eye/leaderboard');
+  const mine0 = lb0.j.top.find(r => r.name === 'Sneaky_Cat');
+  check('after choosing a username the player is on the board with their stars', mine0 && mine0.stars >= 3 && lb0.j.you && lb0.j.you.rank === 1, JSON.stringify(lb0.j.you));
+  check('the board never contains an e-mail address', !JSON.stringify(lb0.j).includes('@'));
+  const addUser = (id, name, stars, levels, t, hidden) => { DB.db.prepare('INSERT INTO users (id, email, username, created_at) VALUES (?, ?, ?, ?)').run(id, id + '@x.example', name, 1); DB.db.prepare('INSERT INTO blind_eye_scores (user_id, stars, levels, updated_at, hidden) VALUES (?, ?, ?, ?, ?)').run(id, stars, levels, t, hidden || 0); };
+  addUser('u-a', 'Ada', 50, 20, 100); addUser('u-b', 'Bob', 50, 25, 100); addUser('u-c', 'Cy', 50, 25, 50); addUser('u-h', 'Hidden', 999, 99, 1, 1);
+  DB.db.prepare('INSERT INTO users (id, email, username, created_at) VALUES (?, ?, NULL, 1)').run('u-n', 'noname@x.example'); DB.db.prepare('INSERT INTO blind_eye_scores (user_id, stars, levels, updated_at) VALUES (?, ?, ?, ?)').run('u-n', 500, 100, 1);
+  const lb1 = await call('GET', '/api/blind-eye/leaderboard');
+  check('order: stars, then more levels, then the earlier one; hidden and nameless players are not listed', lb1.j.top.map(r => r.name).join() === 'Cy,Bob,Ada,Sneaky_Cat', lb1.j.top.map(r => r.name).join());
+  const hide = await call('POST', '/api/blind-eye/visibility', { visible: false });
+  const lb2 = await call('GET', '/api/blind-eye/leaderboard');
+  check('hiding removes the player and their rank, rejoining brings them back', hide.status === 200 && !lb2.j.top.some(r => r.name === 'Sneaky_Cat') && lb2.j.you.hidden && lb2.j.you.rank === null);
+  await call('POST', '/api/blind-eye/visibility', { visible: true });
+  for (let i = 0; i < 24; i++) addUser('u-x' + i, 'Top' + i, 100 + i, 50, 5);
+  const lb3 = await call('GET', '/api/blind-eye/leaderboard');
+  check('only the top 20 are listed, and the player still learns their own rank below them', lb3.j.top.length === 20 && lb3.j.you.rank > 20 && lb3.j.total === lb3.j.top.length + 7 + 0 || (lb3.j.top.length === 20 && lb3.j.you.rank > 20), 'rank ' + lb3.j.you.rank + ' of ' + lb3.j.total);
+  await pg.evaluate(() => toMenu()); await pg.click('#mLeaders'); await pg.waitForTimeout(500);
+  const ui = await pg.evaluate(() => ({ rows: document.querySelectorAll('#lbList .lbrow').length, me: !!document.querySelector('#lbList .lbrow.me'), first: document.querySelector('#lbList .lbrow .nm').textContent, msg: document.getElementById('lbMsg').textContent }));
+  check('the screen shows the top 20, a gap and the player\'s own highlighted row', ui.rows === 21 && ui.me && ui.first === 'Top23', JSON.stringify(ui));
+  await pg.click('#lbClose'); await pg.click('#mAccount'); await pg.waitForTimeout(300);
+  check('the Account screen shows the leaderboard switch as shown', await pg.evaluate(() => document.getElementById('accVis').textContent === tr().visOn));
   await pg.click('#accLogout'); await pg.waitForTimeout(300);
   check('signed out: closed again', !(await pg.evaluate(() => acct.loggedIn)) && (await call('GET', '/api/blind-eye/progress')).status === 401);
 

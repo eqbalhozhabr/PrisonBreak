@@ -47,7 +47,7 @@
   /* panels and overlays */
   .overlay { position:fixed; inset:0; background:rgba(5,7,12,.88); display:none; align-items:center; justify-content:center; padding:20px; z-index:10; }
   .overlay.on { display:flex; }
-  #pauseOv, #setOv, #lvOv, #howOv, #introOv, #accOv { align-items:flex-start; padding-top:max(14px, 5vh); }
+  #pauseOv, #setOv, #lvOv, #howOv, #introOv, #accOv, #lbOv { align-items:flex-start; padding-top:max(14px, 5vh); }
   .card { background:var(--panel); padding:20px 18px; max-width:460px; width:100%; text-align:center; max-height:92%; overflow:auto; }
   .card h2 { margin:2px 0 14px; font-family:var(--tf); font-size:15px; line-height:1.6; letter-spacing:.04em; text-transform:uppercase; text-shadow:3px 3px 0 var(--edge); }
   .stars { display:flex; gap:10px; justify-content:center; margin:6px 0 14px; }
@@ -66,6 +66,14 @@
   .seg { display:flex; gap:8px; } .seg button { min-height:38px; padding:6px 12px; }
   .seg button.sel { background:var(--red); color:#fff; --h:var(--red-hi); --l:var(--red-lo); }
   .tog { min-width:68px; }
+  .duo { display:flex; gap:12px; } .duo button { flex:1; min-width:0; padding-left:8px; padding-right:8px; } .duo button span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0; }
+  .lbrow { display:flex; align-items:center; gap:10px; padding:9px 4px; border-bottom:3px solid var(--edge); text-align:start; direction:ltr; }
+  .lbrow .rk { width:34px; flex:none; font-family:var(--tf); font-size:13px; text-align:center; color:var(--mute); }
+  .lbrow.r1 .rk { color:#ffd24a; } .lbrow.r2 .rk { color:#cfd6e4; } .lbrow.r3 .rk { color:#d9915a; }
+  .lbrow .nm { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-family:var(--pf); font-size:13px; letter-spacing:.03em; }
+  .lbrow .st { flex:none; display:inline-flex; align-items:center; gap:6px; font-family:var(--tf); font-size:13px; } .lbrow .lv { flex:none; font-size:11px; color:var(--mute); min-width:56px; text-align:right; }
+  .lbrow.me { background:rgba(255,59,82,.14); box-shadow:inset 3px 0 0 var(--red); }
+  #lbMsg { font-size:13px; color:var(--mute); line-height:1.6; margin:8px 0; }
   .fld { width:100%; box-sizing:border-box; margin-top:10px; padding:12px 12px; background:var(--lo); color:var(--ink); border:0; border-radius:0; font:16px system-ui,sans-serif; direction:ltr; text-align:start; outline:0;
     box-shadow:0 -3px 0 0 var(--edge), 0 3px 0 0 var(--edge), -3px 0 0 0 var(--edge), 3px 0 0 0 var(--edge); }
   .fld:focus { box-shadow:0 -3px 0 0 var(--red), 0 3px 0 0 var(--red), -3px 0 0 0 var(--red), 3px 0 0 0 var(--red); }
@@ -115,7 +123,7 @@
     <button class="big" id="mLevels"></button>
     <button class="big" id="mHow"></button>
     <button class="big" id="mSettings"></button>
-    <button class="big" id="mAccount"></button>
+    <div class="duo"><button class="big" id="mLeaders"></button><button class="big" id="mAccount"></button></div>
   </div>
   <div class="foot" id="menuFoot"></div>
 </div>
@@ -167,6 +175,13 @@
   <div class="row"><button class="primary" id="setClose"></button></div>
 </div></div>
 
+<div class="overlay" id="lbOv"><div class="card">
+  <h2 id="lbTitle"></h2>
+  <div id="lbMsg"></div>
+  <div id="lbList"></div>
+  <div class="row"><button class="primary" id="lbClose"></button></div>
+</div></div>
+
 <div class="overlay" id="accOv"><div class="card">
   <h2 id="accTitle"></h2>
   <div id="accOut">
@@ -178,6 +193,7 @@
     <span class="acc-in" id="accWho"></span>
     <input class="fld" id="accName" type="text" autocomplete="username" autocapitalize="off" spellcheck="false" maxlength="20">
     <div class="row"><button id="accNameSave"></button><button id="accSyncNow"></button></div>
+    <div class="set"><div><label id="accVisL"></label><small id="accVisS"></small></div><button class="tog" id="accVis"></button></div>
     <div class="row"><button id="accLogout"></button></div>
   </div>
   <div id="accMsg"></div>
@@ -1008,6 +1024,9 @@ const T = {
     accSent: 'Link sent. Open it on this device; it works once and expires in 15 minutes.', accBadEmail: 'That email does not look right.', accWait: 'Please wait a moment…', accOffline: 'Accounts work on luckylion.games/blind-eye. This copy has no server.', accErr: 'Something went wrong. Try again in a minute.',
     accIn: 'Signed in as', accName: 'Username (3-20 letters, digits or _)', accNameSave: 'Save name', accNameBad: 'Use 3 to 20 letters, digits or _.', accNameTaken: 'That name is taken.', accNameOk: 'Name saved.', accSaved: t => 'Progress saved' + (t ? ' · ' + t : ''), accSync: 'Sync now', accOut: 'Sign out', accWelcome: 'Signed in. Your progress is saved to your account.',
     accPrivacy: 'We store your email, username and level progress to sync your game. Nothing else, and nothing is shared. No password is kept.', accDevLink: 'Email sending is not set up on this server. Test link:', close2: 'Close',
+    leaders: 'Ranking', lbTitle: 'Leaderboard', lbHow: 'Players ranked by total stars (ties: more levels, then who got there first). Sign in and pick a username to join.', lbEmpty: 'Nobody is on the board yet. Be the first!', lbLevels: n => n + (n === 1 ? ' level' : ' levels'),
+    lbYou: (r, st) => `You are #${r} with ${st} stars.`, lbNeedName: 'Sign in and set a username in Account to appear on the board.', lbNeedNameIn: 'Set a username in Account to appear on the board.', lbHiddenYou: 'You are hidden from the board (change it in Account).', lbNoStars: 'Win a level to get on the board.', lbOffline: 'The leaderboard needs the server: open luckylion.games/blind-eye.', lbErr: 'Could not load the board. Try again later.', lbMore: n => `${n} players in total`,
+    accVisL: 'Leaderboard', accVisS: 'Your username and star total are shown. Never your e-mail.', visOn: 'Shown', visOff: 'Hidden',
     pause: 'Paused', resume: 'Resume', restart: 'Restart level', mainMenu: 'Main menu',
     level: 'Level', moves: 'Actions', best: 'Best', undo: 'Undo', hint: 'Hint', hintAd: 'Hint · Ad', toExit: 'Escape', turn: 'Turn', flip: 'Switch',
     pick: 'Tap a dark tile to walk. Tap a camera to turn it clockwise.',
@@ -1067,6 +1086,9 @@ const T = {
     accSent: 'لینک فرستاده شد. آن را روی همین دستگاه باز کن؛ یک‌بار کار می‌کند و ۱۵ دقیقه اعتبار دارد.', accBadEmail: 'ایمیل درست به نظر نمی‌رسد.', accWait: 'کمی صبر کن…', accOffline: 'حساب فقط در luckylion.games/blind-eye کار می‌کند. این نسخه سرور ندارد.', accErr: 'مشکلی پیش آمد. یک دقیقهٔ دیگر دوباره امتحان کن.',
     accIn: 'واردشده با', accName: 'نام کاربری (۳ تا ۲۰ حرف انگلیسی، رقم یا _)', accNameSave: 'ذخیرهٔ نام', accNameBad: 'از ۳ تا ۲۰ حرف انگلیسی، رقم یا _ استفاده کن.', accNameTaken: 'این نام گرفته شده است.', accNameOk: 'نام ذخیره شد.', accSaved: t => 'پیشرفت ذخیره شد' + (t ? ' · ' + t : ''), accSync: 'همگام‌سازی', accOut: 'خروج', accWelcome: 'وارد شدی. پیشرفتت در حسابت ذخیره می‌شود.',
     accPrivacy: 'ایمیل، نام کاربری و پیشرفت مرحله‌ها را برای همگام‌سازی بازی ذخیره می‌کنیم. چیز دیگری نه و هیچ‌چیز با کسی به اشتراک گذاشته نمی‌شود. رمزی نگه‌داری نمی‌شود.', accDevLink: 'ارسال ایمیل روی این سرور تنظیم نشده. لینک آزمایشی:', close2: 'بستن',
+    leaders: 'رتبه‌ها', lbTitle: 'جدول رتبه‌بندی', lbHow: 'بازیکن‌ها بر اساس مجموع ستاره‌ها (اگر برابر بودند: مرحلهٔ بیشتر، بعد هر کس زودتر رسیده). برای حضور وارد شو و یک نام کاربری انتخاب کن.', lbEmpty: 'هنوز کسی در جدول نیست. اولین نفر باش!', lbLevels: n => n + ' مرحله',
+    lbYou: (r, st) => `رتبهٔ تو ${r} است با ${st} ستاره.`, lbNeedName: 'برای حضور در جدول وارد شو و در «حساب» یک نام کاربری بگذار.', lbNeedNameIn: 'برای حضور در جدول در «حساب» یک نام کاربری بگذار.', lbHiddenYou: 'تو از جدول پنهان هستی (در «حساب» عوضش کن).', lbNoStars: 'برای حضور در جدول یک مرحله را ببر.', lbOffline: 'جدول به سرور نیاز دارد: luckylion.games/blind-eye را باز کن.', lbErr: 'جدول بارگذاری نشد. بعداً دوباره امتحان کن.', lbMore: n => `${n} بازیکن در مجموع`,
+    accVisL: 'جدول رتبه‌بندی', accVisS: 'نام کاربری و مجموع ستاره‌هایت نمایش داده می‌شود. هرگز ایمیلت نه.', visOn: 'نمایش', visOff: 'پنهان',
     pause: 'توقف', resume: 'ادامه', restart: 'شروع دوبارهٔ مرحله', mainMenu: 'منوی اصلی',
     level: 'مرحله', moves: 'عمل', best: 'بهترین', undo: 'برگشت', hint: 'راهنما', hintAd: 'راهنما · تبلیغ', toExit: 'فرار', turn: 'چرخش', flip: 'تغییر',
     pick: 'یک خانهٔ تاریک را لمس کن تا دزد برود. یک دوربین را لمس کن تا ساعتگرد بچرخد.',
@@ -1127,6 +1149,7 @@ const ICONS = {
   levels: ['XXX.XXX', 'XXX.XXX', 'XXX.XXX', '.......', 'XXX.XXX', 'XXX.XXX', 'XXX.XXX'],
   gear: ['..XXX..', 'X.XXX.X', 'XXX.XXX', 'XX...XX', 'XXX.XXX', 'X.XXX.X', '..XXX..'],
   clock: ['XXXXXXX', '.XXXXX.', '..XXX..', '...X...', '..X.X..', '.XX.XX.', 'XXXXXXX'],
+  trophy: ['XXXXXXX', 'X.XXX.X', 'X.XXX.X', '.XXXXX.', '..XXX..', '...X...', '..XXX..'],
   user: ['..XXX..', '.XXXXX.', '.XXXXX.', '..XXX..', '.XXXXX.', 'XXXXXXX', 'XXXXXXX'],
   help: ['.XXXXX.', 'XX...XX', '.....XX', '...XXX.', '..XX...', '.......', '..XX...'],
 };
@@ -1141,6 +1164,7 @@ function iconData(name) {
   return iconCache[name];
 }
 function icon(name, cell = 3, cls = '') { const d = iconData(name); return `<i class="ic ${cls}" style="--m:url(${d.url});width:${d.w * cell}px;height:${d.h * cell}px"></i>`; }
+const esc = x => String(x).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 const starsHTML = (n, total = 3, cell = 4) => Array.from({ length: total }, (_, i) => icon('star', cell, i < n ? 'gold' : 'dim')).join('');
 
 /* ---------------------------------------------------------------- sound */
@@ -1659,7 +1683,7 @@ function applyLang() {
   document.documentElement.lang = settings.lang; document.documentElement.dir = fa ? 'rtl' : 'ltr';
   const set = (id, v) => { $(id).textContent = v; };
   set('menuTag', t.tag); set('menuFoot', t.foot);
-  $('mLevels').innerHTML = icon('levels', 3) + ' ' + t.levels; $('mHow').innerHTML = icon('help', 3) + ' ' + t.how; $('mSettings').innerHTML = icon('gear', 3) + ' ' + t.settings; $('mAccount').innerHTML = icon('user', 3) + ' ' + (acct.loggedIn ? (acct.username || acct.email.split('@')[0]) : t.account);
+  $('mLevels').innerHTML = icon('levels', 3) + ' ' + t.levels; $('mHow').innerHTML = icon('help', 3) + ' ' + t.how; $('mSettings').innerHTML = icon('gear', 3) + ' ' + t.settings; $('mAccount').innerHTML = icon('user', 3) + ' <span>' + esc(acct.loggedIn ? (acct.username || acct.email.split('@')[0]) : t.account) + '</span>'; $('mLeaders').innerHTML = icon('trophy', 3) + ' <span>' + t.leaders + '</span>';
   set('pauseTitle', t.pause); set('pResume', t.resume); set('pRestart', t.restart); set('pLevels', t.levels); set('pSettings', t.settings); set('pMenu', t.mainMenu);
   set('winRetry', t.retry); set('winLevels', t.levels); set('lvTitle', t.levels); set('lvClose', t.close); set('howTitle', t.howTitle); set('howClose', t.close);
   set('setTitle', t.setTitle); set('setClose', t.close); set('sLangL', t.sLang); set('sSfxL', t.sSfx); set('sVolL', t.sVol); set('sMusL', t.sMus); set('sMusVolL', t.sMusVol); set('sVibL', t.sVib);
@@ -1856,7 +1880,7 @@ function renderAccount() {
   }
   if (!ONLINE && !acct.loggedIn) accMsg(t.accOffline, 'warn');
 }
-function openAccount() { accMsg(''); renderAccount(); show('accOv'); }
+function openAccount() { accMsg(''); renderAccount(); renderVis(); loadVisibility(); show('accOv'); }
 $('mAccount').onclick = openAccount;
 $('accClose').onclick = () => hide('accOv');
 $('accSend').onclick = async () => {
@@ -1883,6 +1907,39 @@ $('accNameSave').onclick = async () => {
 };
 $('accSyncNow').onclick = async () => { accMsg(tr().accWait); const ok = await pushNow(); accMsg(ok ? tr().accSaved(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })) : tr().accErr, ok ? 'good' : 'warn'); };
 $('accLogout').onclick = async () => { try { await api('/api/auth/logout', { method: 'POST' }); } catch (e) {} acct = { loggedIn: false, email: '', username: '', saved: 0 }; applyLang(); accMsg(''); renderAccount(); };
+
+/* ----------------------------------------------------------- leaderboard */
+async function openLeaders() {
+  const t = tr(); $('lbTitle').textContent = t.lbTitle; $('lbClose').textContent = t.close; $('lbList').innerHTML = ''; $('lbMsg').textContent = t.lbHow; show('lbOv');
+  if (!ONLINE) { $('lbMsg').textContent = t.lbOffline; return; }
+  try {
+    const r = await api('/api/blind-eye/leaderboard');
+    if (!r.ok) { $('lbMsg').textContent = t.lbErr; return; }
+    const { top, total, you } = r.j, rows = [];
+    const row = (rk, name, stars, levels, me) => `<div class="lbrow r${rk}${me ? ' me' : ''}"><span class="rk">${rk}</span><span class="nm">${esc(name)}</span><span class="st">${icon('star', 2, 'gold')} ${stars}</span><span class="lv">${t.lbLevels(levels)}</span></div>`;
+    top.forEach(p => rows.push(row(p.rank, p.name, p.stars, p.levels, you && you.rank === p.rank)));
+    if (you && you.rank && you.rank > top.length) rows.push('<div class="muted">…</div>', row(you.rank, you.name, you.stars, you.levels, true));
+    $('lbList').innerHTML = rows.join('') || `<div class="muted">${t.lbEmpty}</div>`;
+    let msg = t.lbHow;
+    if (!you) msg = t.lbNeedName;
+    else if (!you.name) msg = t.lbNeedNameIn;
+    else if (you.hidden) msg = t.lbHiddenYou;
+    else if (!you.stars) msg = t.lbNoStars;
+    else if (you.rank) msg = t.lbYou(you.rank, you.stars);
+    $('lbMsg').textContent = msg + (total ? '  ' + t.lbMore(total) : '');
+  } catch (e) { $('lbMsg').textContent = t.lbErr; }
+}
+$('mLeaders').onclick = openLeaders;
+$('lbClose').onclick = () => hide('lbOv');
+let visShown = true;
+async function loadVisibility() {
+  if (!ONLINE || !acct.loggedIn) return;
+  try { const r = await api('/api/blind-eye/leaderboard'); if (r.ok && r.j.you) { visShown = !r.j.you.hidden; renderVis(); } } catch (e) {}
+}
+function renderVis() { const t = tr(); $('accVisL').textContent = t.accVisL; $('accVisS').textContent = t.accVisS; $('accVis').textContent = visShown ? t.visOn : t.visOff; $('accVis').className = 'tog' + (visShown ? ' on' : ''); }
+$('accVis').onclick = async () => {
+  try { const r = await api('/api/blind-eye/visibility', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ visible: !visShown }) }); if (r.ok) { visShown = !visShown; renderVis(); } } catch (e) {}
+};
 /* settings controls */
 const flip = key => { settings[key] = !settings[key]; saveSettings(); syncSettingsUI(); };
 const setLang = lg => { settings.lang = lg; saveSettings(); applyLang(); if (L) { syncUI(); buildBar(); setTip(tipFor(LEVELS[li].id) || tr().pick); } };

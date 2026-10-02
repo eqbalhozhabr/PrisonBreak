@@ -216,6 +216,25 @@ const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
   });
   const hmOk = hm && hm.alarmOn && hm.blocksInput && hm.hearts1 === 2 && hm.moves === 0 && hm.same && hm.hearts3 === 0 && hm.caught && hm.noPathOverLight !== false;
   console.log('mistakes: alarm, heart lost, state unchanged, three end the level:', JSON.stringify(hm), hmOk ? 'OK' : 'FAIL'); ok = ok && !!hmOk;
+  // ads: a hint always needs an ad; being caught 3 times (all hearts gone) makes the next retry need an ad, then the count starts again
+  const ad = await pg.evaluate(async () => {
+    const wait = ms => new Promise(r => setTimeout(r, ms)), out = {};
+    load(6); clearStrikes();
+    caught(); out.retry1 = document.getElementById('caughtRetry').textContent === tr().retry; document.getElementById('caughtOv').classList.remove('on'); caughtOn = false;
+    caught(); out.retry2 = document.getElementById('caughtRetry').textContent === tr().retry; document.getElementById('caughtOv').classList.remove('on'); caughtOn = false;
+    caught(); out.gate3 = document.getElementById('caughtRetry').textContent === tr().retryAd && gateOn();
+    const lv = li; document.getElementById('caughtRetry').click(); out.adShown = document.getElementById('adOv').classList.contains('on') && caughtOn;
+    await wait(3300); document.getElementById('adClaim').click(); await wait(100);
+    out.afterAd = strikes === 0 && !caughtOn && li === lv && moves === 0;
+    // hints
+    load(6); document.getElementById('bar').querySelectorAll('button')[2].click(); out.hintAd = document.getElementById('adOv').classList.contains('on');
+    await wait(3300); document.getElementById('adClaim').click(); await wait(150); out.hintGiven = hintWho >= 0 || /clear/i.test(document.getElementById('tip').textContent) || document.getElementById('tip').textContent.length > 0;
+    out.noHeartsRow = !document.getElementById('sHearts'); out.alarmRow = !!document.getElementById('alSoft');
+    document.getElementById('alSoft').click(); out.soft = settings.alarm === 'soft'; document.getElementById('alFull').click(); out.full = settings.alarm === 'full';
+    return out;
+  });
+  const adOk = Object.values(ad).every(Boolean);
+  console.log('ads: hint needs an ad, 3rd catch needs an ad to retry, alarm option:', JSON.stringify(ad), adOk ? 'OK' : 'FAIL'); ok = ok && adOk;
   const gate = await pg.evaluate(() => { settings.unlockAll = false; best = {}; const a = chapterLocked(1); best = {}; for (let id = 1; id <= 6; id++) best[id] = { stars: 3 }; const c = chapterLocked(1); best = {}; return [a, c]; });
   console.log('star gate check (locked with 0 stars, open with 18):', JSON.stringify(gate), gate[0] === true && gate[1] === false ? 'OK' : 'FAIL'); ok = ok && gate[0] === true && gate[1] === false;
   const refused = await pg.evaluate(() => {

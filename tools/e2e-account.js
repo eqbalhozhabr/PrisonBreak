@@ -7,7 +7,7 @@ const http = require('http'), fs = require('fs'), path = require('path');
 const { DatabaseSync } = require('node:sqlite');
 const { pathToFileURL } = require('url');
 const SITE = process.env.SITE_DIR || path.join(__dirname, '..', '..', 'luckylion-website');
-const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
+const { chromium, request: pwRequest } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
 
 class FakeD1 {                                           // just enough of the D1 API for the Worker's queries
   constructor() { this.db = new DatabaseSync(':memory:'); }
@@ -28,7 +28,7 @@ class FakeD1 {                                           // just enough of the D
   const [auth, progress] = await Promise.all(['routes/auth.js', 'routes/blindeye.js'].map(f => import(pathToFileURL(path.join(SITE, 'worker', f)).href)));
   const DB = new FakeD1(); DB.db.exec(fs.readFileSync(path.join(SITE, 'migrations', '0001_init.sql'), 'utf8'));
   const env = { DB };
-  const ROUTES = { 'POST /api/auth/request-link': auth.requestLink, 'GET /api/auth/verify': auth.verify, 'GET /api/auth/me': auth.me, 'POST /api/auth/username': auth.setUsername,
+  const ROUTES = { 'POST /api/auth/request-link': auth.requestLink, 'GET /api/auth/verify': auth.verify, 'POST /api/auth/verify': auth.confirmVerify, 'GET /api/auth/me': auth.me, 'POST /api/auth/username': auth.setUsername,
     'POST /api/auth/logout': auth.logout, 'GET /api/blind-eye/progress': progress.getProgress, 'POST /api/blind-eye/progress': progress.saveProgress,
     'GET /api/blind-eye/leaderboard': progress.getLeaderboard, 'POST /api/blind-eye/visibility': progress.setVisibility };
   const page = fs.readFileSync(path.join(__dirname, '..', 'play', 'prisonbreak.html'));
@@ -61,7 +61,10 @@ class FakeD1 {                                           // just enough of the D
   await pg.waitForSelector('#accMsg a', { timeout: 5000 });
   const link = await pg.$eval('#accMsg a', a => a.href);
   check('the sign-in link comes back to Blind Eye (next=/blind-eye/)', /next=%2Fblind-eye%2F/.test(link), link.replace(base, ''));
-  await pg.goto(link); await pg.waitForTimeout(900);
+  // opening the link (as a mail app's scanner would) must NOT use it up: it only shows a button
+  const peek1 = await (await ctx.request.get(link)).text(), peek2 = await (await ctx.request.get(link)).text();
+  check('opening the link twice (a scanner, then the player) still shows the sign-in button', /<button type="submit">Sign in<\/button>/.test(peek1) && /<button type="submit">Sign in<\/button>/.test(peek2) && peek1.includes('Blind Eye'));
+  await pg.goto(link); await pg.click('button[type=submit]'); await pg.waitForURL(/\/blind-eye\//); await pg.waitForTimeout(900);
   const s1 = await pg.evaluate(() => ({ in: acct.loggedIn, email: acct.email, url: location.pathname + location.search, ov: document.getElementById('accOv').classList.contains('on'), btn: document.getElementById('mAccount').textContent.trim() }));
   check('signed in after the link, game page, welcome card shown, param removed', s1.in && s1.email === 'player@example.com' && s1.url === '/blind-eye/' && s1.ov, JSON.stringify(s1));
   const evil = await call('POST', '/api/auth/request-link', { email: 'x@example.com', next: 'https://evil.example/' });
@@ -86,7 +89,7 @@ class FakeD1 {                                           // just enough of the D
   check('a new device starts with nothing', await pg2.evaluate(() => Object.keys(best).length === 0));
   // the Worker allows one link request per e-mail per minute, so the second device's link is put in the table directly
   const tok2 = 'e2e-' + Date.now(); DB.db.prepare('INSERT INTO magic_links (token, email, created_at, expires_at, used_at) VALUES (?, ?, ?, ?, NULL)').run(tok2, 'player@example.com', Date.now(), Date.now() + 600000);
-  await pg2.goto(base + '/api/auth/verify?token=' + tok2 + '&next=%2Fblind-eye%2F');
+  await pg2.goto(base + '/api/auth/verify?token=' + tok2 + '&next=%2Fblind-eye%2F'); await pg2.click('button[type=submit]'); await pg2.waitForURL(/\/blind-eye\//);
   await pg2.waitForTimeout(900);
   check('after signing in on the new device the progress is back', await pg2.evaluate(() => acct.loggedIn && best[1] && best[1].stars === 3));
 
@@ -97,6 +100,21 @@ class FakeD1 {                                           // just enough of the D
   check('invalid levels, stars and names are dropped', junk.j && !junk.j.progress.best['9999'] && !junk.j.progress.best['3'] && Object.keys(junk.j.progress.intro).every(k => /^[a-z]+$/.test(k)));
   const foreign = (await ctx.request.post(base + '/api/blind-eye/progress', { headers: { Origin: 'https://evil.example', 'Content-Type': 'application/json' }, data: { progress: { best: {}, intro: {}, last: 0 } } })).status();
   check('a save from another origin is refused even with a valid session cookie', foreign === 403, 'status ' + foreign);
+
+  // sign-in link behaviour: used once, then a friendly page (HTML, not a downloaded text file); another site cannot sign a visitor in
+  const tok3 = 'e2e3-' + Date.now(); DB.db.prepare('INSERT INTO magic_links (token, email, created_at, expires_at, used_at) VALUES (?, ?, ?, ?, NULL)').run(tok3, 'other@example.com', Date.now(), Date.now() + 600000);
+  const stranger = await pwRequest.newContext();                      // its own cookie jar, so the browser session under test is not replaced
+  const form = t => ({ headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, data: 'token=' + t + '&next=%2Fblind-eye%2F', maxRedirects: 0 });
+  const bad = await stranger.post(base + '/api/auth/verify', { ...form(tok3), headers: { 'Content-Type': 'application/x-www-form-urlencoded', Origin: 'https://evil.example' } });
+  check('a sign-in form posted from another site is refused (and does not burn the link)', bad.status() === 403 && !!DB.db.prepare('SELECT 1 FROM magic_links WHERE token = ? AND used_at IS NULL').get(tok3));
+  const ok1 = await stranger.post(base + '/api/auth/verify', form(tok3)), again = await stranger.post(base + '/api/auth/verify', form(tok3));
+  check('the link works once; the second use shows a friendly HTML page with a way back', ok1.status() === 303 && ok1.headers()['location'] === '/blind-eye/?loggedin=1' && again.status() === 400 && /text\/html/.test(again.headers()['content-type']) && /expired/i.test(await again.text()));
+  // the e-mail says which game it is for
+  const sent = []; const realFetch = global.fetch; global.fetch = async (u, o) => { if (String(u).includes('resend.com')) { sent.push(JSON.parse(o.body)); return new Response('{}', { status: 200 }); } return realFetch(u, o); };
+  const mailEnv = { DB, RESEND_API_KEY: 'k', RESEND_FROM: 'Pixels of the Mist <login@luckylion.games>' };
+  for (const [mail, next] of [['m1@example.com', '/blind-eye/'], ['m2@example.com', undefined]]) await auth.requestLink(new Request(base + '/api/auth/request-link', { method: 'POST', body: JSON.stringify({ email: mail, next }) }), mailEnv);
+  global.fetch = realFetch;
+  check('Blind Eye mail: own subject, sender name and text; the default (Pixels of the Mist) is unchanged', sent.length === 2 && sent[0].subject === 'Sign in to Blind Eye' && sent[0].from === 'Blind Eye <login@luckylion.games>' && sent[0].html.includes('Blind Eye') && !sent[0].html.includes('Pixels') && sent[1].subject === 'Sign in to Pixels of the Mist' && sent[1].from === 'Pixels of the Mist <login@luckylion.games>', sent.map(m => m.subject + ' / ' + m.from).join(' | '));
 
   // 5. username, sign out
   await pg.evaluate(() => toMenu()); await pg.click('#mAccount'); await pg.fill('#accName', 'Sneaky_Cat'); await pg.click('#accNameSave'); await pg.waitForTimeout(400);

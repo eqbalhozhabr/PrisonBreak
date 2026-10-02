@@ -22,6 +22,9 @@ const BLOCKS = [
   { name: 'Glass House I',  grid: [[7,6],[7,6],[7,6],[7,7],[7,7],[7,7],[7,7],[8,7],[8,7],[8,7]], blocks: [4,4,4,5,5,5,5,6,6,6], cams: [1,1,2,2,2,2,2,2,2,3], guards: 0, doors: [0,1,0,1,1,1,1,2,2,2], mirrors: 0, glass: [1,1,1,1,2,2,2,2,2,2], par: [2,3,4,4,5,6,7,7,8,9], phases: [1,1,1,2,2,2,2,3,3,3], cap: 40000, timeMs: 60000, minUnused: 1 },
   { name: 'Glass House II', grid: [[8,7],[8,7],[8,7],[8,8],[8,8],[8,8],[8,8],[8,8],[8,8],[8,8]], blocks: [5,5,5,6,6,6,6,6,7,7], cams: [2,2,2,2,2,2,2,3,3,3], guards: [0,0,0,0,1,1,1,1,1,1], doors: [1,1,1,2,2,2,2,2,2,2], mirrors: [0,0,0,0,0,0,1,1,1,1], dogs: [0,0,0,1,1,1,1,1,1,1], lights: [0,0,0,0,0,0,0,1,1,1], glass: 2, par: [7,8,8,9,9,10,10,11,11,12], phases: [2,2,3,3,3,3,4,4,4,4], cap: 80000, timeMs: 80000, minUnused: 2 },
 ];
+/* Walk counts the generator could actually reach after two full rebuild passes (tools/regen-low.js); the block arrays above ask for more.
+   Levels listed here use this number as their target, so the specs match what can be built. */
+const PHASE_CAP = {15: 2, 44: 4, 45: 3, 65: 4, 79: 2, 83: 2, 84: 2, 85: 2, 92: 3, 93: 3, 94: 3, 95: 3, 100: 4, 101: 3, 102: 2, 103: 3, 104: 2, 105: 3, 109: 1, 110: 1, 111: 1, 114: 2, 115: 2, 118: 2, 125: 1, 178: 2, 184: 1};
 const TOTAL = BLOCKS.reduce((n, b) => n + b.par.length, 0);
 const pick = (v, i) => Array.isArray(v) ? v[i] : v;
 function specFor(n) {
@@ -29,6 +32,6 @@ function specFor(n) {
   while (i >= BLOCKS[bi].par.length) { i -= BLOCKS[bi].par.length; bi++; }
   const b = BLOCKS[bi];
   return { name: b.name, w: b.grid[i][0], h: b.grid[i][1], blocks: pick(b.blocks, i), cams: pick(b.cams, i), guards: pick(b.guards, i), doors: pick(b.doors, i), mirrors: pick(b.mirrors, i), dogs: pick(b.dogs, i) || 0, lights: pick(b.lights, i) || 0, panels: pick(b.panels, i) || 0, glass: pick(b.glass, i) || 0, wire: pick(b.wire, i) || 2,
-    par: b.par[i], phases: b.phases[i], cap: b.cap || 20000, timeMs: b.timeMs || 25000, minUnused: b.minUnused };
+    par: b.par[i], phases: Math.min(b.phases[i], PHASE_CAP[n] || 99), cap: b.cap || 20000, timeMs: b.timeMs || 25000, minUnused: b.minUnused };
 }
 module.exports = { BLOCKS, specFor, TOTAL };

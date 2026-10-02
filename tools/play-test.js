@@ -127,11 +127,11 @@ const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
       load(gi); sel = k; const cur = dg[k] >> 1; if (ti === cur) continue;
       await guardGoTo(k, g.rail[ti]);
       const now = dg[k] >> 1, expectFacing = ti > cur ? 0 : 1;
-      if (now === ti) result = { from: cur, to: ti, steps: Math.abs(ti - cur), moves, facing: dg[k] & 1, expectFacing };
+      if (now === ti) result = { from: cur, to: ti, steps: Math.abs(ti - cur), moves, facing: dg[k] & 1, expectFacing, selAfter: sel };
     }
     return result;
   });
-  const walkOk = !walkRes || (walkRes.moves === walkRes.steps && walkRes.facing === walkRes.expectFacing);
+  const walkOk = !walkRes || (walkRes.moves === walkRes.steps && walkRes.facing === walkRes.expectFacing && walkRes.selAfter === -1);
   console.log('guard: tapping a rail tile walks it, one action per step, facing the way it walks:', JSON.stringify(walkRes), walkOk ? 'OK' : 'FAIL'); ok = ok && walkOk;
   // item introductions: shown once at the level that brings the item, not again after "Got it"
   const intro = await pg.evaluate(() => {
@@ -151,13 +151,13 @@ const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
     out.scent = Array.from(ev().scent).reduce((a, b) => a + b, 0);
     const start = dg[k];
     let target = -1; for (let i = 0; i < d.rail.length; i++) { const o = options(k)[i > start ? 1 : 0]; if (i !== start && o && o.dg && !ev(o.dg).lit[thief] && !ev(o.dg).occ[thief]) { target = i; break; } }
-    if (target >= 0) { await guardGoTo(k, d.rail[target]); out.walked = { from: start, to: dg[k], steps: Math.abs(dg[k] - start), moves }; }
+    if (target >= 0) { await guardGoTo(k, d.rail[target]); out.walked = { from: start, to: dg[k], steps: Math.abs(dg[k] - start), moves, selAfter: sel }; }
     // a door standing under the dog: closing it is refused
     load(di); const ti = L.toggles.findIndex(t => t.kind === 'door' && dogHere(dg, t.c));
     if (ti >= 0) { const kk = nCam() + nGuard() + ti; out.doorStuck = options(kk)[0].dg === null; }
     return out;
   });
-  const dgOk = dg1.selected && dg1.movesAfterSelect === 0 && dg1.scent > 0 && (!dg1.walked || (dg1.walked.moves === dg1.walked.steps && dg1.walked.steps > 0)) && (dg1.doorStuck === undefined || dg1.doorStuck === true);
+  const dgOk = dg1.selected && dg1.movesAfterSelect === 0 && dg1.scent > 0 && (!dg1.walked || (dg1.walked.moves === dg1.walked.steps && dg1.walked.steps > 0 && dg1.walked.selAfter === -1)) && (dg1.doorStuck === undefined || dg1.doorStuck === true);
   console.log('dog: select, rail walk, scent, door in the doorway:', JSON.stringify(dg1), dgOk ? 'OK' : 'FAIL'); ok = ok && !!dgOk;
   // searchlights: a tap on the lamp is a Wait (one action, the lamp swings a quarter turn clockwise); any other action swings it too; the next position is previewed
   const lt = await pg.evaluate(async () => {
@@ -197,20 +197,25 @@ const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
   });
   const glOk = gl.pane && gl.notWall && gl.blocksBody && gl.stayed && gl.tapRefused;
   console.log('glass: blocks walking, light passes:', JSON.stringify(gl), glOk ? 'OK' : 'FAIL'); ok = ok && !!glOk;
-  // hearts mode: crossing a beam costs a heart and the run still ends at the exit
+  // mistakes: an action that would expose the prisoner is not done; instead an alarm plays (beams blink, siren) and, with hearts on, one heart is lost.
+  // Undo never gives hearts back, three mistakes end the level, and the prisoner can never walk over lit tiles.
   const hm = await pg.evaluate(async () => {
-    settings.hearts = true;
-    for (let i = 0; i < LEVELS.length; i++) {
-      load(i); if (P.solve(L, { maxDepth: 60 }).par < 1) continue;
-      const p = pathTo(L.E); if (!p) continue;
-      walkTo(L.E); while (walking) await new Promise(r => setTimeout(r, 20));
-      const out = { level: i + 1, hearts, lost, won: document.getElementById('winOv').classList.contains('on'), caught: caughtOn };
-      settings.hearts = false; return out;
-    }
-    settings.hearts = false; return null;
+    const wait = ms => new Promise(r => setTimeout(r, ms)), done = async () => { for (let t = 0; t < 120 && alarm; t++) await wait(25); };
+    settings.hearts = true; let found = null;
+    for (let i = 0; i < LEVELS.length && !found; i++) { load(i); for (let k = 0; k < nAll() && !found; k++) for (const o of options(k)) { if (!o.dg) continue; const e = ev(o.dg); if (e.lit[thief] && !e.occ[thief]) { found = { i, o }; break; } } }
+    if (!found) return null;
+    load(found.i); const o = found.o;
+    const dg0 = dg.join(), out = { level: found.i + 1 };
+    tryAction(o.dg, o.kind); out.alarmOn = !!alarm; out.blocksInput = (() => { const m = moves; tryAction(o.dg, o.kind); return moves === m; })();
+    await done(); out.hearts1 = hearts; out.moves = moves; out.same = dg.join() === dg0; out.lost1 = lost;
+    tryAction(o.dg, o.kind); await done(); tryAction(o.dg, o.kind); await done(); out.hearts3 = hearts; out.caught = caughtOn;
+    // walking: no path ever leads over a lit tile
+    load(found.i); const e0 = ev(); let lit = -1; for (let c = 0; c < L.w * L.h; c++) if (e0.lit[c] && !L.wall[c]) { lit = c; break; }
+    out.noPathOverLight = lit < 0 ? 'no lit tile' : pathTo(lit) === null;
+    settings.hearts = false; return out;
   });
-  const hmOk = hm && (hm.won || hm.caught) && hm.hearts === 3 - hm.lost;
-  console.log('hearts check:', JSON.stringify(hm), hmOk ? 'OK' : 'FAIL'); ok = ok && !!hmOk;
+  const hmOk = hm && hm.alarmOn && hm.blocksInput && hm.hearts1 === 2 && hm.moves === 0 && hm.same && hm.hearts3 === 0 && hm.caught && hm.noPathOverLight !== false;
+  console.log('mistakes: alarm, heart lost, state unchanged, three end the level:', JSON.stringify(hm), hmOk ? 'OK' : 'FAIL'); ok = ok && !!hmOk;
   const gate = await pg.evaluate(() => { settings.unlockAll = false; best = {}; const a = chapterLocked(1); best = {}; for (let id = 1; id <= 6; id++) best[id] = { stars: 3 }; const c = chapterLocked(1); best = {}; return [a, c]; });
   console.log('star gate check (locked with 0 stars, open with 18):', JSON.stringify(gate), gate[0] === true && gate[1] === false ? 'OK' : 'FAIL'); ok = ok && gate[0] === true && gate[1] === false;
   const refused = await pg.evaluate(() => {

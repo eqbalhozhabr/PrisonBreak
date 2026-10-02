@@ -39,6 +39,8 @@
   .hud .stat b { font-family:var(--tf); font-size:15px; line-height:1.5; }
   #heartsWrap { position:absolute; top:8px; right:10px; z-index:2; pointer-events:none; }
   #hearts { display:inline-flex; gap:4px; direction:ltr; }
+  .ic.break { animation:heartBreak .7s steps(7); }
+  @keyframes heartBreak { 0% { transform:scale(1.6) rotate(0); filter:brightness(2); } 30% { transform:scale(1.3) rotate(-14deg); } 60% { transform:scale(1.2) rotate(12deg); } 100% { transform:scale(1) rotate(0); filter:none; } }
   #tip { font-size:13px; color:var(--mute); height:70px; overflow:hidden; padding:2px 6px 6px; line-height:1.5; }
   #tip.warn { color:var(--red-hi); } #tip.good { color:var(--ok); }
   #stage { flex:1; min-height:0; position:relative; margin:3px 3px 6px; }
@@ -939,9 +941,10 @@ const store = {
 };
 
 /* ------------------------------------------------------------ settings */
-const DEFAULTS = { lang: 'en', sfx: true, vol: 70, music: true, musicVol: 60, vibrate: true, hearts: false, reduceMotion: false, unlockAll: false };
+const DEFAULTS = { lang: 'en', sfx: true, vol: 70, music: true, musicVol: 60, vibrate: true, hearts: true, reduceMotion: false, unlockAll: false };
 const settings = Object.assign({}, DEFAULTS, store.get('pb_settings', {}));
 const saveSettings = () => store.set('pb_settings', settings);
+if (!settings.heartsV2) { settings.heartsV2 = true; settings.hearts = true; saveSettings(); }          // hearts are now on by default: mistakes cost a heart
 
 /* ----------------------------------------------------------- progression */
 const HEARTS_MAX = 3, FREE_HINTS = 1, STARS_FRACTION = 0.4;
@@ -989,10 +992,10 @@ const T = {
     refused: 'Not allowed: that would expose the prisoner. Move him somewhere dark first.', unreach: 'The prisoner cannot get there from here.',
     pathClear: 'The way is clear. Send the prisoner to the exit.', hintWho: 'Try: ', hintCam: 'turn this camera', hintGuard: 'move this guard', hintDoor: 'use this door', hintMirror: 'flip this mirror', hintDog: 'move this dog', hintLight: 'wait: tap the searchlight', hintPanel: 'use this power panel', glassTip: 'Glass: you can see through it, but you cannot walk through it.', wiredTip: 'This one is wired to a power panel. Tap the panel instead.', wait: 'Wait',
     escaped: 'Escaped!', winText: (m, p, l) => `${m} actions · best ${p}` + (l ? ` · ${l} heart(s) lost` : ''), retry: 'Retry', next: 'Next level', done: 'All levels cleared!',
-    seen: 'Spotted! You lost a heart.', caught: 'Caught!', caughtText: 'You ran out of hearts.', revive: 'Ad: continue with 1 heart',
+    seen: 'Spotted! You lost a heart.', seenFree: 'Spotted! That action was cancelled.', caught: 'Caught!', caughtText: 'You ran out of hearts.', revive: 'Ad: continue with 1 heart',
     locked: (n, h) => `Locked: needs ${n} stars (you have ${h})`, gate: (n, h) => `The next block needs ${n} stars. You have ${h}.`,
     adTitle: 'Placeholder ad', adText: 'In the real game a rewarded video plays here. This is only a stand-in; no real ad is shown.', adWait: s => `${s}s…`, adReady: 'Ready', adClaim: 'Claim reward', adCancel: 'Cancel',
-    sLang: 'Language', sSfx: 'Sound effects', sVol: 'Effects volume', sMus: 'Music', sMusVol: 'Music volume', sVib: 'Vibration', sHearts: 'Hearts mode', sHeartsS: 'You may cross light, but each time you are spotted you lose a heart.',
+    sLang: 'Language', sSfx: 'Sound effects', sVol: 'Effects volume', sMus: 'Music', sMusVol: 'Music volume', sVib: 'Vibration', sHearts: 'Hearts', sHeartsS: 'Each time an action would expose the prisoner you lose a heart. Lose all three and the level restarts.',
     sMotion: 'Reduce motion', sMotionS: 'Less shaking and pulsing.', sUnlock: 'Unlock all levels', sUnlockS: 'For testing.', sReset: 'Reset progress', sResetSure: 'Tap again to erase', sResetDone: 'Progress erased',
     on: 'On', off: 'Off', setTitle: 'Settings', howTitle: 'How to play',
     howList: [
@@ -1043,10 +1046,10 @@ const T = {
     refused: 'ممنوع! با این کار زندانی دیده می‌شود. اول او را به یک خانهٔ تاریک ببر.', unreach: 'زندانی از اینجا نمی‌تواند به آن خانه برود.',
     pathClear: 'راه باز است. زندانی را به خروج ببر.', hintWho: 'پیشنهاد: ', hintCam: 'این دوربین را بچرخان', hintGuard: 'این نگهبان را جابه‌جا کن', hintDoor: 'این در را باز/بسته کن', hintMirror: 'این آینه را بچرخان', hintDog: 'این سگ را جابه‌جا کن', hintLight: 'صبر کن: نورافکن را لمس کن', hintPanel: 'این تابلو برق را بزن', glassTip: 'شیشه: از آن می‌شود دید، ولی نمی‌شود رد شد.', wiredTip: 'این یکی به تابلو برق وصل است. به‌جایش تابلو را لمس کن.', wait: 'صبر',
     escaped: 'فرار کرد!', winText: (m, p, l) => `${m} عمل · بهترین ${p}` + (l ? ` · ${l} جان از دست رفت` : ''), retry: 'دوباره', next: 'مرحلهٔ بعد', done: 'همهٔ مرحله‌ها تمام شد!',
-    seen: 'دیده شدی! یک جان کم شد.', caught: 'گرفتار شد!', caughtText: 'جان‌هایت تمام شد.', revive: 'تبلیغ و ادامه با ۱ جان',
+    seen: 'دیده شدی! یک جان کم شد.', seenFree: 'دیده شدی! آن عمل لغو شد.', caught: 'گرفتار شد!', caughtText: 'جان‌هایت تمام شد.', revive: 'تبلیغ و ادامه با ۱ جان',
     locked: (n, h) => `قفل: ${n} ستاره لازم است (داری ${h})`, gate: (n, h) => `برای بخش بعد ${n} ستاره لازم است. تا الان ${h} داری.`,
     adTitle: 'تبلیغ آزمایشی', adText: 'اینجا در بازی واقعی یک ویدیوی جایزه‌ای پخش می‌شود. این فقط یک نمونه است و تبلیغ واقعی ندارد.', adWait: s => `${s} ثانیه…`, adReady: 'آماده', adClaim: 'دریافت جایزه', adCancel: 'انصراف',
-    sLang: 'زبان', sSfx: 'جلوه‌های صوتی', sVol: 'بلندی جلوه‌ها', sMus: 'موسیقی', sMusVol: 'بلندی موسیقی', sVib: 'لرزش', sHearts: 'حالت جان', sHeartsS: 'می‌توانی از نور رد شوی، ولی هر بار دیده شدن یک جان می‌برد.',
+    sLang: 'زبان', sSfx: 'جلوه‌های صوتی', sVol: 'بلندی جلوه‌ها', sMus: 'موسیقی', sMusVol: 'بلندی موسیقی', sVib: 'لرزش', sHearts: 'جان', sHeartsS: 'هر بار که عملی زندانی را لو بدهد یک جان کم می‌شود. با تمام شدن سه جان مرحله از اول شروع می‌شود.',
     sMotion: 'کاهش حرکت', sMotionS: 'لرزش و چشمک کمتر.', sUnlock: 'باز کردن همهٔ مرحله‌ها', sUnlockS: 'برای تست.', sReset: 'پاک کردن پیشرفت', sResetSure: 'برای پاک کردن دوباره لمس کن', sResetDone: 'پیشرفت پاک شد',
     on: 'روشن', off: 'خاموش', setTitle: 'تنظیمات', howTitle: 'راهنمای بازی',
     howList: [
@@ -1146,6 +1149,7 @@ const Sfx = (() => {
     door: (a, t) => { tone(a, t, 210, 110, .16, 'square', .07, 0, 700); noise(a, t, .08, .05, .02, 1200); tone(a, t, 90, 60, .1, 'sine', .22, .12); },
     mirror: (a, t) => { tone(a, t, 1900, 2600, .1, 'sine', .07); tone(a, t, 2600, 3100, .08, 'sine', .04, .05); },
     refuse: (a, t) => { tone(a, t, 110, 100, .2, 'square', .09, 0, 700); tone(a, t, 117, 104, .2, 'square', .07, 0, 700); },
+    siren: (a, t) => { for (let i = 0; i < 4; i++) { tone(a, t, 520, 940, .17, 'sawtooth', .075, i * .3, 3000); tone(a, t, 940, 520, .13, 'sawtooth', .075, i * .3 + .17, 3000); } tone(a, t, 70, 60, .5, 'sine', .22); },
     spotted: (a, t) => { for (let i = 0; i < 4; i++) tone(a, t, i % 2 ? 660 : 880, i % 2 ? 660 : 880, .09, 'square', .07, i * .1, 2400); },
     caught: (a, t) => { tone(a, t, 440, 90, .55, 'sawtooth', .1, 0, 1400); tone(a, t, 90, 50, .3, 'sine', .3, .45); },
     win: (a, t) => { [523, 659, 784, 1047].forEach((f, i) => tone(a, t, f, f, .16, 'triangle', .13, i * .09)); tone(a, t, 2093, 2093, .35, 'sine', .05, .4); },
@@ -1166,23 +1170,23 @@ const Sfx = (() => {
 window.addEventListener('pointerdown', () => { Sfx.unlock(); Music.sync(); });
 
 /* ---------------------------------------------------------------- music */
-/* A tiptoe loop played by the same synth: a plucked bass, a creeping chromatic lead with an echo, wood-block ticks and a soft kick.
+/* A tiptoe loop played by the same synth: a bouncing octave bass with gaps, a staccato lead that wiggles by a semitone and answers itself, wood-block ticks and a soft kick.
    16 bars of 8 eighth-notes in A minor at 112 BPM (about 34 seconds), then it loops. It is original, written for this game.
    The pattern is plain data below; schedule() is also used to render a preview file offline. */
 const Music = (() => {
-  const BPM = 112, STEP = 60 / BPM / 2;
+  const BPM = 108, STEP = 60 / BPM / 2;
   const midi = n => { const m = /^([A-G])([#b]?)(\d)$/.exec(n); return { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 }[m[1]] + (m[2] === '#' ? 1 : m[2] === 'b' ? -1 : 0) + (Number(m[3]) + 1) * 12; };
   const hz = n => 440 * Math.pow(2, (midi(n) - 69) / 12);
   const R = null;
+  /* "Tiptoe": a bouncing octave bass that leaves gaps (the creeping), and a short staccato lead that wiggles a semitone and answers itself. 16 bars, A minor. */
   const LEAD = [
-    ['E4', R, 'F4', R, 'F#4', R, 'G4', R], ['A4', R, R, 'G4', 'F4', R, 'E4', R], ['E4', R, 'F4', R, 'F#4', R, 'G#4', R], ['A4', R, 'C5', 'B4', 'A4', R, R, R],
-    ['E4', R, 'F4', R, 'F#4', R, 'G4', R], ['A4', R, R, 'G4', 'F4', R, 'D4', R], ['G#4', R, 'B4', R, 'D5', R, 'B4', R], ['C5', R, 'B4', R, 'A4', R, R, R],
-    ['A4', R, 'C5', R, 'A4', R, 'F4', R], ['G4', R, 'E4', R, 'G4', R, 'C5', R], ['B4', R, 'D5', R, 'B4', R, 'G4', R], ['G#4', R, 'B4', R, 'E5', R, 'D5', 'B4'],
-    ['F4', R, 'A4', R, 'D5', R, 'A4', R], ['E4', R, 'A4', R, 'C5', R, 'A4', R], ['E4', R, 'F4', R, 'F#4', R, 'G#4', R], ['A4', R, R, R, R, R, R, R],
+    ['A4', R, 'C5', R, 'B4', 'Bb4', 'A4', R], [R, R, 'E4', 'G4', 'A4', R, R, R], ['D5', R, 'F5', R, 'E5', 'Eb5', 'D5', R], [R, R, 'A4', 'C5', 'D5', R, R, R],
+    ['A4', R, 'C5', R, 'B4', 'Bb4', 'A4', R], [R, R, 'E4', 'G4', 'A4', R, 'G#4', R], ['B4', R, 'D5', R, 'C5', 'B4', 'G#4', R], ['E4', R, R, R, 'G#4', R, 'B4', R],
+    ['A4', 'A4', R, 'A4', R, 'C5', R, 'E5'], ['D5', R, 'C5', R, 'B4', R, 'A4', R], ['F4', 'F4', R, 'F4', R, 'A4', R, 'D5'], ['C5', R, 'Bb4', R, 'A4', R, 'F4', R],
+    ['A4', R, 'C5', R, 'F5', R, 'E5', 'C5'], ['B4', R, 'G#4', R, 'E4', R, 'G#4', 'B4'], ['A4', R, 'C5', 'B4', 'Bb4', 'A4', R, R], ['E4', R, R, 'A4', R, R, R, R],
   ];
-  const CH = ['Am', 'Am', 'E', 'Am', 'Am', 'Dm', 'E', 'Am', 'F', 'C', 'G', 'E', 'Dm', 'Am', 'E', 'Am'];
-  const BASS = { Am: ['A2', R, 'E3', R, 'A2', R, 'C3', 'E3'], E: ['E2', R, 'B2', R, 'E2', R, 'G#2', 'B2'], Dm: ['D2', R, 'A2', R, 'D2', R, 'F2', 'A2'],
-    F: ['F2', R, 'C3', R, 'F2', R, 'A2', 'C3'], G: ['G2', R, 'D3', R, 'G2', R, 'B2', 'D3'], C: ['C2', R, 'G2', R, 'C2', R, 'E2', 'G2'] };
+  const CH = ['Am', 'Am', 'Dm', 'Dm', 'Am', 'Am', 'E', 'E', 'Am', 'Am', 'Dm', 'Dm', 'F', 'E', 'Am', 'Am'];
+  const BASS = { Am: ['A2', R, R, 'A3', R, 'A2', R, 'E3'], Dm: ['D2', R, R, 'D3', R, 'D2', R, 'A2'], E: ['E2', R, R, 'E3', R, 'E2', R, 'B2'], F: ['F2', R, R, 'F3', R, 'F2', R, 'C3'] };
   const STEPS = LEAD.length * 8;
   const osc = (a, dest, t, f0, f1, dur, type, vol, lp) => {
     const o = a.createOscillator(), g = a.createGain(); let out = o;
@@ -1364,6 +1368,7 @@ $('introOk').onclick = closeIntro;
 
 /* ---------------------------------------------------------------- state */
 let li = 0, L, dg, thief, thiefDir = 2, hist = [], moves = 0, sel = -1, hintWho = -1, walking = null, inGame = false;
+let alarm = null, heartPop = -1;                           // alarm: the refused action being replayed as a siren animation
 let flash = 0, flashCell = -1, shake = 0, hearts = HEARTS_MAX, lost = 0, hintsUsed = 0, caughtOn = false;
 const gdraw = [], ddraw = [];
 const heartsOn = () => settings.hearts;
@@ -1375,10 +1380,10 @@ function load(i) {
   L = P.parseLevel(LEVELS[li].map, LEVELS[li].meta);
   P.prepare(L);
   dg = P.initialDigits(L); thief = L.S; thiefDir = 2; hist = []; moves = 0; sel = -1; hintWho = -1; walking = null;
-  hearts = HEARTS_MAX; lost = 0; hintsUsed = 0; caughtOn = false; gdraw.length = 0; ddraw.length = 0; loadToken++; gBusy = false;
+  hearts = HEARTS_MAX; lost = 0; hintsUsed = 0; caughtOn = false; alarm = null; heartPop = -1; gdraw.length = 0; ddraw.length = 0; loadToken++; gBusy = false;
   document.querySelectorAll('.overlay.on').forEach(o => o.classList.remove('on'));
   $('menu').classList.remove('on'); inGame = true; store.set('pb_last', li);
-  setTip(heartsOn() ? tr().sHeartsS : (tipFor(LEVELS[li].id) || tr().pick));
+  setTip(tipFor(LEVELS[li].id) || tr().pick);
   syncUI(); buildBar(); resize();
   const kind = INTROS[LEVELS[li].id]; if (kind && !introSeen[kind]) showIntro(kind, true);
 }
@@ -1428,9 +1433,31 @@ function options0(k) {
   return [{ kind: t.kind, label: '⇄', dg: stuck ? null : Object.assign(dg.slice(), { [k]: 1 - dg[k] }) }];
 }
 function push() { hist.push({ dg: dg.slice(), thief, moves, hearts, lost, thiefDir }); }
-function damage() {
-  hearts--; lost++; flash = 1; flashCell = thief; shake = 1; setTip(tr().seen, 'warn'); Sfx.play('spotted');
-  if (hearts <= 0) caught();
+/* An action that would light the prisoner is not done. Instead it is shown for a moment: the beams flash, a dog runs at him, the siren sounds,
+   and (hearts on) a heart is lost. The level state does not change. */
+function viewDg() { return alarm ? alarm.nd : dg; }
+function spotters(nd) {
+  const e = P.evalConfig(L, nd, true), who = new Set(), dogs = [];
+  for (const r of e.rays) if (r.cells.includes(thief)) who.add(r.who);
+  if (e.scent[thief]) {
+    L.dogs.forEach((d, j) => {
+      const start = d.rail[nd[dogBase() + j]], seen = new Set(), st = [];
+      for (let q = 0; q < 4; q++) { const x = start % L.w + DX[q], y = ((start / L.w) | 0) + DY[q]; if (x >= 0 && y >= 0 && x < L.w && y < L.h) { const c = y * L.w + x; if (!L.wall[c] && !e.occ[c] && !seen.has(c)) { seen.add(c); st.push(c); } } }
+      while (st.length) { const c = st.pop(); if (c === thief) { dogs.push(j); who.add(dogBase() + j); return; }
+        for (let q = 0; q < 4; q++) { const x = c % L.w + DX[q], y = ((c / L.w) | 0) + DY[q]; if (x < 0 || y < 0 || x >= L.w || y >= L.h) continue; const r = y * L.w + x; if (!L.wall[r] && !e.occ[r] && !seen.has(r)) { seen.add(r); st.push(r); } } }
+    });
+  }
+  return { who, dogs };
+}
+function startAlarm(nd) {
+  const sp = spotters(nd), from = sp.dogs.map(j => { const c = L.dogs[j].rail[nd[dogBase() + j]]; return { j, x: c % L.w, y: (c / L.w) | 0 }; });
+  alarm = { nd, t: 0, who: sp.who, dogs: from };
+  hintWho = -1; flash = 1; flashCell = thief; shake = 1; Sfx.play('siren'); if (settings.vibrate && navigator.vibrate) navigator.vibrate([60, 40, 60]);
+  setTip(heartsOn() ? tr().seen : tr().seenFree, 'warn');
+}
+function endAlarm() {
+  alarm = null;
+  if (heartsOn()) { hearts--; lost++; heartPop = hearts; setTimeout(() => { heartPop = -1; syncUI(); }, 700); if (hearts <= 0) caught(); }
   syncUI();
 }
 function caught() {
@@ -1441,16 +1468,16 @@ function caught() {
 }
 function refuse() { setTip(tr().refused, 'warn'); flashCell = thief; flash = 1; shake = 1; Sfx.play('refuse'); }
 function tryAction(nd, kind) {
-  if (walking || caughtOn) return;
+  if (walking || caughtOn || alarm) return;
   if (!nd) { setTip(tr().doorBlocked, 'warn'); Sfx.play('refuse'); return; }
-  const e = ev(nd), wasLit = ev().lit[thief];
-  if (e.occ[thief] || (e.lit[thief] && !heartsOn())) return refuse();
+  const e = ev(nd);
+  if (e.occ[thief]) return refuse();                                  // something would stand on the prisoner
+  if (e.lit[thief]) return startAlarm(nd);                            // he would be seen
   push(); dg = nd; moves++; hintWho = -1; setTip(''); Sfx.play(kind || 'cam'); if (nLight() && kind !== 'wait') setTimeout(() => Sfx.play('sweep'), 180);
-  if (e.lit[thief] && !wasLit) damage();
   syncUI(); buildBar();
 }
 
-/* Walking is free in the puzzle. In hearts mode a lit tile may be crossed; the search then prefers shadows. */
+/* Walking is free in the puzzle, but only over dark tiles. */
 function pathTo(target) {
   const e = ev(), n = L.w * L.h, cost = new Float64Array(n).fill(Infinity), prev = new Int16Array(n).fill(-2);
   const open = [thief]; cost[thief] = 0; prev[thief] = -1;
@@ -1461,8 +1488,8 @@ function pathTo(target) {
     for (let d = 0; d < 4; d++) {
       const nx = x + DX[d], ny = y + DY[d]; if (nx < 0 || ny < 0 || nx >= L.w || ny >= L.h) continue;
       const m = ny * L.w + nx;
-      if (L.wall[m] || e.occ[m] || (e.lit[m] && !heartsOn())) continue;
-      const c2 = cost[c] + (e.lit[m] ? 6 : 1);
+      if (L.wall[m] || e.occ[m] || e.lit[m]) continue;
+      const c2 = cost[c] + 1;
       if (c2 < cost[m]) { cost[m] = c2; prev[m] = c; open.push(m); }
     }
   }
@@ -1471,7 +1498,7 @@ function pathTo(target) {
   return path.reverse();
 }
 function walkTo(c) {
-  if (caughtOn) return;
+  if (caughtOn || alarm) return;
   const path = pathTo(c);
   if (!path) { setTip(tr().unreach, 'warn'); flashCell = c; flash = 1; Sfx.play('refuse'); return; }
   if (!path.length) return;
@@ -1483,11 +1510,10 @@ function stepWalk(dt) {
   walking.t += dt;
   while (walking && walking.t >= 110) {
     walking.t -= 110;
-    const next = walking.path.shift(), e = ev(), wasLit = e.lit[thief];
+    const next = walking.path.shift();
     const dx = next % L.w - thief % L.w, dy = ((next / L.w) | 0) - ((thief / L.w) | 0);
     thiefDir = dy < 0 ? 0 : dx > 0 ? 1 : dy > 0 ? 2 : 3;
     thief = next; Sfx.play('step');
-    if (heartsOn() && e.lit[thief] && !wasLit) { damage(); if (caughtOn) return; }
     if (!walking.path.length) { walking = null; if (thief === L.E) win(); }
   }
 }
@@ -1562,7 +1588,7 @@ async function guardGoTo(k, cell) {
       const before = moves; tryAction(o.dg, o.kind); if (moves === before) break;
       await new Promise(r => setTimeout(r, 170));
     }
-  } finally { if (token === loadToken) gBusy = false; }
+  } finally { if (token === loadToken) { gBusy = false; sel = -1; setTip(''); buildBar(); } }          // after a rail walk the guard or dog is let go, so the next tap cannot send it back
 }
 function onTap(px, py) {
   const h = hitTest(px, py); if (!h) return;
@@ -1585,7 +1611,7 @@ function onTap(px, py) {
   if (!L.wall[h.cell]) walkTo(h.cell);
 }
 cv.addEventListener('pointerdown', e0 => {
-  if (!inGame || walking || gBusy || caughtOn || document.querySelector('.overlay.on')) return;
+  if (!inGame || walking || gBusy || caughtOn || alarm || document.querySelector('.overlay.on')) return;
   ensureSize(); const r = cv.getBoundingClientRect(); onTap((e0.clientX - r.left) * (W / r.width) - ox, (e0.clientY - r.top) * (H / r.height) - oy);
 });
 window.addEventListener('keydown', e => {
@@ -1624,7 +1650,7 @@ function syncUI() {
   const t = tr(), lv = LEVELS[li];
   $('lvLabel').textContent = t.level + ' ' + lv.id; $('blockLabel').textContent = CHAPTERS[chapterOf(li)][settings.lang];
   $('movesLabel').textContent = t.moves; $('parLabel').textContent = t.best; $('moves').textContent = moves; $('par').textContent = lv.par;
-  $('hearts').innerHTML = Array.from({ length: HEARTS_MAX }, (_, i) => icon('heart', 3, i < hearts ? 'red' : 'dim')).join('');
+  $('hearts').innerHTML = Array.from({ length: HEARTS_MAX }, (_, i) => icon('heart', 3, i < hearts ? 'red' : (i === heartPop ? 'dim break' : 'dim'))).join('');
   $('btnMenu').innerHTML = icon('menu', 3);
   $('heartsWrap').style.display = heartsOn() ? 'flex' : 'none';
 }
@@ -1646,12 +1672,12 @@ function buildBar() {
   add(bar, icon('bulb', 3) + ' ' + t.hint + (hintsUsed < FREE_HINTS ? '' : '<span class="adtag">AD</span>'), onHint);     // the label never changes length
 }
 function undo() {
-  if (!hist.length || walking || gBusy) return;
-  Sfx.play('undo'); const h = hist.pop(); dg = h.dg; thief = h.thief; moves = h.moves; hearts = h.hearts; lost = h.lost; thiefDir = h.thiefDir;
+  if (!hist.length || walking || gBusy || alarm) return;
+  Sfx.play('undo'); const h = hist.pop(); dg = h.dg; thief = h.thief; moves = h.moves; thiefDir = h.thiefDir;         // hearts are never given back by Undo
   hintWho = -1; caughtOn = false; setTip(''); syncUI(); buildBar();
 }
 function onHint() {
-  if (walking || caughtOn) return;
+  if (walking || caughtOn || alarm) return;
   if (hintsUsed < FREE_HINTS) { hintsUsed++; doHint(); buildBar(); return; }
   Ads.rewarded().then(ok => { if (ok) doHint(); });
 }
@@ -1680,7 +1706,6 @@ const Ads = {
 
 function starsNow() {
   const p = LEVELS[li].par; let s = moves <= p ? 3 : moves <= p + Math.max(2, Math.ceil(p * .3)) ? 2 : 1;
-  if (heartsOn() && lost > 0) s = Math.max(1, s - 1);
   return s;
 }
 function win() {
@@ -1733,12 +1758,11 @@ $('winLevels').onclick = () => { hide('winOv'); openLevels(); };
 $('caughtRetry').onclick = () => load(li);
 $('caughtRevive').onclick = () => Ads.rewarded().then(ok => {
   if (!ok) return;
-  const h = hist.pop(); if (h) { dg = h.dg; thief = h.thief; moves = h.moves; lost = h.lost; thiefDir = h.thiefDir; }
   hearts = 1; caughtOn = false; hide('caughtOv'); setTip(''); syncUI(); buildBar();
 });
 /* settings controls */
 const flip = key => { settings[key] = !settings[key]; saveSettings(); syncSettingsUI(); };
-const setLang = lg => { settings.lang = lg; saveSettings(); applyLang(); if (L) { syncUI(); buildBar(); setTip(heartsOn() ? tr().sHeartsS : (tipFor(LEVELS[li].id) || tr().pick)); } };
+const setLang = lg => { settings.lang = lg; saveSettings(); applyLang(); if (L) { syncUI(); buildBar(); setTip(tipFor(LEVELS[li].id) || tr().pick); } };
 $('langEn').onclick = () => setLang('en');
 $('langFa').onclick = () => setLang('fa');
 $('sSfx').onclick = () => flip('sfx'); $('sVib').onclick = () => { flip('vibrate'); Sfx.play('refuse'); };
@@ -2013,6 +2037,7 @@ function setFavicon() {                                                         
 let last = performance.now();
 function frame(now) {
   const dt = Math.min(50, now - last); last = now; stepWalk(dt);
+  if (alarm) { alarm.t += dt; if (alarm.t >= 1300) endAlarm(); }
   flash = Math.max(0, flash - dt / 500); shake = Math.max(0, shake - dt / 350);
   if (introKind) drawIntro(now);
   if (inGame) draw(now); else if ($('menu').classList.contains('on')) { drawMenuBg(now); drawLogo(now); }
@@ -2021,19 +2046,21 @@ function frame(now) {
 function draw(now) {
   ctx.clearRect(0, 0, W, H); if (!L) return;
   P.prepare(L);
+  const dg = viewDg();                                          // during an alarm the refused action is what we draw
+  const coneOn = !alarm || Math.floor(alarm.t / 130) % 2 === 0;   // and the beams blink
   const calm = settings.reduceMotion, e = P.evalConfig(L, dg, true), sx = shake && !calm ? Math.sin(now / 25) * 4 * shake : 0, pulse = calm ? .6 : .5 + .5 * Math.sin(now / 280);
   const nextRays = new Map();                                   // where each searchlight will point after the next action
-  if (nLight()) P.evalConfig(L, P.sweep(L, dg), true).rays.forEach(r => { if (r.first && r.who >= lightBase()) nextRays.set(r.who, r); });
+  if (nLight() && !alarm) P.evalConfig(L, P.sweep(L, dg), true).rays.forEach(r => { if (r.first && r.who >= lightBase()) nextRays.set(r.who, r); });
   const camOf = new Map(); e.rays.forEach(r => { if (r.first && (r.who < nCam() || r.who >= lightBase())) camOf.set(r.who, r); });
   ctx.save(); ctx.translate(ox + sx, oy);
   for (let y = 0; y < L.h; y++) for (let x = 0; x < L.w; x++) if (!L.wall[y * L.w + x]) drawFloor(x, y);
-  for (let c = 0; c < L.w * L.h; c++) if (e.lit[c] && !e.scent[c]) { ctx.fillStyle = `rgba(255,50,70,${.14 + .04 * pulse})`; ctx.fillRect(FX(c % L.w), FY((c / L.w) | 0), cs, cellH); }
+  for (let c = 0; c < L.w * L.h; c++) if (coneOn && e.lit[c] && !e.scent[c]) { ctx.fillStyle = `rgba(255,50,70,${.14 + .04 * pulse})`; ctx.fillRect(FX(c % L.w), FY((c / L.w) | 0), cs, cellH); }
   for (let c = 0; c < L.w * L.h; c++) if (e.scent[c]) {                                           // what a dog can smell: sickly green with drifting dots
     const x = c % L.w, y = (c / L.w) | 0;
     ctx.fillStyle = `rgba(150,235,60,${.2 + .05 * pulse})`; ctx.fillRect(FX(x), FY(y), cs, cellH);
     for (let i = 0; i < 4; i++) { const ph = calm ? 0 : (now / 2600 + hash(x, y, i + 30)) % 1, dx = hash(x, y, i + 40) * (cs - 3), dy = (1 - ph) * (cellH - 3); ctx.fillStyle = `rgba(215,255,140,${calm ? .5 : .6 * Math.sin(ph * Math.PI)})`; ctx.fillRect(FX(x) + dx, FY(y) + dy, 2, 2); }
   }
-  e.rays.forEach(r => { if (!(r.first && (r.who < nCam() || r.who >= lightBase()))) floorBeam(r, pulse); });
+  if (coneOn) e.rays.forEach(r => { if (!(r.first && (r.who < nCam() || r.who >= lightBase()))) floorBeam(r, pulse); });
   L.guards.forEach(g => {
     ctx.strokeStyle = 'rgba(160,190,255,.28)'; ctx.lineWidth = Math.max(2, cs * .07); ctx.lineCap = 'round'; ctx.setLineDash([cs * .08, cs * .14]);
     ctx.beginPath(); g.rail.forEach((c, i) => { const px = FX(c % L.w + .5), py = FY(((c / L.w) | 0) + .5); i ? ctx.lineTo(px, py) : ctx.moveTo(px, py); }); ctx.stroke(); ctx.setLineDash([]);
@@ -2057,24 +2084,30 @@ function draw(now) {
     const k = calm ? 1 : .26, ox0 = q.x, oy0 = q.y; q.x += (tx - q.x) * k; q.y += (ty - q.y) * k; if (Math.abs(tx - q.x) < .01) q.x = tx; if (Math.abs(ty - q.y) < .01) q.y = ty;
     if (q.x - ox0 > .001) q.f = 0; else if (q.x - ox0 < -.001) q.f = 1;
     q.moving = (q.x !== tx || q.y !== ty) ? 1 : 0;
+    const a = alarm && alarm.dogs.find(z => z.j === j);                                     // a dog that smells him runs straight at him
+    if (a) { const p = Math.min(1, alarm.t / 900) * .78, tx2 = thief % L.w, ty2 = (thief / L.w) | 0; q.x = a.x + (tx2 - a.x) * p; q.y = a.y + (ty2 - a.y) * p; q.f = tx2 < a.x ? 1 : 0; q.moving = 1; }
   });
   let tfx = thief % L.w, tfy = (thief / L.w) | 0, frameIdx = 0;
   if (walking && walking.path.length) { const nx = walking.path[0], k = Math.min(1, walking.t / 110); tfx += (nx % L.w - tfx) * k; tfy += (((nx / L.w) | 0) - tfy) * k; frameIdx = 1 + (Math.floor(now / 110) % 2); }
   const sc = cs * .047, thiefRow = Math.round(tfy);
+  const bangMark = (cx, cy) => { const w = cs * .3; ctx.fillStyle = '#16101f'; ctx.fillRect(cx - w / 2 - 2, cy - w / 2 - 2, w + 4, w + 4); ctx.fillStyle = '#ff3b52'; ctx.fillRect(cx - w / 2, cy - w / 2, w, w);
+    ctx.fillStyle = '#fff'; ctx.font = `900 ${w * .85}px system-ui`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('!', cx, cy + 1); };
   const drawGuard = (j, ghost) => {
     const g = L.guards[j], q = gdraw[j], cx = FX(q.x + .5), fy = FY(q.y) + cellH * .86, d = P.guardFacingDir(g, dg[nCam() + j] & 1);
     if (ghost) { ctx.save(); ctx.globalAlpha = .4; drawSprite(person('guard', d === 3 ? 1 : d, 0), cx, fy, sc, d === 3); ctx.restore(); return; }
     shadow(cx, fy, cs * .26); drawSprite(person('guard', d === 3 ? 1 : d, 0), cx, fy, sc, d === 3, glowFor(nCam() + j, pulse));
+    if (alarm && alarm.who.has(nCam() + j)) bangMark(cx, fy - cs * 1.2);
   };
   const drawThief = ghost => {
     const cx = FX(tfx + .5), fy = FY(tfy) + cellH * .86, bob = frameIdx ? Math.abs(Math.sin(now / 110 * Math.PI)) * cs * .06 : 0, spr = person('thief', thiefDir === 3 ? 1 : thiefDir, frameIdx);
     if (ghost) { ctx.save(); ctx.globalAlpha = .4; drawSprite(spr, cx, fy - bob, sc, thiefDir === 3); ctx.restore(); return; }
     shadow(cx, fy, cs * .26); drawSprite(spr, cx, fy - bob, sc, thiefDir === 3);
-    if (heartsOn() && e.lit[thief]) { ctx.fillStyle = '#ff3b52'; ctx.font = `900 ${cs * .38}px system-ui`; ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic'; ctx.fillText('!', cx, fy - cs * 1.18 - bob); }
+    if (alarm) { ctx.fillStyle = '#ff3b52'; ctx.font = `900 ${cs * .38}px system-ui`; ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic'; ctx.fillText('!', cx, fy - cs * 1.18 - bob); }
   };
   const drawDog = j => {
     const q = ddraw[j], cx = FX(q.x + .5), fy = FY(q.y) + cellH * .86, frm = q.moving ? 1 + (Math.floor(now / 90) % 2) : 0;
     shadow(cx, fy, cs * .3); drawSprite(dogSprite(frm), cx, fy, sc * 1.05, q.f === 1, glowFor(dogBase() + j, pulse));
+    if (alarm && alarm.who.has(dogBase() + j)) bangMark(cx, fy - cs * .75);
   };
   const dogsAt = y => L.dogs.forEach((o, j) => { if (Math.round(ddraw[j].y) === y) drawDog(j); });
   const guardsAt = y => L.guards.forEach((g, j) => { if (Math.round(gdraw[j].y) === y) drawGuard(j, false); });
@@ -2089,7 +2122,8 @@ function draw(now) {
         if (k >= 0) { const d = dg[k], cx = FX(x + .5), cy = FY(y) - wallH + cellH * .72;
           drawSprite(camSprite(d === 3 ? 1 : d), cx, cy, cs * .05, d === 3, glowFor(k, pulse));
           const lens = d === 1 ? 4.5 : d === 3 ? -4.5 : 0;
-          cameraBeam(camOf.get(k), cx + lens * cs * .05, cy - cs * .3, pulse); }
+          if (coneOn) cameraBeam(camOf.get(k), cx + lens * cs * .05, cy - cs * .3, pulse);
+          if (alarm && alarm.who.has(k)) bangMark(cx, cy - cs * .5); }
         const pj = L.panels.findIndex(q => q.c === c);
         if (pj >= 0) { const k = panelBase() + pj, cx = FX(x + .5), cy = FY(y) - wallH + cellH * .72;
           drawSprite(panelSprite(PANEL_COL[pj % 3]), cx, cy, cs * .05, false, glowFor(k, pulse)); }
@@ -2097,7 +2131,8 @@ function draw(now) {
         if (li >= 0) { const k = lightBase() + li, d = dg[k], cx = FX(x + .5), cy = FY(y) - wallH + cellH * .72;
           drawSprite(lampSprite(d === 3 ? 1 : d), cx, cy, cs * .05, d === 3, glowFor(k, pulse));
           const lens = d === 1 ? 4.5 : d === 3 ? -4.5 : 0, ly = cy - cs * .3;
-          cameraBeam(camOf.get(k), cx + lens * cs * .05, ly, pulse);
+          if (coneOn) cameraBeam(camOf.get(k), cx + lens * cs * .05, ly, pulse);
+          if (alarm && alarm.who.has(k)) bangMark(cx, cy - cs * .5);
           const nr = nextRays.get(k); if (nr) ghostBeam(nr, cx + (nr.d === 1 ? 4.5 : nr.d === 3 ? -4.5 : 0) * cs * .05, ly); }
       } else if (L.glass[c]) {
         drawGlass(x, y, pulse);
@@ -2108,7 +2143,7 @@ function draw(now) {
         else drawDoorOpen(x, y, k, pulse);
       }
     }
-    guardsAt(y); dogsAt(y); thiefAt(y);
+    guardsAt(y); if (alarm) { thiefAt(y); dogsAt(y); } else { dogsAt(y); thiefAt(y); }          // a charging dog is drawn in front of him
   }
   // wires: a coloured dashed line from each panel to the things it drives, and a coloured badge on each of them
   const topCentre = c => [FX(c % L.w + .5), FY((c / L.w) | 0) - wallH + cellH * .5];
@@ -2124,6 +2159,10 @@ function draw(now) {
     });
   });
   ctx.restore();
+  if (alarm) {                                                                              // red alarm light over the whole board
+    const a = .1 + .16 * (coneOn ? 1 : .3), g = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * .25, W / 2, H / 2, Math.max(W, H) * .75);
+    g.addColorStop(0, 'rgba(255,20,50,0)'); g.addColorStop(1, `rgba(255,20,50,${a + .2})`); ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+  }
 }
 setFavicon(); applyLang(); syncSettingsUI();
 load(store.get('pb_last', 0)); toMenu(); requestAnimationFrame(frame);

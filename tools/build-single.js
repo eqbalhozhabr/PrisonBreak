@@ -3,7 +3,9 @@
 const fs = require('fs'), path = require('path');
 const root = path.join(__dirname, '..');
 const rd = f => fs.readFileSync(path.join(root, f), 'utf8');
-let html = rd('play/index.html');
+let build = new Date().toISOString().slice(0, 10);
+try { build += '-' + require('child_process').execSync('git rev-parse --short HEAD', { cwd: root }).toString().trim(); } catch (e) {}
+let html = rd('play/index.html').replace("'__BUILD__'", () => JSON.stringify(build));
 html = html.replace('<script src="../src/prison.js"></script>', () => '<script>\n' + rd('src/prison.js') + '\n</script>')
            .replace('<script src="levels.js"></script>', () => '<script>\n' + rd('play/levels.js') + '\n</script>');
 // inline the pixel fonts so the single file also works offline

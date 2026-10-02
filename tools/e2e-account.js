@@ -25,16 +25,18 @@ class FakeD1 {                                           // just enough of the D
 }
 
 (async () => {
-  const [auth, progress] = await Promise.all(['routes/auth.js', 'routes/blindeye.js'].map(f => import(pathToFileURL(path.join(SITE, 'worker', f)).href)));
+  const [auth, progress, stats] = await Promise.all(['routes/auth.js', 'routes/blindeye.js', 'routes/blindeye-stats.js'].map(f => import(pathToFileURL(path.join(SITE, 'worker', f)).href)));
   const DB = new FakeD1(); DB.db.exec(fs.readFileSync(path.join(SITE, 'migrations', '0001_init.sql'), 'utf8'));
   const env = { DB };
   const ROUTES = { 'POST /api/auth/request-link': auth.requestLink, 'GET /api/auth/verify': auth.verify, 'POST /api/auth/verify': auth.confirmVerify, 'GET /api/auth/me': auth.me, 'POST /api/auth/username': auth.setUsername,
     'POST /api/auth/logout': auth.logout, 'GET /api/blind-eye/progress': progress.getProgress, 'POST /api/blind-eye/progress': progress.saveProgress,
+    'POST /api/blind-eye/event': stats.blindEyeEvent, 'POST /api/blind-eye/report': stats.blindEyeReport, 'GET /api/blind-eye/stats': stats.blindEyeStats,
     'GET /api/blind-eye/leaderboard': progress.getLeaderboard, 'POST /api/blind-eye/visibility': progress.setVisibility };
   const page = fs.readFileSync(path.join(__dirname, '..', 'play', 'prisonbreak.html'));
   const server = http.createServer(async (req, res) => {
     const url = new URL(req.url, 'http://localhost:' + server.address().port);
     if (url.pathname === '/blind-eye/' || url.pathname === '/blind-eye') { res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' }); return res.end(page); }
+    if (url.pathname === '/blind-eye-stats/') { res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' }); return res.end(fs.readFileSync(path.join(SITE, 'public', 'blind-eye-stats', 'index.html'))); }
     const h = ROUTES[req.method + ' ' + url.pathname];
     if (!h) { res.writeHead(404); return res.end('not found'); }
     const chunks = []; for await (const c of req) chunks.push(c);
@@ -144,6 +146,55 @@ class FakeD1 {                                           // just enough of the D
   await pg.click('#accLogout'); await pg.waitForTimeout(300);
   check('signed out: closed again', !(await pg.evaluate(() => acct.loggedIn)) && (await call('GET', '/api/blind-eye/progress')).status === 401);
 
+  // 7. anonymous statistics and level reports (this page is on localhost, so its traffic is flagged as test)
+  const sp = await ctx.newPage(); sp.on('pageerror', e => errs.push(String(e).slice(0, 200)));
+  await sp.goto(base + '/blind-eye/'); await sp.waitForTimeout(400);
+  await sp.evaluate(() => { settings.sfx = false; settings.music = false; introSeen = { cam: 1, guard: 1, door: 1, mirror: 1, all: 1, dog: 1, light: 1, panel: 1, glass: 1 }; });
+  await sp.evaluate(async () => {
+    const wait = ms => new Promise(r => setTimeout(r, ms));
+    load(6);                                                                       // level 7: make one exposing action (alarm), take a hint, then win
+    for (let k = 0; k < nAll(); k++) for (const o of options(k)) if (o.dg && ev(o.dg).lit[thief] && !ev(o.dg).occ[thief] && !window.__did) { window.__did = 1; tryAction(o.dg, o.kind); }
+    while (alarm) await wait(50);
+    doHint(); load(0); undo();
+    const r = P.solve(L, { maxDepth: 40 }); for (let i = 0; i < r.par; i++) tryAction(r.configs[i], 'cam');
+    walkTo(L.E); while (walking) await wait(20);
+    load(1); toMenu(); flushEvents();
+  });
+  await sp.waitForTimeout(600);
+  const mySid = await sp.evaluate(() => sid);                                     // the other pages of this test also report; only look at this visit
+  const ev = DB.db.prepare("SELECT ev, lvl, moves, par, test, props FROM blind_eye_events WHERE sid = ? ORDER BY id").all(mySid), cnt = n => ev.filter(e => e.ev === n).length;
+  const win = ev.find(e => e.ev === 'level_win');
+  check('events arrive: one session, level starts, an alarm, a hint, a win at par, a leave', cnt('session_start') === 1 && cnt('level_start') >= 3 && cnt('mistake') === 1 && cnt('hint') === 1 && cnt('level_win') === 1 && cnt('level_leave') >= 1 && win && win.lvl === 1 && win.moves === win.par, ev.map(e => e.ev).join());
+  check('local traffic is flagged as test and nothing identifying is stored', ev.every(e => e.test === 1) && !JSON.stringify(ev).includes('@') && DB.db.prepare('SELECT sql FROM sqlite_master WHERE name = ?').get('blind_eye_events').sql.indexOf('email') < 0);
+  const before = DB.db.prepare('SELECT COUNT(*) AS n FROM blind_eye_events WHERE sid = ?').get(mySid).n;
+  await sp.evaluate(() => { settings.stats = false; load(2); toMenu(); flushEvents(); }); await sp.waitForTimeout(400);
+  check('with anonymous statistics switched off nothing is sent', DB.db.prepare('SELECT COUNT(*) AS n FROM blind_eye_events WHERE sid = ?').get(mySid).n === before);
+  await sp.evaluate(() => { settings.stats = true; load(4); });
+  // the report flow through the real screens
+  await sp.click('#btnMenu'); await sp.click('#pReport'); await sp.click('#repSend'); await sp.waitForTimeout(100);
+  check('sending without picking a kind asks to pick one', await sp.evaluate(() => document.getElementById('repMsg').textContent === tr().repPick));
+  await sp.click('#repKinds button:nth-child(1)'); await sp.fill('#repNote', 'the second camera is impossible\n to read'); await sp.click('#repSend'); await sp.waitForTimeout(500);
+  const rep1 = DB.db.prepare('SELECT lvl, kind, note, test FROM blind_eye_reports').get();
+  check('the report reaches the database (level, kind, a one-line note)', rep1 && rep1.lvl === 5 && rep1.kind === 'too_hard' && rep1.note === 'the second camera is impossible  to read' && rep1.test === 1, JSON.stringify(rep1));
+  const aidv = await sp.evaluate(() => aid); let last = 200;
+  for (let i = 0; i < 21; i++) last = (await sp.evaluate(async ([a]) => (await fetch('/api/blind-eye/report', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ a, n: 3, k: 'bug' }) })).status, [aidv]));
+  check('report spam is capped per player per day', last === 429, 'last status ' + last);
+  const badKind = await call('POST', '/api/blind-eye/report', { a: aidv, n: 3, k: 'rm -rf' });
+  check('an unknown report kind is refused', badKind.status === 400);
+  // the private numbers: closed without a key, closed to a wrong key, open to the right one
+  const getStats = (key, q) => ctx.request.get(base + '/api/blind-eye/stats' + (q || ''), { headers: key ? { Authorization: 'Bearer ' + key } : {} });
+  check('stats are off when no key is set on the server', (await getStats('anything')).status() === 404);
+  env.DUBIKO_STATS_KEY = 'secret-key';
+  check('a wrong key is refused', (await getStats('nope')).status() === 401 && (await getStats(null)).status() === 401);
+  const real = await (await getStats('secret-key', '?test=1')).json(), lv1 = real.levels.find(l => l.lvl === 1), real0 = await (await getStats('secret-key')).json();
+  check('the right key gets per-level numbers, reports and notes (test traffic only when asked for)', lv1 && lv1.wins >= 1 && lv1.par >= 1 && real.overview.players >= 1 && real.reports.length >= 1 && real.notes.length === 1 && real0.levels.length === 0, JSON.stringify(lv1));
+
+  // the private page itself
+  const stp = await ctx.newPage(); stp.on('pageerror', e => errs.push(String(e).slice(0, 200)));
+  await stp.goto(base + '/blind-eye-stats/'); await stp.fill('#key', 'secret-key'); await stp.check('#test'); await stp.click('#go'); await stp.waitForSelector('#out table', { timeout: 5000 });
+  const sh = await stp.evaluate(() => ({ rows: document.querySelectorAll('#out table')[0].rows.length, notes: document.body.textContent.includes('the second camera'), kpi: document.querySelector('.kpi b').textContent }));
+  check('the stats page loads with the key and lists levels, flags and player notes', sh.rows >= 2 && sh.notes && Number(sh.kpi) >= 1, JSON.stringify(sh));
+  if (process.env.SHOT_DIR) await stp.screenshot({ path: process.env.SHOT_DIR + '/stats-page.png', fullPage: true });
   check('no page errors', errs.length === 0, errs.join(' | '));
   await b.close(); server.close(); process.exit(ok ? 0 : 1);
 })();

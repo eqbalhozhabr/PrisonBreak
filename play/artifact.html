@@ -47,7 +47,7 @@
   /* panels and overlays */
   .overlay { position:fixed; inset:0; background:rgba(5,7,12,.88); display:none; align-items:center; justify-content:center; padding:20px; z-index:10; }
   .overlay.on { display:flex; }
-  #pauseOv, #setOv, #lvOv, #howOv, #introOv, #accOv, #lbOv { align-items:flex-start; padding-top:max(14px, 5vh); }
+  #pauseOv, #setOv, #lvOv, #howOv, #introOv, #accOv, #lbOv, #repOv { align-items:flex-start; padding-top:max(14px, 5vh); }
   .card { background:var(--panel); padding:20px 18px; max-width:460px; width:100%; text-align:center; max-height:92%; overflow:auto; }
   .card h2 { margin:2px 0 14px; font-family:var(--tf); font-size:15px; line-height:1.6; letter-spacing:.04em; text-transform:uppercase; text-shadow:3px 3px 0 var(--edge); }
   .stars { display:flex; gap:10px; justify-content:center; margin:6px 0 14px; }
@@ -76,6 +76,8 @@
   #lbMsg { font-size:13px; color:var(--mute); line-height:1.6; margin:8px 0; }
   .fld { width:100%; box-sizing:border-box; margin-top:10px; padding:12px 12px; background:var(--lo); color:var(--ink); border:0; border-radius:0; font:16px system-ui,sans-serif; direction:ltr; text-align:start; outline:0;
     box-shadow:0 -3px 0 0 var(--edge), 0 3px 0 0 var(--edge), -3px 0 0 0 var(--edge), 3px 0 0 0 var(--edge); }
+  textarea.fld { resize:none; display:block; font-size:15px; }
+  #repKinds { flex-wrap:wrap; justify-content:center; } #repKinds button { min-height:38px; padding:6px 12px; }
   .fld:focus { box-shadow:0 -3px 0 0 var(--red), 0 3px 0 0 var(--red), -3px 0 0 0 var(--red), 3px 0 0 0 var(--red); }
   #accMsg { min-height:42px; font-size:13px; line-height:1.5; margin-top:10px; color:var(--mute); } #accMsg.good { color:var(--ok); } #accMsg.warn { color:var(--red-hi); } #accMsg a { color:var(--gold); word-break:break-all; }
   .acc-in { display:block; font-family:var(--pf); font-size:12px; letter-spacing:.05em; color:var(--mute); margin-top:6px; word-break:break-all; text-transform:none; }
@@ -130,18 +132,19 @@
 
 <div class="overlay" id="pauseOv"><div class="card">
   <h2 id="pauseTitle"></h2>
-  <div class="col"><button class="primary big" id="pResume"></button><button class="big" id="pRestart"></button><button class="big" id="pLevels"></button><button class="big" id="pSettings"></button><button class="big" id="pMenu"></button></div>
+  <div class="col"><button class="primary big" id="pResume"></button><button class="big" id="pRestart"></button><button class="big" id="pLevels"></button><button class="big" id="pSettings"></button><button class="big" id="pReport"></button><button class="big" id="pMenu"></button></div>
 </div></div>
 
 <div class="overlay" id="winOv"><div class="card">
   <h2 id="winTitle"></h2><div class="stars" id="winStars"></div><div id="winText"></div><div class="muted" id="winGate"></div>
   <div class="row"><button id="winRetry"></button><button class="primary" id="winNext"></button></div>
-  <div class="row"><button id="winLevels"></button></div>
+  <div class="row"><button id="winLevels"></button><button id="winReport"></button></div>
 </div></div>
 
 <div class="overlay" id="caughtOv"><div class="card">
   <h2 id="caughtTitle"></h2><div id="caughtText" class="muted"></div>
   <div class="row"><button id="caughtRetry"></button><button class="primary" id="caughtRevive"></button></div>
+  <div class="row"><button id="caughtReport"></button></div>
 </div></div>
 
 <div class="overlay" id="lvOv"><div class="card">
@@ -168,6 +171,7 @@
   <div class="set"><div><label id="sMusL"></label></div><button class="tog" id="sMus"></button></div>
   <div class="set"><div><label id="sMusVolL"></label></div><input type="range" id="sMusVol" min="0" max="100" step="5"></div>
   <div class="set"><div><label id="sVibL"></label></div><button class="tog" id="sVib"></button></div>
+  <div class="set"><div><label id="sStatsL"></label><small id="sStatsS"></small></div><button class="tog" id="sStats"></button></div>
   <div class="set"><div><label id="sAlarmL"></label><small id="sAlarmS"></small></div><div class="seg"><button id="alFull"></button><button id="alSoft"></button></div></div>
   <div class="set"><div><label id="sMotionL"></label><small id="sMotionS"></small></div><button class="tog" id="sMotion"></button></div>
   <div class="set"><div><label id="sUnlockL"></label><small id="sUnlockS"></small></div><button class="tog" id="sUnlock"></button></div>
@@ -199,6 +203,14 @@
   <div id="accMsg"></div>
   <div class="muted" id="accPrivacy"></div>
   <div class="row"><button class="primary" id="accClose"></button></div>
+</div></div>
+
+<div class="overlay" id="repOv"><div class="card">
+  <h2 id="repTitle"></h2>
+  <div class="row seg" id="repKinds"></div>
+  <textarea class="fld" id="repNote" rows="3" maxlength="200"></textarea>
+  <div id="repMsg" class="muted"></div>
+  <div class="row"><button id="repCancel"></button><button class="primary" id="repSend"></button></div>
 </div></div>
 
 <div class="overlay" id="adOv"><div class="card">
@@ -974,7 +986,7 @@ const store = {
 };
 
 /* ------------------------------------------------------------ settings */
-const DEFAULTS = { lang: 'en', sfx: true, vol: 70, music: true, musicVol: 60, vibrate: true, hearts: true, alarm: 'full', reduceMotion: false, unlockAll: false };
+const DEFAULTS = { lang: 'en', sfx: true, vol: 70, music: true, musicVol: 60, vibrate: true, hearts: true, stats: true, alarm: 'full', reduceMotion: false, unlockAll: false };
 const settings = Object.assign({}, DEFAULTS, store.get('pb_settings', {}));
 const saveSettings = () => store.set('pb_settings', settings);
 if (!settings.heartsV2) { settings.heartsV2 = true; settings.hearts = true; saveSettings(); }          // hearts are now on by default: mistakes cost a heart
@@ -1023,10 +1035,13 @@ const T = {
     account: 'Account', accTitle: 'Account', accIntro: 'Sign in to keep your progress safe and play on any device. We email you a sign-in link, so there is no password to remember. It is the same account as Pixels of the Mist.', accEmail: 'Your email', accSend: 'Send sign-in link',
     accSent: 'Link sent (check spam too). Open it on this device and tap "Sign in" on the page that opens. It works once and expires in 15 minutes.', accBadEmail: 'That email does not look right.', accWait: 'Please wait a moment…', accOffline: 'Accounts work on luckylion.games/blind-eye. This copy has no server.', accErr: 'Something went wrong. Try again in a minute.',
     accIn: 'Signed in as', accName: 'Username (3-20 letters, digits or _)', accNameSave: 'Save name', accNameBad: 'Use 3 to 20 letters, digits or _.', accNameTaken: 'That name is taken.', accNameOk: 'Name saved.', accSaved: t => 'Progress saved' + (t ? ' · ' + t : ''), accSync: 'Sync now', accOut: 'Sign out', accWelcome: 'Signed in. Your progress is saved to your account.',
-    accPrivacy: 'We store your email, username and level progress to sync your game. Nothing else, and nothing is shared. No password is kept.', accDevLink: 'Email sending is not set up on this server. Test link:', close2: 'Close',
+    accPrivacy: 'We store your email, username and level progress to sync your game. Nothing else, and nothing is shared. No password is kept. Anonymous play statistics (a random id, never linked to your account) help us tune levels; you can switch them off in Settings.', accDevLink: 'Email sending is not set up on this server. Test link:', close2: 'Close',
     leaders: 'Ranking', lbTitle: 'Leaderboard', lbHow: 'Players ranked by total stars (ties: more levels, then who got there first). Sign in and pick a username to join.', lbEmpty: 'Nobody is on the board yet. Be the first!', lbLevels: n => n + (n === 1 ? ' level' : ' levels'),
     lbYou: (r, st) => `You are #${r} with ${st} stars.`, lbNeedName: 'Sign in and set a username in Account to appear on the board.', lbNeedNameIn: 'Set a username in Account to appear on the board.', lbHiddenYou: 'You are hidden from the board (change it in Account).', lbNoStars: 'Win a level to get on the board.', lbOffline: 'The leaderboard needs the server: open luckylion.games/blind-eye.', lbErr: 'Could not load the board. Try again later.', lbMore: n => `${n} players in total`,
     accVisL: 'Leaderboard', accVisS: 'Your username and star total are shown. Never your e-mail.', visOn: 'Shown', visOff: 'Hidden',
+    sStats: 'Anonymous statistics', sStatsS: 'Sends level results and button counts with a random id, to help us tune the levels. No name, no e-mail.',
+    repBtn: 'Report level', repTitle: n => 'Report level ' + n, repKinds: { too_hard: 'Too hard', too_easy: 'Too easy', confusing: 'Confusing', bug: 'Broken', other: 'Other' }, repNote: 'Optional: tell us more (up to 200 characters)', repSend: 'Send', repCancel: 'Cancel',
+    repPick: 'Pick what fits best.', repThanks: 'Thank you! This helps us tune the levels.', repOffline: 'Reports need the server: open luckylion.games/blind-eye.', repErr: 'Could not send. Try again later.', repMany: 'That is a lot of reports for today. Thank you!',
     pause: 'Paused', resume: 'Resume', restart: 'Restart level', mainMenu: 'Main menu',
     level: 'Level', moves: 'Actions', best: 'Best', undo: 'Undo', hint: 'Hint', hintAd: 'Hint · Ad', toExit: 'Escape', turn: 'Turn', flip: 'Switch',
     pick: 'Tap a dark tile to walk. Tap a camera to turn it clockwise.',
@@ -1085,10 +1100,13 @@ const T = {
     account: 'حساب', accTitle: 'حساب', accIntro: 'وارد شو تا پیشرفتت نگه داشته شود و روی هر دستگاهی بازی کنی. یک لینک ورود برایت ایمیل می‌کنیم، پس رمزی برای به خاطر سپردن نیست. همان حساب Pixels of the Mist است.', accEmail: 'ایمیل تو', accSend: 'ارسال لینک ورود',
     accSent: 'لینک فرستاده شد (پوشهٔ هرزنامه را هم ببین). آن را روی همین دستگاه باز کن و در صفحه‌ای که باز می‌شود «Sign in» را بزن. یک‌بار کار می‌کند و ۱۵ دقیقه اعتبار دارد.', accBadEmail: 'ایمیل درست به نظر نمی‌رسد.', accWait: 'کمی صبر کن…', accOffline: 'حساب فقط در luckylion.games/blind-eye کار می‌کند. این نسخه سرور ندارد.', accErr: 'مشکلی پیش آمد. یک دقیقهٔ دیگر دوباره امتحان کن.',
     accIn: 'واردشده با', accName: 'نام کاربری (۳ تا ۲۰ حرف انگلیسی، رقم یا _)', accNameSave: 'ذخیرهٔ نام', accNameBad: 'از ۳ تا ۲۰ حرف انگلیسی، رقم یا _ استفاده کن.', accNameTaken: 'این نام گرفته شده است.', accNameOk: 'نام ذخیره شد.', accSaved: t => 'پیشرفت ذخیره شد' + (t ? ' · ' + t : ''), accSync: 'همگام‌سازی', accOut: 'خروج', accWelcome: 'وارد شدی. پیشرفتت در حسابت ذخیره می‌شود.',
-    accPrivacy: 'ایمیل، نام کاربری و پیشرفت مرحله‌ها را برای همگام‌سازی بازی ذخیره می‌کنیم. چیز دیگری نه و هیچ‌چیز با کسی به اشتراک گذاشته نمی‌شود. رمزی نگه‌داری نمی‌شود.', accDevLink: 'ارسال ایمیل روی این سرور تنظیم نشده. لینک آزمایشی:', close2: 'بستن',
+    accPrivacy: 'ایمیل، نام کاربری و پیشرفت مرحله‌ها را برای همگام‌سازی بازی ذخیره می‌کنیم. چیز دیگری نه و هیچ‌چیز با کسی به اشتراک گذاشته نمی‌شود. رمزی نگه‌داری نمی‌شود. آمار ناشناس بازی (با شناسهٔ تصادفی که به حسابت وصل نیست) به بهتر کردن مرحله‌ها کمک می‌کند؛ از تنظیمات می‌توانی خاموشش کنی.', accDevLink: 'ارسال ایمیل روی این سرور تنظیم نشده. لینک آزمایشی:', close2: 'بستن',
     leaders: 'رتبه‌ها', lbTitle: 'جدول رتبه‌بندی', lbHow: 'بازیکن‌ها بر اساس مجموع ستاره‌ها (اگر برابر بودند: مرحلهٔ بیشتر، بعد هر کس زودتر رسیده). برای حضور وارد شو و یک نام کاربری انتخاب کن.', lbEmpty: 'هنوز کسی در جدول نیست. اولین نفر باش!', lbLevels: n => n + ' مرحله',
     lbYou: (r, st) => `رتبهٔ تو ${r} است با ${st} ستاره.`, lbNeedName: 'برای حضور در جدول وارد شو و در «حساب» یک نام کاربری بگذار.', lbNeedNameIn: 'برای حضور در جدول در «حساب» یک نام کاربری بگذار.', lbHiddenYou: 'تو از جدول پنهان هستی (در «حساب» عوضش کن).', lbNoStars: 'برای حضور در جدول یک مرحله را ببر.', lbOffline: 'جدول به سرور نیاز دارد: luckylion.games/blind-eye را باز کن.', lbErr: 'جدول بارگذاری نشد. بعداً دوباره امتحان کن.', lbMore: n => `${n} بازیکن در مجموع`,
     accVisL: 'جدول رتبه‌بندی', accVisS: 'نام کاربری و مجموع ستاره‌هایت نمایش داده می‌شود. هرگز ایمیلت نه.', visOn: 'نمایش', visOff: 'پنهان',
+    sStats: 'آمار ناشناس', sStatsS: 'نتیجهٔ مرحله‌ها و تعداد لمس دکمه‌ها را با یک شناسهٔ تصادفی می‌فرستد تا مرحله‌ها را بهتر کنیم. بدون نام و ایمیل.',
+    repBtn: 'گزارش مرحله', repTitle: n => 'گزارش مرحلهٔ ' + n, repKinds: { too_hard: 'خیلی سخت', too_easy: 'خیلی آسان', confusing: 'گیج‌کننده', bug: 'خراب است', other: 'دیگر' }, repNote: 'اختیاری: بیشتر بگو (تا ۲۰۰ حرف)', repSend: 'ارسال', repCancel: 'انصراف',
+    repPick: 'نزدیک‌ترین گزینه را انتخاب کن.', repThanks: 'ممنون! این به بهتر شدن مرحله‌ها کمک می‌کند.', repOffline: 'گزارش به سرور نیاز دارد: luckylion.games/blind-eye را باز کن.', repErr: 'ارسال نشد. بعداً دوباره امتحان کن.', repMany: 'امروز گزارش‌های زیادی فرستادی. ممنون!',
     pause: 'توقف', resume: 'ادامه', restart: 'شروع دوبارهٔ مرحله', mainMenu: 'منوی اصلی',
     level: 'مرحله', moves: 'عمل', best: 'بهترین', undo: 'برگشت', hint: 'راهنما', hintAd: 'راهنما · تبلیغ', toExit: 'فرار', turn: 'چرخش', flip: 'تغییر',
     pick: 'یک خانهٔ تاریک را لمس کن تا دزد برود. یک دوربین را لمس کن تا ساعتگرد بچرخد.',
@@ -1432,12 +1450,14 @@ function load(i) {
   li = Math.max(0, Math.min(LEVELS.length - 1, i));
   L = P.parseLevel(LEVELS[li].map, LEVELS[li].meta);
   P.prepare(L);
+  leaveLevel(); const again = lvl && lvl.id === LEVELS[li].id;
   dg = P.initialDigits(L); thief = L.S; thiefDir = 2; hist = []; moves = 0; sel = -1; hintWho = -1; walking = null;
   hearts = HEARTS_MAX; lost = 0; hintsUsed = 0; caughtOn = false; alarm = null; heartPop = -1; gdraw.length = 0; ddraw.length = 0; loadToken++; gBusy = false;
   document.querySelectorAll('.overlay.on').forEach(o => o.classList.remove('on'));
   $('menu').classList.remove('on'); inGame = true; store.set('pb_last', li);
   setTip(tipFor(LEVELS[li].id) || tr().pick);
   syncUI(); buildBar(); resize();
+  startLevelStats(again);
   const kind = INTROS[LEVELS[li].id]; if (kind && !introSeen[kind]) showIntro(kind, true);
 }
 function ev(d) { P.prepare(L); return P.evalConfig(L, d || dg, false); }
@@ -1505,6 +1525,7 @@ function spotters(nd) {
 function startAlarm(nd) {
   const sp = spotters(nd), from = sp.dogs.map(j => { const c = L.dogs[j].rail[nd[dogBase() + j]]; return { j, x: c % L.w, y: (c / L.w) | 0 }; });
   alarm = { nd, t: 0, who: sp.who, dogs: from };
+  track('mistake', { n: lvlId(), k: sp.dogs.length ? 'dog' : (() => { const w = [...sp.who][0]; return w === undefined ? 'other' : kindOf(w); })() });
   hintWho = -1; flash = 1; flashCell = thief; shake = 1; Sfx.play(settings.alarm === 'soft' ? 'spotted' : 'siren'); if (settings.vibrate && navigator.vibrate) navigator.vibrate([60, 40, 60]);
   setTip(heartsOn() ? tr().seen : tr().seenFree, 'warn');
 }
@@ -1516,7 +1537,7 @@ function endAlarm() {
 let strikes = store.get('pb_strikes', 0);                              // times caught since the last ad; at STRIKES_MAX the next retry needs an ad
 const gateOn = () => strikes >= STRIKES_MAX;
 function caught() {
-  walking = null; caughtOn = true; Sfx.play('caught'); strikes++; store.set('pb_strikes', strikes);
+  walking = null; caughtOn = true; Sfx.play('caught'); if (lvl) { track('level_caught', { n: lvl.id, ms: lvlMs(), moves }); lvl.done = true; } strikes++; store.set('pb_strikes', strikes);
   $('caughtTitle').textContent = tr().caught; $('caughtText').textContent = tr().caughtText + ' ' + tr().strikesNote(Math.min(strikes, STRIKES_MAX), STRIKES_MAX);
   $('caughtRetry').textContent = gateOn() ? tr().retryAd : tr().retry; $('caughtRevive').textContent = tr().revive;
   $('caughtOv').classList.add('on');
@@ -1687,7 +1708,7 @@ function applyLang() {
   set('pauseTitle', t.pause); set('pResume', t.resume); set('pRestart', t.restart); set('pLevels', t.levels); set('pSettings', t.settings); set('pMenu', t.mainMenu);
   set('winRetry', t.retry); set('winLevels', t.levels); set('lvTitle', t.levels); set('lvClose', t.close); set('howTitle', t.howTitle); set('howClose', t.close);
   set('setTitle', t.setTitle); set('setClose', t.close); set('sLangL', t.sLang); set('sSfxL', t.sSfx); set('sVolL', t.sVol); set('sMusL', t.sMus); set('sMusVolL', t.sMusVol); set('sVibL', t.sVib);
-  set('sAlarmL', t.sAlarm); set('sAlarmS', t.sAlarmS); set('alFull', t.alFull); set('alSoft', t.alSoft); set('sMotionL', t.sMotion); set('sMotionS', t.sMotionS); set('sUnlockL', t.sUnlock); set('sUnlockS', t.sUnlockS);
+  set('sStatsL', t.sStats); set('sStatsS', t.sStatsS); set('pReport', t.repBtn); set('winReport', t.repBtn); set('caughtReport', t.repBtn); set('sAlarmL', t.sAlarm); set('sAlarmS', t.sAlarmS); set('alFull', t.alFull); set('alSoft', t.alSoft); set('sMotionL', t.sMotion); set('sMotionS', t.sMotionS); set('sUnlockL', t.sUnlock); set('sUnlockS', t.sUnlockS);
   set('howItemsL', t.itemsL); $('howItems').innerHTML = ''; ['cam', 'guard', 'door', 'mirror', 'dog', 'light', 'panel', 'glass'].forEach(k => { const b = document.createElement('button'); b.textContent = t.itemNames[k]; b.onclick = () => showIntro(k, false); $('howItems').appendChild(b); });
   set('introOk', t.gotIt);
   set('adTitle', t.adTitle); set('adText', t.adText); set('adCancel', t.adCancel); set('adClaim', t.adClaim);
@@ -1697,7 +1718,7 @@ function applyLang() {
 }
 function syncSettingsUI() {
   const t = tr(), tog = (id, on) => { $(id).textContent = on ? t.on : t.off; $(id).className = 'tog' + (on ? ' on' : ''); };
-  tog('sSfx', settings.sfx); tog('sMus', settings.music); tog('sVib', settings.vibrate); tog('sMotion', settings.reduceMotion); tog('sUnlock', settings.unlockAll);
+  tog('sSfx', settings.sfx); tog('sMus', settings.music); tog('sVib', settings.vibrate); tog('sStats', settings.stats); tog('sMotion', settings.reduceMotion); tog('sUnlock', settings.unlockAll);
   $('alFull').className = settings.alarm !== 'soft' ? 'sel' : ''; $('alSoft').className = settings.alarm === 'soft' ? 'sel' : ''; $('sVol').value = settings.vol; $('sMusVol').value = settings.musicVol; $('langEn').className = settings.lang === 'en' ? 'sel' : ''; $('langFa').className = settings.lang === 'fa' ? 'sel' : '';
   $('sReset').textContent = t.sReset; $('sReset').className = '';
 }
@@ -1728,7 +1749,7 @@ function buildBar() {
 }
 function undo() {
   if (!hist.length || walking || gBusy || alarm) return;
-  Sfx.play('undo'); const h = hist.pop(); dg = h.dg; thief = h.thief; moves = h.moves; thiefDir = h.thiefDir;         // hearts are never given back by Undo
+  Sfx.play('undo'); if (lvl) lvl.undo++; const h = hist.pop(); dg = h.dg; thief = h.thief; moves = h.moves; thiefDir = h.thiefDir;         // hearts are never given back by Undo
   hintWho = -1; caughtOn = false; setTip(''); syncUI(); buildBar();
 }
 function onHint() {
@@ -1737,7 +1758,7 @@ function onHint() {
   Ads.rewarded('hint').then(ok => { if (ok) { hintsUsed++; doHint(); buildBar(); } });
 }
 function doHint() {
-  Sfx.play('hint');
+  Sfx.play('hint'); track('hint', { n: lvlId() }); if (lvl) lvl.hints++;
   const r = P.solve(L, { digits: dg, thief, maxDepth: 40 });
   if (!r || !r.solvable) { setTip('—', 'warn'); return; }
   if (r.par === 0) { setTip(tr().pathClear, 'good'); return; }
@@ -1752,7 +1773,7 @@ const Ads = {
     return new Promise(resolve => {
       let s = 3, timer = null;
       $('adText').textContent = ((tr().adWhy || {})[why] || '') + ' ' + tr().adText;
-      const done = ok => { clearInterval(timer); $('adOv').classList.remove('on'); resolve(ok); };
+      const done = ok => { clearInterval(timer); $('adOv').classList.remove('on'); track('ad', { n: lvlId(), k: why || 'other', ok }); resolve(ok); };
       $('adClaim').disabled = true; $('adCount').textContent = tr().adWait(s); $('adOv').classList.add('on');
       timer = setInterval(() => { s--; if (s <= 0) { clearInterval(timer); $('adCount').textContent = tr().adReady; $('adClaim').disabled = false; } else $('adCount').textContent = tr().adWait(s); }, 1000);
       $('adClaim').onclick = () => done(true); $('adCancel').onclick = () => done(false);
@@ -1767,7 +1788,7 @@ function starsNow() {
 function win() {
   Sfx.play('win'); const id = LEVELS[li].id, st = starsNow();
   if (!best[id] || best[id].stars < st || (best[id].stars === st && best[id].moves > moves)) { best[id] = { stars: st, moves }; store.set('pb_best3', best); }
-  pushSoon();
+  pushSoon(); if (lvl) { track('level_win', { n: lvl.id, ms: lvlMs(), moves, par: LEVELS[li].par, hints: lvl.hints, lost, undo: lvl.undo, stars: st }); lvl.done = true; }
   $('winTitle').textContent = tr().escaped; $('winStars').innerHTML = starsHTML(st, 3, 6); $('winText').textContent = tr().winText(moves, LEVELS[li].par, heartsOn() ? lost : 0);
   const last = li === LEVELS.length - 1, nextCi = last ? -1 : chapterOf(li + 1), locked = !last && levelLocked(li + 1);
   $('winGate').textContent = locked ? tr().gate(chapNeed(nextCi), starsBefore(nextCi)) : '';
@@ -1794,7 +1815,8 @@ function openLevels() {
 }
 function show(id) { $(id).classList.add('on'); }
 function hide(id) { $(id).classList.remove('on'); }
-function toMenu() { document.querySelectorAll('.overlay.on').forEach(o => o.classList.remove('on')); inGame = false; applyLang(); $('menu').classList.add('on'); }
+function toMenu() {
+  leaveLevel(); document.querySelectorAll('.overlay.on').forEach(o => o.classList.remove('on')); inGame = false; applyLang(); $('menu').classList.add('on'); }
 $('btnMenu').onclick = () => show('pauseOv');
 $('pResume').onclick = () => hide('pauseOv');
 $('pRestart').onclick = () => load(li);
@@ -1908,6 +1930,55 @@ $('accNameSave').onclick = async () => {
 $('accSyncNow').onclick = async () => { accMsg(tr().accWait); const ok = await pushNow(); accMsg(ok ? tr().accSaved(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })) : tr().accErr, ok ? 'good' : 'warn'); };
 $('accLogout').onclick = async () => { try { await api('/api/auth/logout', { method: 'POST' }); } catch (e) {} acct = { loggedIn: false, email: '', username: '', saved: 0 }; applyLang(); accMsg(''); renderAccount(); };
 
+/* ------------------------------------------------- statistics and reports */
+/* Anonymous play statistics (random id kept in this browser, never linked to an account) help tune the levels: how many start, win, get caught,
+   take hints, leave. Only on luckylion.games (and localhost, flagged as test traffic). Players can switch them off in Settings. */
+const BUILD = "2026-10-02-22eed9c";
+const TEST_HOST = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+const STATS_HOST = /^(www\.)?luckylion\.games$/.test(location.hostname) || TEST_HOST;
+const rid = n => Array.from(crypto.getRandomValues(new Uint8Array(n)), b => b.toString(16).padStart(2, '0')).join('');
+let aid = store.get('pb_aid', null); const firstVisit = !aid; if (!aid) { aid = rid(8); store.set('pb_aid', aid); }
+const sid = rid(8); let evq = [], flushT = null;
+function track(e, extra) {
+  if (!settings.stats || !STATS_HOST) return;
+  evq.push(Object.assign({ e, t: Date.now() }, extra));
+  if (evq.length >= 15) flushEvents(); else if (!flushT) flushT = setTimeout(() => flushEvents(), 8000);
+}
+function flushEvents(beacon) {
+  clearTimeout(flushT); flushT = null; if (!evq.length) return;
+  const body = JSON.stringify({ a: aid, s: sid, v: BUILD, l: settings.lang, p: matchMedia('(pointer:coarse)').matches ? 1 : 0, x: TEST_HOST ? 1 : 0, ev: evq.splice(0, 40) });
+  try {
+    if (beacon && navigator.sendBeacon) navigator.sendBeacon('/api/blind-eye/event', new Blob([body], { type: 'text/plain' }));
+    else fetch('/api/blind-eye/event', { method: 'POST', body, keepalive: true, headers: { 'Content-Type': 'text/plain' } }).catch(() => {});
+  } catch (e) {}
+}
+let lvl = null;                                                                  // the level being played: when it started, hints, undos
+const lvlId = () => LEVELS[li].id, lvlMs = () => Math.min(1800000, Date.now() - lvl.t0);
+function leaveLevel() { if (lvl && !lvl.done) { track('level_leave', { n: lvl.id, ms: Math.min(1800000, Date.now() - lvl.t0), moves }); lvl.done = true; } }
+function startLevelStats(again) { lvl = { id: lvlId(), t0: Date.now(), hints: 0, undo: 0, done: false }; track('level_start', { n: lvl.id, again: !!again }); }
+window.addEventListener('pagehide', () => { leaveLevel(); flushEvents(true); });
+document.addEventListener('visibilitychange', () => { if (document.hidden) flushEvents(true); });
+track('session_start', { first: firstVisit });
+
+let repKind = null, repLevel = 0;
+function openReport() {
+  const t = tr(); repKind = null; repLevel = LEVELS[li].id; $('repTitle').textContent = t.repTitle(repLevel); $('repNote').value = ''; $('repNote').placeholder = t.repNote; $('repMsg').textContent = '';
+  $('repSend').textContent = t.repSend; $('repCancel').textContent = t.repCancel; $('repSend').disabled = false;
+  $('repKinds').innerHTML = ''; Object.keys(t.repKinds).forEach(k => { const b = document.createElement('button'); b.textContent = t.repKinds[k]; b.onclick = () => { repKind = k; [...$('repKinds').children].forEach(c => { c.className = c === b ? 'sel' : ''; }); $('repMsg').textContent = ''; }; $('repKinds').appendChild(b); });
+  show('repOv');
+}
+$('pReport').onclick = openReport; $('winReport').onclick = openReport; $('caughtReport').onclick = openReport;
+$('repCancel').onclick = () => hide('repOv');
+$('repSend').onclick = async () => {
+  const t = tr(); if (!repKind) { $('repMsg').textContent = t.repPick; return; }
+  if (!STATS_HOST) { $('repMsg').textContent = t.repOffline; return; }
+  $('repSend').disabled = true;
+  try {
+    const r = await api('/api/blind-eye/report', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ a: aid, n: repLevel, k: repKind, note: $('repNote').value, v: BUILD, l: settings.lang, x: TEST_HOST ? 1 : 0 }) });
+    if (r.ok || r.status === 429) { $('repMsg').textContent = r.ok ? t.repThanks : t.repMany; setTimeout(() => hide('repOv'), 1300); } else { $('repMsg').textContent = t.repErr; $('repSend').disabled = false; }
+  } catch (e) { $('repMsg').textContent = t.repErr; $('repSend').disabled = false; }
+};
+
 /* ----------------------------------------------------------- leaderboard */
 async function openLeaders() {
   const t = tr(); $('lbTitle').textContent = t.lbTitle; $('lbClose').textContent = t.close; $('lbList').innerHTML = ''; $('lbMsg').textContent = t.lbHow; show('lbOv');
@@ -1946,6 +2017,7 @@ const setLang = lg => { settings.lang = lg; saveSettings(); applyLang(); if (L) 
 $('langEn').onclick = () => setLang('en');
 $('langFa').onclick = () => setLang('fa');
 $('sSfx').onclick = () => flip('sfx'); $('sVib').onclick = () => { flip('vibrate'); Sfx.play('refuse'); };
+$('sStats').onclick = () => { flip('stats'); if (!settings.stats) evq.length = 0; };
 $('alFull').onclick = () => { settings.alarm = 'full'; saveSettings(); syncSettingsUI(); Sfx.play('siren'); };
 $('alSoft').onclick = () => { settings.alarm = 'soft'; saveSettings(); syncSettingsUI(); Sfx.play('spotted'); };
 $('sMotion').onclick = () => flip('reduceMotion');

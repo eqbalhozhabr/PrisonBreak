@@ -346,7 +346,7 @@ function evalConfig(L, digits, wantRays) {
       if (x < 0 || y < 0 || x >= w || y >= h) break;
       const c = y * w + x;
       if (wall[c]) break;
-      if (mir[c] >= 0) { segs.push(cur); d = MIRROR[mir[c]][d]; cur = { src: c, d, cells: [], who, first: false }; continue; }
+      if (mir[c] >= 0) { cur.mirror = c; segs.push(cur); d = MIRROR[mir[c]][d]; cur = { src: c, d, cells: [], who, first: false }; continue; }
       if (opq[c]) break;
       lit[c] = 1; cur.cells.push(c);
     }
@@ -1940,7 +1940,7 @@ $('accLogout').onclick = async () => { try { await api('/api/auth/logout', { met
 /* ------------------------------------------------- statistics and reports */
 /* Anonymous play statistics (random id kept in this browser, never linked to an account) help tune the levels: how many start, win, get caught,
    take hints, leave. Only on luckylion.games (and localhost, flagged as test traffic). Players can switch them off in Settings. */
-const BUILD = "2026-10-02-22eed9c";
+const BUILD = "2026-10-07-0719b52";
 const TEST_HOST = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
 const STATS_HOST = /^(www\.)?luckylion\.games$/.test(location.hostname) || TEST_HOST;
 const rid = n => Array.from(crypto.getRandomValues(new Uint8Array(n)), b => b.toString(16).padStart(2, '0')).join('');
@@ -2191,6 +2191,15 @@ function drawDoorOpen(x, y, k, pulse) {
   ctx.fillStyle = '#41d392'; ctx.fillRect(px + 3 + cs * .09, py + 3 + cellH * .1, cs * .12, cellH * .16);
   if (sel === k) { ctx.strokeStyle = hintWho === k ? `rgba(255,197,74,${.3 + .7 * pulse})` : `rgba(255,255,255,${.3 + .7 * pulse})`; ctx.lineWidth = 2.5; ctx.strokeRect(px + 1, py + 1, cs * .36, cellH * .44); }
 }
+/* A mirror that a beam hits glows red, with a bright flare on the side the light arrives from, so the bounce reads as "light hits the mirror, light leaves it". */
+function mirrorHit(x, y, d, pulse) {
+  const px = FX(x), py = FY(y) - wallH;
+  ctx.fillStyle = `rgba(255,59,82,${.26 + .14 * pulse})`; ctx.fillRect(px, py, cs, cellH + wallH);
+  ctx.strokeStyle = `rgba(255,150,160,${.6 + .4 * pulse})`; ctx.lineWidth = 2; ctx.strokeRect(px + 1, py + 1, cs - 2, cellH + wallH - 2);
+  const fx = px + cs * .5 - DX[d] * cs * .36, fy = py + cellH * .5 + wallH * .3 - DY[d] * cellH * .36, a = cs * .09;      // the flare sits on the face the light comes from
+  ctx.fillStyle = '#fff'; ctx.fillRect(fx - a / 2, fy - a / 2, a, a);
+  ctx.fillStyle = 'rgba(255,255,255,.75)'; ctx.fillRect(fx - a * 1.6, fy - a / 6, a * 3.2, a / 3); ctx.fillRect(fx - a / 6, fy - a * 1.6, a / 3, a * 3.2);
+}
 function drawMirror(x, y, state, k, pulse) {
   block(x, y, '#6fa8d6', '#3b5877', '#27394f', false);
   const px = FX(x), py = FY(y) - wallH;
@@ -2201,7 +2210,8 @@ function drawMirror(x, y, state, k, pulse) {
 /* Beam geometry on the floor plane: t runs along the sight line from the source tile's centre, w across it. */
 function beamPts(r) {
   const sx = r.src % L.w + .5, sy = ((r.src / L.w) | 0) + .5, d = r.d, n = r.cells.length, dx = DX[d], dy = DY[d], px = -dy, py = dx;
-  return { n, pt: (t, w) => [FX(sx + dx * t + px * w), FY(sy + dy * t + py * w)] };
+  // a beam that ends on a mirror runs to the middle of the mirror's tile (it hits it); any other beam ends at the edge of its last lit tile
+  return { n, end: n + (r.mirror != null ? 1 : .5), pt: (t, w) => [FX(sx + dx * t + px * w), FY(sy + dy * t + py * w)] };
 }
 function fillBeam(poly, o, f, pulse) {
   const g = ctx.createLinearGradient(o[0], o[1], f[0], f[1]);
@@ -2210,9 +2220,9 @@ function fillBeam(poly, o, f, pulse) {
   ctx.strokeStyle = 'rgba(255,170,176,.55)'; ctx.lineWidth = 1.2; ctx.stroke();
 }
 function floorBeam(r, pulse) {                        // guards (from their own tile) and every bounce off a mirror
-  if (!r.cells.length) return;
-  const { n, pt } = beamPts(r), w0 = r.first ? .12 : .5;
-  fillBeam([pt(0, -w0), pt(n + .5, -.5), pt(n + .5, .5), pt(0, w0)], pt(0, 0), pt(n + .5, 0), pulse);
+  if (!r.cells.length && r.mirror == null) return;
+  const { end, pt } = beamPts(r), w0 = r.first ? .12 : .5;
+  fillBeam([pt(0, -w0), pt(end, -.5), pt(end, .5), pt(0, w0)], pt(0, 0), pt(end, 0), pulse);
 }
 function ghostBeam(r, lx, ly) {                      // dashed outline of the next position of a searchlight
   if (!r.cells.length) { ctx.strokeStyle = 'rgba(255,225,150,.7)'; ctx.lineWidth = 2; ctx.setLineDash([4, 4]); ctx.beginPath(); ctx.arc(lx, ly, cs * .22, 0, 7); ctx.stroke(); ctx.setLineDash([]); return; }
@@ -2222,10 +2232,10 @@ function ghostBeam(r, lx, ly) {                      // dashed outline of the ne
   ctx.beginPath(); poly.forEach((q, i) => i ? ctx.lineTo(q[0], q[1]) : ctx.moveTo(q[0], q[1])); ctx.closePath(); ctx.stroke(); ctx.setLineDash([]);
 }
 function cameraBeam(r, lx, ly, pulse) {               // apex = the camera lens, drawn after the wall so it sits on top of it
-  if (!r || !r.cells.length) return;
-  const { n, pt } = beamPts(r), side = r.d === 1 || r.d === 3;
-  const poly = side ? [[lx, ly], pt(n + .5, -.5), pt(n + .5, .5)] : [[lx, ly], pt(.5, -.5), pt(n + .5, -.5), pt(n + .5, .5), pt(.5, .5)];
-  fillBeam(poly, [lx, ly], pt(n + .5, 0), pulse);
+  if (!r || (!r.cells.length && r.mirror == null)) return;      // a camera right next to a mirror has no lit tile but its cone still reaches the mirror
+  const { end, pt } = beamPts(r), side = r.d === 1 || r.d === 3;
+  const poly = side ? [[lx, ly], pt(end, -.5), pt(end, .5)] : [[lx, ly], pt(.5, -.5), pt(end, -.5), pt(end, .5), pt(.5, .5)];
+  fillBeam(poly, [lx, ly], pt(end, 0), pulse);
 }
 /* ------------------------------------------------------- menu scene */
 /* A brick wall, a thief pacing the floor and a camera whose beam sweeps. Everything is drawn at low resolution and scaled up without smoothing. */
@@ -2312,6 +2322,7 @@ function draw(now) {
   const calm = settings.reduceMotion, e = P.evalConfig(L, dg, true), sx = shake && !calm ? Math.sin(now / 25) * 4 * shake : 0, pulse = calm ? .6 : .5 + .5 * Math.sin(now / 280);
   const nextRays = new Map();                                   // where each searchlight will point after the next action
   if (nLight() && !alarm) P.evalConfig(L, P.sweep(L, dg), true).rays.forEach(r => { if (r.first && r.who >= lightBase()) nextRays.set(r.who, r); });
+  const mirrorsHit = new Map(); e.rays.forEach(r => { if (r.mirror != null) mirrorsHit.set(r.mirror, r.d); });          // mirror cell -> the way the light is travelling when it hits
   const camOf = new Map(); e.rays.forEach(r => { if (r.first && (r.who < nCam() || r.who >= lightBase())) camOf.set(r.who, r); });
   ctx.save(); ctx.translate(ox + sx, oy);
   for (let y = 0; y < L.h; y++) for (let x = 0; x < L.w; x++) if (!L.wall[y * L.w + x]) drawFloor(x, y);
@@ -2399,7 +2410,7 @@ function draw(now) {
         drawGlass(x, y, pulse);
       } else if (togAt.has(c)) {
         const k = togAt.get(c), t = L.toggles[k - nCam() - nGuard()];
-        if (t.kind === 'mirror') { drawMirror(x, y, dg[k], k, pulse); blockGlow(x, y, k, pulse); }
+        if (t.kind === 'mirror') { drawMirror(x, y, dg[k], k, pulse); if (coneOn && mirrorsHit.has(c)) mirrorHit(x, y, mirrorsHit.get(c), pulse); blockGlow(x, y, k, pulse); }
         else if (dg[k] === 1) { drawDoorClosed(x, y); blockGlow(x, y, k, pulse); }
         else drawDoorOpen(x, y, k, pulse);
       }

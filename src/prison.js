@@ -118,7 +118,7 @@ function evalConfig(L, digits, wantRays) {
       if (x < 0 || y < 0 || x >= w || y >= h) break;
       const c = y * w + x;
       if (wall[c]) break;
-      if (mir[c] >= 0) { segs.push(cur); d = MIRROR[mir[c]][d]; cur = { src: c, d, cells: [], who, first: false }; continue; }
+      if (mir[c] >= 0) { cur.mirror = c; segs.push(cur); d = MIRROR[mir[c]][d]; cur = { src: c, d, cells: [], who, first: false }; continue; }
       if (opq[c]) break;
       lit[c] = 1; cur.cells.push(c);
     }

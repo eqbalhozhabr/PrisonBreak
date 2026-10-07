@@ -136,11 +136,11 @@ const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
   // item introductions: shown once at the level that brings the item, not again after "Got it"
   const intro = await pg.evaluate(() => {
     introSeen = {}; const out = [];
-    for (const idx of [0, 15, 45, 65, 85, 105, 125, 145, 165]) { load(idx); out.push([LEVELS[idx].id, introKind, document.getElementById('introOv').classList.contains('on')]); closeIntro(); }
-    load(15); out.push(['again', introKind]);
+    for (const idx of [0, 6, 36, 56, 76, 96, 116, 136, 156]) { load(idx); out.push([LEVELS[idx].id, introKind, document.getElementById('introOv').classList.contains('on')]); closeIntro(); }
+    load(6); out.push(['again', introKind]);
     introSeen = { cam: 1, guard: 1, door: 1, mirror: 1, all: 1, dog: 1, light: 1, panel: 1, glass: 1 }; return out;
   });
-  const introOk = JSON.stringify(intro) === JSON.stringify([[1, 'cam', true], [16, 'guard', true], [46, 'door', true], [66, 'mirror', true], [86, 'all', true], [106, 'dog', true], [126, 'light', true], [146, 'panel', true], [166, 'glass', true], ['again', null]]);
+  const introOk = JSON.stringify(intro) === JSON.stringify([[1, 'cam', true], [7, 'guard', true], [37, 'door', true], [57, 'mirror', true], [77, 'all', true], [97, 'dog', true], [117, 'light', true], [137, 'panel', true], [157, 'glass', true], ['again', null]]);
   console.log('introductions:', JSON.stringify(intro), introOk ? 'OK' : 'FAIL'); ok = ok && introOk;
   // dogs: tap selects (no turning), tapping a rail tile walks the dog one action per step, a door cannot close on a dog in the doorway, scent is drawn
   const dg1 = await pg.evaluate(async () => {

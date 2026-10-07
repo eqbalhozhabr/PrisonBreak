@@ -96,10 +96,12 @@ class FakeD1 {                                           // just enough of the D
   check('after signing in on the new device the progress is back', await pg2.evaluate(() => acct.loggedIn && best[1] && best[1].stars === 3));
 
   // 4. the server never lowers progress
-  const low = await call('POST', '/api/blind-eye/progress', { progress: { best: { 1: { stars: 1, moves: 9 }, 2: { stars: 2, moves: 5 } }, intro: {}, last: 3 } });
+  const low = await call('POST', '/api/blind-eye/progress', { progress: { v: 2, best: { 1: { stars: 1, moves: 9 }, 2: { stars: 2, moves: 5 } }, intro: {}, last: 3 } });
   check('an older, worse save does not lower a level but adds new ones', low.j && low.j.progress.best['1'].stars === 3 && low.j.progress.best['2'].stars === 2);
-  const junk = await call('POST', '/api/blind-eye/progress', { progress: { best: { 9999: { stars: 3, moves: 1 }, 3: { stars: 7, moves: 1 }, x: 1 }, intro: { '<b>': 1 }, last: -4 } });
+  const junk = await call('POST', '/api/blind-eye/progress', { progress: { v: 2, best: { 9999: { stars: 3, moves: 1 }, 3: { stars: 7, moves: 1 }, x: 1 }, intro: { '<b>': 1 }, last: -4 } });
   check('invalid levels, stars and names are dropped', junk.j && !junk.j.progress.best['9999'] && !junk.j.progress.best['3'] && Object.keys(junk.j.progress.intro).every(k => /^[a-z]+$/.test(k)));
+  const stale = await call('POST', '/api/blind-eye/progress', { progress: { best: { 5: { stars: 3, moves: 1 } }, intro: {}, last: 0 } });          // an old tab: no version = numbering 1
+  check('a save written with the OLD level numbering is ignored (it would put stars on the wrong levels)', stale.j && stale.j.progress.v === 2 && !stale.j.progress.best['5']);
   const foreign = (await ctx.request.post(base + '/api/blind-eye/progress', { headers: { Origin: 'https://evil.example', 'Content-Type': 'application/json' }, data: { progress: { best: {}, intro: {}, last: 0 } } })).status();
   check('a save from another origin is refused even with a valid session cookie', foreign === 403, 'status ' + foreign);
 
@@ -152,7 +154,8 @@ class FakeD1 {                                           // just enough of the D
   await sp.evaluate(() => { settings.sfx = false; settings.music = false; introSeen = { cam: 1, guard: 1, door: 1, mirror: 1, all: 1, dog: 1, light: 1, panel: 1, glass: 1 }; });
   await sp.evaluate(async () => {
     const wait = ms => new Promise(r => setTimeout(r, ms));
-    load(6);                                                                       // level 7: make one exposing action (alarm), take a hint, then win
+    let pick = -1; for (let q = 0; q < 40 && pick < 0; q++) { load(q); for (let k = 0; k < nAll(); k++) for (const o of options(k)) if (o.dg && ev(o.dg).lit[thief] && !ev(o.dg).occ[thief]) pick = q; }
+    load(pick);                                                                    // the first level where one action exposes the prisoner: make one exposing action (alarm), take a hint, then win
     for (let k = 0; k < nAll(); k++) for (const o of options(k)) if (o.dg && ev(o.dg).lit[thief] && !ev(o.dg).occ[thief] && !window.__did) { window.__did = 1; tryAction(o.dg, o.kind); }
     while (alarm) await wait(50);
     doHint(); load(0); undo();

@@ -1,6 +1,6 @@
 # Blind Eye
 
-A grid puzzle: you don't move the prisoner, you move the *darkness*. Turn cameras, walk guards and dogs along their rails, open and close doors, flip mirrors, wait for the searchlights, wire cameras and doors to power panels, look through glass walls, so that no line of sight touches the prisoner's path to the exit. Walking is free; only actions count (par = fewest actions, proved by an exact solver). 185 levels in 18 blocks, star-gated, with music and sound made in the browser.
+A grid puzzle: you don't move the prisoner, you move the *darkness*. Turn cameras, walk guards and dogs along their rails, open and close doors, flip mirrors, wait for the searchlights, wire cameras and doors to power panels, look through glass walls, so that no line of sight touches the prisoner's path to the exit. Walking is free; only actions count (par = fewest actions, proved by an exact solver). 176 levels in 18 blocks, star-gated, with music and sound made in the browser.
 
 Design document: [`docs/game-design-document.md`](docs/game-design-document.md)
 
@@ -17,17 +17,19 @@ python3 -m http.server 8123      # from the repo root
 |---|---|
 | `src/prison.js` | rules, exact solver, level generator (works in Node and the browser) |
 | `play/index.html` | the game (menu, settings, canvas renderer, sound) |
-| `play/levels.js` | the 185 shipped levels (generated, each re-solved exactly) |
+| `play/levels.js` | the 176 shipped levels (generated, each re-solved exactly) |
 | `tools/level-specs.js` | the difficulty ramp: what level n is made of |
 | `tools/gen-levels.js` | generates levels for a range: `node tools/gen-levels.js 1 30 out.jsonl` |
 | `tools/regen-low.js` | rebuilds shipped levels whose walk count is below their block's target (keeps a new one only if walks go up and par does not go down): `node tools/regen-low.js low out.jsonl` |
 | `tools/build-levels.js` | merges generated files, re-solves every level, writes `play/levels.js` |
 | `tools/build-single.js` | inlines everything into `play/prisonbreak.html` |
+| `tools/package-portal.js` | CrazyGames build + zip: `OWNER_NAME="Your Name" node tools/package-portal.js` (see `docs/crazygames-submission.md`) |
+| `tools/portal-test.js`, `tools/media/*` | portal checks at the platform's iframe sizes; cover and preview-video makers |
 | `tools/play-test.js` | plays levels in a real browser with real clicks and checks par |
 
 ## Rebuild
 ```
-node tools/gen-levels.js 1 185 levels.jsonl          # slow for the late blocks; split the range over several processes
+node tools/gen-levels.js 1 176 levels.jsonl          # slow for the late blocks; split the range over several processes
 node tools/build-levels.js play/levels.js levels.jsonl
 node tools/build-single.js
 PLAYWRIGHT_MODULE=<path to playwright> node tools/play-test.js http://localhost:8123/play/index.html all

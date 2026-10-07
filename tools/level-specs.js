@@ -1,9 +1,9 @@
-/* The difficulty ramp: what every level n (1..185) is made of. Eighteen blocks: 15 camera-only levels, then seventeen of ten.
+/* The difficulty ramp: what every level n (1..176) is made of. Eighteen blocks: 6 camera-only levels (from very easy to very hard), then seventeen of ten.
    cams/guards/doors/mirrors/dogs/lights/panels/glass are counts (a panel is wired to `wire` of the cameras, doors and mirrors), par is the number of actions the best solution takes. */
 'use strict';
 const BLOCKS = [
-  { name: 'Cells', grid: [[5,5],[5,5],[5,6],[6,5],[6,5],[6,6],[6,6],[6,6],[6,7],[7,6],[7,7],[7,7],[7,7],[8,7],[8,8]], blocks: [1,1,2,2,2,3,3,3,4,4,5,5,5,6,7], cams: [1,1,1,2,2,2,2,3,3,3,3,4,4,5,5], guards: 0, doors: 0, mirrors: 0,
-    par: [1,2,3,2,3,4,4,5,5,6,7,8,9,10,11], phases: [1,1,1,1,1,2,2,2,2,2,3,3,3,4,5], cap: 60000, timeMs: 40000 },
+  { name: 'Cells', grid: [[5,5],[5,6],[6,6],[7,6],[7,7],[8,7]], blocks: [1,2,3,4,5,6], cams: [1,1,2,3,4,5], guards: 0, doors: 0, mirrors: 0,
+    par: [1,2,3,5,7,9], phases: [1,1,2,2,3,4], cap: 60000, timeMs: 40000 },
   { name: 'Yard I',     grid: [[6,6],[6,6],[6,6],[7,6],[7,6],[7,7],[7,7],[7,7],[7,7],[7,7]], blocks: [2,2,3,3,3,4,4,4,4,4], cams: [1,1,1,2,2,2,1,2,2,2], guards: 1, doors: 0, mirrors: 0, par: [2,3,4,5,5,6,6,7,7,8], phases: [1,1,2,2,2,2,3,3,3,3] },
   { name: 'Yard II',    grid: [[7,7],[7,7],[7,7],[7,7],[7,7],[7,7],[8,7],[8,7],[8,7],[8,7]], blocks: [3,3,3,4,4,4,5,5,5,5], cams: [2,2,2,2,3,3,3,3,3,3], guards: [1,1,1,2,2,2,2,2,2,2], doors: 0, mirrors: 0, par: [5,6,6,7,7,8,8,9,9,10], phases: [2,2,2,3,3,3,3,4,4,4], cap: 40000, timeMs: 40000 },
   { name: 'Yard III',   grid: [[7,7],[7,7],[7,7],[8,7],[8,7],[8,7],[8,8],[8,8],[8,8],[8,8]], blocks: [4,4,4,5,5,5,6,6,6,6], cams: [2,2,3,3,3,3,3,3,3,3], guards: 2, doors: 0, mirrors: 0, par: [7,8,8,9,9,10,10,11,11,12], phases: [3,3,3,3,4,4,4,4,5,5], cap: 60000, timeMs: 45000 },
@@ -24,7 +24,7 @@ const BLOCKS = [
 ];
 /* Walk counts the generator could actually reach after two full rebuild passes (tools/regen-low.js); the block arrays above ask for more.
    Levels listed here use this number as their target, so the specs match what can be built. */
-const PHASE_CAP = {15: 2, 44: 4, 45: 3, 65: 4, 79: 2, 83: 2, 84: 2, 85: 2, 92: 3, 93: 3, 94: 3, 95: 3, 100: 4, 101: 3, 102: 2, 103: 3, 104: 2, 105: 3, 109: 1, 110: 1, 111: 1, 114: 2, 115: 2, 118: 2, 125: 1, 178: 2, 184: 1};
+const PHASE_CAP = {35: 4, 36: 3, 56: 4, 70: 2, 74: 2, 75: 2, 76: 2, 83: 3, 84: 3, 85: 3, 86: 3, 91: 4, 92: 3, 93: 2, 94: 3, 95: 2, 96: 3, 100: 1, 101: 1, 102: 1, 105: 2, 106: 2, 109: 2, 116: 1, 169: 2, 175: 1};
 const TOTAL = BLOCKS.reduce((n, b) => n + b.par.length, 0);
 const pick = (v, i) => Array.isArray(v) ? v[i] : v;
 function specFor(n) {

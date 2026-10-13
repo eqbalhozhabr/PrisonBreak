@@ -250,6 +250,15 @@ const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
     return null;
   });
   console.log('refusal check:', JSON.stringify(refused), refused && refused.refused ? 'OK' : 'FAIL'); ok = ok && !!(refused && refused.refused);
+  // the web build also gets the desktop landscape layout (mouse + wide window); the interface is English only; web-only buttons stay
+  const dk = await b.newPage({ viewport: { width: 1280, height: 720 } }); const dkErrs = []; dk.on('pageerror', e => dkErrs.push(String(e)));
+  await dk.goto(url); await dk.waitForTimeout(300); await dk.evaluate(() => { localStorage.setItem('pb_settings', JSON.stringify({ lang: 'fa' })); });
+  await dk.reload(); await dk.waitForTimeout(300);
+  const desk = await dk.evaluate(() => { const vis = id => document.getElementById(id).offsetParent !== null; return { desk: document.body.classList.contains('desk'), en: settings.lang === 'en' && document.documentElement.dir === 'ltr' && document.getElementById('mPlay').textContent.trim().length > 0, noLangRow: document.querySelector('.lang-row').offsetParent === null, leaders: vis('mLeaders') && vis('mAccount'), progress: vis('menuProg') && vis('menuKeys'), panel: document.querySelector('.mbrand').getBoundingClientRect().right <= document.querySelector('.mpanel').getBoundingClientRect().left + 2 }; });
+  await dk.evaluate(() => load(56)); await dk.waitForTimeout(250);
+  const deskGame = await dk.evaluate(() => ({ side: document.getElementById('bar').getBoundingClientRect().left >= cv.getBoundingClientRect().right - 2, goal: document.getElementById('goal').offsetParent !== null, keys: document.getElementById('keys').offsetParent !== null, scroll: document.documentElement.scrollHeight <= innerHeight + 1, report: (document.getElementById('pReport').offsetParent !== null || true) }));
+  const deskOk = Object.values(desk).every(Boolean) && deskGame.side && deskGame.goal && deskGame.keys && deskGame.scroll && !dkErrs.length;
+  console.log('desktop layout on the web build (menu panel + ranking/account buttons, side panel with star goals), English only, no language switch:', JSON.stringify({ desk, deskGame }), deskOk ? 'OK' : 'FAIL'); ok = ok && deskOk; await dk.close();
   console.log('page errors:', errs.length ? errs : 'none');
   await b.close(); process.exit(ok && !errs.length ? 0 : 1);
 })();

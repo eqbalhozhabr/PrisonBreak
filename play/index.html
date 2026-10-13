@@ -59,6 +59,7 @@
     #bar button { padding:10px 4px; font-size:11px; }
   }
   body.portal .web-only { display:none !important; }
+  .lang-row { display:none !important; }                             /* the interface is English only */
   body.portal .test-only { display:none !important; }                /* the tester's "unlock all levels" switch is not shown on the portal */
   .overlay { position:fixed; inset:0; background:rgba(5,7,12,.88); display:none; align-items:center; justify-content:center; padding:20px; z-index:10; }
   .overlay.on { display:flex; }
@@ -240,7 +241,7 @@
 
 <div class="overlay" id="setOv"><div class="card">
   <h2 id="setTitle"></h2>
-  <div class="set"><div><label id="sLangL"></label></div><div class="seg"><button id="langEn">English</button><button id="langFa">فارسی</button></div></div>
+  <div class="set lang-row"><div><label id="sLangL"></label></div><div class="seg"><button id="langEn">English</button><button id="langFa">فارسی</button></div></div>
   <div class="set"><div><label id="sSfxL"></label></div><button class="tog" id="sSfx"></button></div>
   <div class="set"><div><label id="sVolL"></label></div><input type="range" id="sVol" min="0" max="100" step="5"></div>
   <div class="set"><div><label id="sMusL"></label></div><button class="tog" id="sMus"></button></div>
@@ -316,6 +317,7 @@ const store = {
 /* ------------------------------------------------------------ settings */
 const DEFAULTS = { lang: 'en', sfx: true, vol: 70, music: true, musicVol: 60, vibrate: true, hearts: true, stats: true, alarm: 'full', reduceMotion: false, unlockAll: false };
 const settings = Object.assign({}, DEFAULTS, store.get('pb_settings', {}));
+settings.lang = 'en';                                                           // English only; the Persian strings in T.fa are kept but nothing switches to them
 const saveSettings = () => store.set('pb_settings', settings);
 if (!settings.heartsV2) { settings.heartsV2 = true; settings.hearts = true; saveSettings(); }          // hearts are now on by default: mistakes cost a heart
 
@@ -1059,9 +1061,9 @@ window.addEventListener('keydown', e => {
 
 /* ------------------------------------------------------------------- UI */
 function setTip(t, cls) { const el = $('tip'); el.textContent = t; el.className = cls || ''; }
-/* Desktop landscape layout: portal build only, a fine pointer (mouse) and a wide window. */
+/* Desktop landscape layout (both builds): a fine pointer (mouse) and a wide window. */
 const deskMQ = window.matchMedia ? window.matchMedia('(hover: hover) and (pointer: fine)') : { matches: false };
-function updateDesk() { document.body.classList.toggle('desk', PORTAL && deskMQ.matches && innerWidth >= 780 && innerWidth >= innerHeight * 1.25); }
+function updateDesk() { document.body.classList.toggle('desk', deskMQ.matches && innerWidth >= 780 && innerWidth >= innerHeight * 1.25); }
 window.addEventListener('resize', updateDesk); updateDesk();
 const keyListHTML = (title, rows) => `<div class="kt">${title}</div>` + rows.map(r => `<div class="kr"><span>${r[1]}</span><span class="keycap">${r[0]}</span></div>`).join('');
 function totalStars() { let s = 0, d = 0; LEVELS.forEach(l => { const b = best[l.id]; if (b) { s += b.stars; d++; } }); return [s, d]; }

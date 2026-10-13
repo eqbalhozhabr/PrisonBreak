@@ -10,7 +10,7 @@ Block 1 "Cells" = 6 camera-only levels (easy → very hard; it used to be 15, cu
 
 ## Code map
 - `src/prison.js` — rules, **exact solver** over (configuration digits, dark region), level generator, analysis (`phasesDP` = how many separate walks a level needs). Runs in Node and the browser. Level ASCII: `# . S E`, `^>v<` cameras, `0-3` searchlights, `a-d` guards, `e-h` dogs, `X/x` doors, `/ \` mirrors, `p-r` panels, `G` glass; rails/links live in `meta`.
-- `play/index.html` — the whole game: menu, settings, accounts UI, canvas renderer (oblique pixel art, beams as polygons, narrow see-through ray after each mirror), sound/music synthesised in the browser, English default + Persian. `play/levels.js` — shipped levels (generated, re-solved). `play/prisonbreak.html` and `play/artifact.html` are **generated** by `tools/build-single.js`; never edit them by hand.
+- `play/index.html` — the whole game: menu, settings, accounts UI, canvas renderer (oblique pixel art, beams as polygons, narrow see-through ray after each mirror), sound/music synthesised in the browser, English only (Persian strings are dormant), desktop landscape layout on a mouse + wide window. `play/levels.js` — shipped levels (generated, re-solved). `play/prisonbreak.html` and `play/artifact.html` are **generated** by `tools/build-single.js`; never edit them by hand.
 - `tools/` — `level-specs.js` (difficulty ramp), `gen-levels.js`, `regen-low.js`, `build-levels.js`, `play-test.js` (real clicks on all 176 levels), `e2e-account.js` (real Worker handlers + fake D1), `package-portal.js`, `portal-test.js`, `media/` (cover and preview-video makers).
 
 ## Two builds from one code base

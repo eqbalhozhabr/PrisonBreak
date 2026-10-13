@@ -111,11 +111,12 @@ function mockSdk(o) {
     out.noAdWords = !/\bad\b/i.test(document.getElementById('caughtText').textContent) && !document.querySelector('.adtag');
     document.getElementById('caughtRetry').click(); out.retryFree = !document.getElementById('adOv').classList.contains('on') && !caughtOn;
     out.statsOff = getComputedStyle(document.getElementById('sStats').closest('.set')).display === 'none';
-    out.reportHidden = document.getElementById('pReport').offsetParent === null;
+    show('winOv'); out.reportHidden = ['pReport', 'winReport', 'caughtReport'].every(id => { const el = document.getElementById(id); return getComputedStyle(el).display === 'none' || el.closest('.web-only') && getComputedStyle(el.closest('.web-only')).display === 'none'; }); hide('winOv');
+    out.noReportScreen = getComputedStyle(document.getElementById('repOv')).display === 'none';
     out.flush = (track('x'), evq.length === 0);
     return out;
   });
-  check('portal rules: no ads in Basic Launch (hints free, 3 catches never need an ad, no ad words), no revive/report/stats UI, nothing queued for a server', Object.values(rules).every(Boolean), JSON.stringify(rules));
+  check('portal rules: no ads in Basic Launch (hints free, 3 catches never need an ad, no ad words), no revive, no level-report buttons (pause, win, caught), no stats UI, nothing queued for a server', Object.values(rules).every(Boolean), JSON.stringify(rules));
   // keyboard
   await pg.evaluate(() => { load(0); }); const free = await pg.evaluate(() => { const e = ev(); for (let m = 0; m < 4; m++) { const x = thief % L.w + DX[m], y = ((thief / L.w) | 0) + DY[m], c = y * L.w + x; if (x >= 0 && y >= 0 && x < L.w && y < L.h && !L.wall[c] && !e.lit[c] && !e.occ[c]) return ['ArrowUp', 'ArrowRight', 'ArrowDown', 'ArrowLeft'][m]; } return null; });
   const t0 = await pg.evaluate(() => thief); if (free) { await pg.keyboard.press(free); await pg.waitForTimeout(400); }

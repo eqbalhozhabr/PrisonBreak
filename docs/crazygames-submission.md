@@ -23,9 +23,12 @@ How it starts (`tools/build-single.js`): the game script is stored as inert text
 **Ads are prepared but off.** `let CG_ADS = false` in `play/index.html`. With it `true` (Full Launch only) hints, the third-catch retry and the revive go through `SDK.ad.requestAd('rewarded')`: the screen is blocked until the SDK answers, sound is muted only from `adStarted`, an error never rewards, the game just carries on. The packager refuses to build with `CG_ADS` on, and no ad button or ad wording is visible in Basic Launch (hints are free, a lost round just restarts). Before switching it on read the playbook's ad rules (§4): no midgame ad in the first minutes, "continue without watching" with the same size and colour, and an alternative to watching.
 
 ## Layouts
-- **Desktop landscape** (`body.desk`, portal build only): a fine pointer (mouse) and a window at least 780 px wide with an aspect ratio of at least 1.25. Main menu: title, camera logo, total stars and escaped levels on the left; a button panel with the key list (arrows, Space, Backspace, click) on the right; Enter starts the game. Game: the board on the left, a side panel on the right with the level header, the star goals for this level (current tier highlighted), the tip, the key list and the controls (the star and key panels hide on windows shorter than 620 px). Levels panel in three columns, settings in two columns, item introductions with the animation next to the text, hover states on buttons, no tester switches.
+- **Desktop landscape** (`body.desk`, both builds): a fine pointer (mouse) and a window at least 780 px wide with an aspect ratio of at least 1.25. Main menu: title, camera logo, total stars and escaped levels on the left; a button panel with the key list (arrows, Space, Backspace, click) on the right; Enter starts the game. Game: the board on the left, a side panel on the right with the level header, the star goals for this level (current tier highlighted), the tip, the key list and the controls (the star and key panels hide on windows shorter than 620 px). Levels panel in three columns, settings in two columns, item introductions with the animation next to the text, hover states on buttons, no tester switches.
 - **Phone / touch** (everything else, including a phone on its side): the original layouts; no rotate-phone overlay, no orientation lock.
 `tools/portal-test.js` checks every iframe size from the docs in desktop mode (mouse) and 390x844, 844x390 and 800x450 in phone mode (touch emulation): the right layout is chosen, menus, board, panels fit, the page never scrolls.
+
+## Language
+English only in both builds: the language switch is hidden and `settings.lang` is forced to `en`. The Persian strings (`T.fa`) are still in `play/index.html` but nothing switches to them; delete them if they are never wanted again.
 
 ## What differs in the portal build (`PORTAL`)
 | Web build | Portal build |
@@ -34,8 +37,8 @@ How it starts (`tools/build-single.js`): the game script is stored as inert text
 | anonymous statistics, level reports | removed; nothing is sent anywhere |
 | rewarded ads (hints, 3 catches, revive) | no ads: hints are free, a lost round just restarts (SDK ad path exists, `CG_ADS` off) |
 | footer with the studio and website | `© <year> <owner name>` only, no links |
-| tester/debug hooks, "unlock all levels" switch | none |
-| one layout (phone first) | desktop landscape layout on a mouse + wide window |
+| level-report buttons (pause, win, caught screens), tester/debug hooks, "unlock all levels" switch | none (nothing can be sent anywhere; `tools/portal-test.js` checks that no report button is visible) |
+| same | same: desktop landscape layout on a mouse + wide window (the web build adds Ranking/Account to the menu panel) |
 
 Also in both builds (portal requirements that are harmless on the web): `user-select:none`, safe-area padding, frame-delta animation, iOS audio revive on `touchend`, wheel/context-menu guards, keyboard play (arrows, Space/Enter = go to the exit, Backspace = undo), landscape and short-screen layouts, no custom fullscreen button.
 

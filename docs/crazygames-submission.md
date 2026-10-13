@@ -27,6 +27,10 @@ How it starts (`tools/build-single.js`): the game script is stored as inert text
 - **Phone / touch** (everything else, including a phone on its side): the original layouts; no rotate-phone overlay, no orientation lock.
 `tools/portal-test.js` checks every iframe size from the docs in desktop mode (mouse) and 390x844, 844x390 and 800x450 in phone mode (touch emulation): the right layout is chosen, menus, board, panels fit, the page never scrolls.
 
+## Tutorial and menus (both builds)
+- **Guided tutorial** (`GUIDED` in `play/index.html`, on by default): levels 1, 2, 3 and the first level of each new item (7 guard, 37 door, 57 mirror, 97 dog, 117 searchlight, 137 power panel, 157 glass). A pointing hand and a ring show the next tap, worked out by the exact solver from the position the player is in (so it stays right after a mistake or an undo): turn the camera, select the guard then tap the arrow, walk to the glowing tile when he must stand elsewhere first, then the exit. A one-line caption sits in the tip area, hearts are not lost while it leads, "Skip" and a Settings switch turn it off, a level is remembered as done once escaped. `tools/guide-test.js` plays all ten levels on desktop and phone with real clicks on the hand's position.
+- **Cards and buttons:** icon-only pixel buttons (the word is the tooltip and `aria-label`) in one tidy row. Win card: stars, two stat chips (actions, best), the star-gate as a lock chip, then Home, Retry, Next. Caught card: Home, Retry, and (website only) the ad-revive. Pause card: a big Resume, then Restart, Levels, Settings, Home. The level-report flag (website only) sits in the card's corner.
+
 ## Language
 English only in both builds: the language switch is hidden and `settings.lang` is forced to `en`. The Persian strings (`T.fa`) are still in `play/index.html` but nothing switches to them; delete them if they are never wanted again.
 
@@ -75,3 +79,6 @@ Also in both builds (portal requirements that are harmless on the web): `user-se
 - Real phone test (iOS audio, touch, SDK save and load), real CrazyGames QA run.
 - Tag names must match their admin-managed list.
 - Full Launch (only after an invitation): `CG_ADS`, the playbook's ad rules, landing the player directly in gameplay (at most one click), checking the game with an ad blocker.
+
+## Website and portal are the same game
+`node tools/parity-check.js` builds both and fails unless the styles and every screen are identical and the script differs only on lines that carry a build token. The deliberate differences: accounts, ranking, level reports, anonymous statistics and the stand-in rewarded ads exist only on the website (with the "AD" tag on Hint); the portal has free hints, the SDK for saves and gameplay events, the owner's name in the footer and no outside links.

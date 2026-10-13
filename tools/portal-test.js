@@ -82,6 +82,9 @@ function mockSdk(o) {
   // ---- behaviour on a desktop-sized page with the SDK
   let st = await open({}, { viewport: { width: 907, height: 510 } }); let pg = st.pg;
   const boot = await pg.evaluate(() => window.__cgCalls.slice()); await pg.evaluate(quiet); await pg.evaluate(() => load(0));
+  await pg.evaluate(() => { guideDone = {}; load(0); }); await pg.waitForTimeout(300);
+  const gd = await pg.evaluate(() => ({ step: guideStep && guideStep.type, hand: document.getElementById('guideHand').style.display, skip: document.getElementById('guideSkip').style.display, hearts: heartsOn() }));
+  check('level 1 starts with the tutorial hand on the camera (and a Skip button); no hearts while it leads', gd.step === 'tap' && gd.hand === 'block' && gd.skip !== 'none' && gd.hearts === false, JSON.stringify(gd));
   const sol = await pg.evaluate(() => { const r = P.solve(L, { maxDepth: 40 }); return { par: r.par, who: r.who, tap: tapPoint(r.who[0]), goal: cellPoint(L.E) }; });
   await pg.mouse.click(...sol.tap); await pg.waitForTimeout(120);
   const mv = await pg.evaluate(() => moves);
@@ -107,8 +110,8 @@ function mockSdk(o) {
     load(6); const out = {}; out.adsOff = !adsOn() && CG_ADS === false;
     document.querySelector('#bar button:nth-child(3)').click(); out.noAdScreen = !document.getElementById('adOv').classList.contains('on'); out.hintGiven = hintWho >= 0 || document.getElementById('tip').textContent.length > 0;
     for (let i = 0; i < 3; i++) { caught(); document.getElementById('caughtOv').classList.remove('on'); caughtOn = false; }
-    caught(); out.noGate = document.getElementById('caughtRetry').textContent === tr().retry && document.getElementById('caughtRevive').offsetParent === null && document.getElementById('caughtReport').offsetParent === null;
-    out.noAdWords = !/\bad\b/i.test(document.getElementById('caughtText').textContent) && !document.querySelector('.adtag');
+    caught(); out.noGate = document.getElementById('caughtRetry').getAttribute('aria-label') === tr().retry && document.getElementById('caughtRevive').offsetParent === null && document.getElementById('caughtReport').offsetParent === null;
+    out.noAdWords = !/\bad\b/i.test(document.getElementById('caughtText').textContent) && [...document.querySelectorAll('.adtag')].every(e => e.offsetParent === null);
     document.getElementById('caughtRetry').click(); out.retryFree = !document.getElementById('adOv').classList.contains('on') && !caughtOn;
     out.statsOff = getComputedStyle(document.getElementById('sStats').closest('.set')).display === 'none';
     show('winOv'); out.reportHidden = ['pReport', 'winReport', 'caughtReport'].every(id => { const el = document.getElementById(id); return getComputedStyle(el).display === 'none' || el.closest('.web-only') && getComputedStyle(el.closest('.web-only')).display === 'none'; }); hide('winOv');

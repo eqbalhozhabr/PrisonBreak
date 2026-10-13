@@ -35,7 +35,7 @@ async function record(mode, b) {
   });
   const errs = []; pg.on('pageerror', e => errs.push(String(e)));
   await pg.goto('file://' + path.join(__dirname, '..', '..', 'dist-crazygames', 'index.html')); await pg.waitForFunction(() => typeof settings !== 'undefined', null, { timeout: 8000 });
-  await pg.evaluate(() => { settings.sfx = false; settings.music = false; settings.vibrate = false; settings.hearts = false; introSeen = { cam: 1, guard: 1, door: 1, mirror: 1, all: 1, dog: 1, light: 1, panel: 1, glass: 1 }; });
+  await pg.evaluate(() => { settings.sfx = false; settings.music = false; settings.vibrate = false; settings.hearts = false; settings.guide = false; introSeen = { cam: 1, guard: 1, door: 1, mirror: 1, all: 1, dog: 1, light: 1, panel: 1, glass: 1 }; });
   if (await pg.evaluate(() => document.body.classList.contains('desk')) === phone) throw new Error('wrong layout for ' + mode);
   let n = 0;
   const frame = async () => { if (n >= CAP) throw new Error('done'); await pg.evaluate(ms => window.__step(ms), STEP); await pg.screenshot({ path: path.join(dir, 'f' + String(n++).padStart(5, '0') + '.png') }); };

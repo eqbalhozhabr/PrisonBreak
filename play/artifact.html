@@ -117,7 +117,23 @@
     #menu .col { display:grid; grid-template-columns:1fr 1fr; gap:10px; max-width:520px; margin-top:4px; } #menu .col .primary { grid-column:1 / -1; } #menu .col .duo { grid-column:1 / -1; }
     #menu button.big { min-height:44px; font-size:12px; }
   }
-  /* ---- desktop landscape (portal build): a fine pointer and a wide window get their own layouts; phones keep everything above.
+  /* ---- pixel icon buttons and the cards' tidy rows ---- */
+  .card { position:relative; }
+  .irow { display:flex; justify-content:center; align-items:stretch; gap:14px; margin-top:18px; }
+  button.ib { position:relative; flex:none; width:64px; height:64px; min-height:64px; padding:0; margin:0; }
+  button.ib.wide { width:auto; flex:1 1 auto; min-width:96px; max-width:170px; padding:0 18px; }
+  button.ib .adtag { top:-8px; right:-8px; }
+  button.cornerbtn { position:absolute; top:12px; inset-inline-end:12px; width:42px; height:42px; min-height:42px; padding:0; margin:0; }
+  .chips { display:flex; justify-content:center; gap:12px; margin:6px 0 2px; flex-wrap:wrap; }
+  .chip { display:inline-flex; align-items:center; gap:9px; min-width:84px; justify-content:center; padding:10px 14px; background:var(--lo); font-family:var(--tf); font-size:14px; box-shadow:0 -3px 0 0 var(--edge), 0 3px 0 0 var(--edge), -3px 0 0 0 var(--edge), 3px 0 0 0 var(--edge); }
+  #winGate { display:flex; align-items:center; justify-content:center; gap:8px; min-height:22px; font-family:var(--tf); font-size:12px; }
+  /* guided tutorial: a ring and a pointing hand on the next thing to tap */
+  #guideRing { position:fixed; z-index:6; display:none; width:62px; height:62px; margin:-31px 0 0 -31px; pointer-events:none; border:4px solid var(--gold); outline:4px solid var(--edge); animation:guidePing 1s steps(5) infinite; }
+  @keyframes guidePing { 0% { transform:scale(.8); opacity:1; } 100% { transform:scale(1.35); opacity:.25; } }
+  #guideHand { position:fixed; z-index:7; display:none; pointer-events:none; color:var(--gold); filter:drop-shadow(3px 0 0 var(--edge)) drop-shadow(-3px 0 0 var(--edge)) drop-shadow(0 3px 0 var(--edge)) drop-shadow(0 -3px 0 var(--edge)); animation:guideBob .7s steps(2) infinite; }
+  @keyframes guideBob { 0% { margin-top:0; } 100% { margin-top:10px; } }
+  #guideSkip { position:absolute; top:10px; left:10px; z-index:3; display:none; min-height:34px; padding:4px 10px; font-size:10px; margin:0; }
+  /* ---- desktop landscape: a fine pointer and a wide window get their own layouts; phones keep everything above.
      body.desk is set by updateDesk() in the script. ---- */
   .dk { display:none; }
   body.desk .dk { display:block; }
@@ -153,10 +169,10 @@
   body.desk #lvOv .card { max-width:1040px; }
   body.desk #lvChapters { display:grid; grid-template-columns:repeat(auto-fill, minmax(300px, 1fr)); column-gap:34px; }
   body.desk #setOv .card { max-width:860px; display:grid; grid-template-columns:1fr 1fr; column-gap:40px; }
-  body.desk #setOv .card h2, body.desk #setOv .card > .row { grid-column:1 / -1; }
+  body.desk #setOv .card h2, body.desk #setOv .card > .irow { grid-column:1 / -1; }
   body.desk #howOv .card { max-width:780px; }
   body.desk #introOv .card { max-width:820px; display:grid; grid-template-columns:minmax(0,380px) 1fr; column-gap:28px; align-items:start; }
-  body.desk #introOv .card h2, body.desk #introOv .card > .row { grid-column:1 / -1; }
+  body.desk #introOv .card h2, body.desk #introOv .card > .irow { grid-column:1 / -1; }
   body.desk #introOv #introCv { width:100%; margin:0; }
   body.desk #introOv .howl { margin:0; font-size:15px; }
   body.desk #pauseOv .card, body.desk #winOv .card, body.desk #caughtOv .card { max-width:480px; }
@@ -172,7 +188,7 @@
   <div id="goal" class="dk"></div>
   <div id="tip"></div>
   <div id="keys" class="dk"></div>
-  <div id="stage"><canvas id="cv"></canvas><div id="heartsWrap"><span id="hearts"></span></div></div>
+  <div id="stage"><canvas id="cv"></canvas><div id="heartsWrap"><span id="hearts"></span></div><button id="guideSkip"></button></div>
   <div id="ctx"></div>
   <div id="bar"></div>
 </div>
@@ -199,36 +215,38 @@
 </div>
 
 <div class="overlay" id="pauseOv"><div class="card">
+  <button class="cornerbtn web-only" id="pReport"></button>
   <h2 id="pauseTitle"></h2>
-  <div class="col"><button class="primary big" id="pResume"></button><button class="big" id="pRestart"></button><button class="big" id="pLevels"></button><button class="big" id="pSettings"></button><button class="big web-only" id="pReport"></button><button class="big" id="pMenu"></button></div>
+  <div class="irow"><button class="ib primary wide" id="pResume"></button></div>
+  <div class="irow"><button class="ib" id="pRestart"></button><button class="ib" id="pLevels"></button><button class="ib" id="pSettings"></button><button class="ib" id="pMenu"></button></div>
 </div></div>
 
 <div class="overlay" id="winOv"><div class="card">
-  <h2 id="winTitle"></h2><div class="stars" id="winStars"></div><div id="winText"></div><div class="muted" id="winGate"></div>
-  <div class="row"><button id="winRetry"></button><button class="primary" id="winNext"></button></div>
-  <div class="row"><button id="winLevels"></button><button class="web-only" id="winReport"></button></div>
+  <button class="cornerbtn web-only" id="winReport"></button>
+  <h2 id="winTitle"></h2><div class="stars" id="winStars"></div><div class="chips" id="winChips"></div><div class="muted" id="winGate"></div>
+  <div class="irow"><button class="ib" id="winMenu"></button><button class="ib" id="winRetry"></button><button class="ib primary wide" id="winNext"></button></div>
 </div></div>
 
 <div class="overlay" id="caughtOv"><div class="card">
+  <button class="cornerbtn web-only" id="caughtReport"></button>
   <h2 id="caughtTitle"></h2><div id="caughtText" class="muted"></div>
-  <div class="row"><button id="caughtRetry"></button><button class="primary" id="caughtRevive"></button></div>
-  <div class="row web-only"><button id="caughtReport"></button></div>
+  <div class="irow"><button class="ib" id="caughtMenu"></button><button class="ib primary wide" id="caughtRetry"></button><button class="ib wide" id="caughtRevive"></button></div>
 </div></div>
 
 <div class="overlay" id="lvOv"><div class="card">
   <h2 id="lvTitle"></h2><div id="lvChapters"></div>
-  <div class="row"><button id="lvClose"></button></div>
+  <div class="irow"><button class="ib wide" id="lvClose"></button></div>
 </div></div>
 
 <div class="overlay" id="introOv"><div class="card">
   <h2 id="introTitle"></h2><canvas id="introCv" width="120" height="72"></canvas><ul class="howl" id="introList"></ul>
-  <div class="row"><button class="primary" id="introOk"></button></div>
+  <div class="irow"><button class="ib primary wide" id="introOk"></button></div>
 </div></div>
 
 <div class="overlay" id="howOv"><div class="card">
   <h2 id="howTitle"></h2><ul class="howl" id="howList"></ul>
   <div class="muted" id="howItemsL"></div><div class="row" id="howItems"></div>
-  <div class="row"><button class="primary" id="howClose"></button></div>
+  <div class="irow"><button class="ib primary wide" id="howClose"></button></div>
 </div></div>
 
 <div class="overlay" id="setOv"><div class="card">
@@ -240,18 +258,19 @@
   <div class="set"><div><label id="sMusVolL"></label></div><input type="range" id="sMusVol" min="0" max="100" step="5"></div>
   <div class="set"><div><label id="sVibL"></label></div><button class="tog" id="sVib"></button></div>
   <div class="set web-only"><div><label id="sStatsL"></label><small id="sStatsS"></small></div><button class="tog" id="sStats"></button></div>
+  <div class="set"><div><label id="sGuideL"></label><small id="sGuideS"></small></div><button class="tog" id="sGuide"></button></div>
   <div class="set"><div><label id="sAlarmL"></label><small id="sAlarmS"></small></div><div class="seg"><button id="alFull"></button><button id="alSoft"></button></div></div>
   <div class="set"><div><label id="sMotionL"></label><small id="sMotionS"></small></div><button class="tog" id="sMotion"></button></div>
   <div class="set test-only"><div><label id="sUnlockL"></label><small id="sUnlockS"></small></div><button class="tog" id="sUnlock"></button></div>
   <div class="set"><div><label id="sResetL"></label></div><button id="sReset"></button></div>
-  <div class="row"><button class="primary" id="setClose"></button></div>
+  <div class="irow"><button class="ib primary wide" id="setClose"></button></div>
 </div></div>
 
 <div class="overlay" id="lbOv"><div class="card">
   <h2 id="lbTitle"></h2>
   <div id="lbMsg"></div>
   <div id="lbList"></div>
-  <div class="row"><button class="primary" id="lbClose"></button></div>
+  <div class="irow"><button class="ib primary wide" id="lbClose"></button></div>
 </div></div>
 
 <div class="overlay" id="accOv"><div class="card">
@@ -270,7 +289,7 @@
   </div>
   <div id="accMsg"></div>
   <div class="muted" id="accPrivacy"></div>
-  <div class="row"><button class="primary" id="accClose"></button></div>
+  <div class="irow"><button class="ib primary wide" id="accClose"></button></div>
 </div></div>
 
 <div class="overlay" id="repOv"><div class="card">
@@ -278,7 +297,7 @@
   <div class="row seg" id="repKinds"></div>
   <textarea class="fld" id="repNote" rows="3" maxlength="200"></textarea>
   <div id="repMsg" class="muted"></div>
-  <div class="row"><button id="repCancel"></button><button class="primary" id="repSend"></button></div>
+  <div class="irow"><button class="ib" id="repCancel"></button><button class="ib primary wide" id="repSend"></button></div>
 </div></div>
 
 <div class="overlay" id="adOv"><div class="card">
@@ -286,6 +305,7 @@
   <div class="row"><button id="adCancel"></button><button class="primary" id="adClaim" disabled></button></div>
 </div></div>
 
+<div id="guideRing"></div><div id="guideHand"></div>
 <script>
 /* Blind Eye: rules, exact solver, and the level generator.
  *
@@ -1062,7 +1082,7 @@ const store = {
 };
 
 /* ------------------------------------------------------------ settings */
-const DEFAULTS = { lang: 'en', sfx: true, vol: 70, music: true, musicVol: 60, vibrate: true, hearts: true, stats: true, alarm: 'full', reduceMotion: false, unlockAll: false };
+const DEFAULTS = { guide: true, lang: 'en', sfx: true, vol: 70, music: true, musicVol: 60, vibrate: true, hearts: true, stats: true, alarm: 'full', reduceMotion: false, unlockAll: false };
 const settings = Object.assign({}, DEFAULTS, store.get('pb_settings', {}));
 settings.lang = 'en';                                                           // English only; the Persian strings in T.fa are kept but nothing switches to them
 const saveSettings = () => store.set('pb_settings', settings);
@@ -1112,7 +1132,11 @@ const T = {
   en: {
     tag: 'Move the darkness. Slip the prisoner past cameras and guards.', foot: PORTAL ? '© 2026 ' : 'Playtest build',
     play: 'Play', cont: lv => 'Continue · Level ' + lv, levels: 'Levels', how: 'How to play', settings: 'Settings', close: 'Close', back: 'Back',
-    adLoading: 'Loading a short video…',
+    adLoading: 'Loading a short video…', home: 'Home', skipGuide: 'Skip',
+    sGuide: 'Guided tutorial', sGuideS: 'A pointer shows the next tap on the first levels and on every new item.',
+    gWalk: 'Tap the glowing tile to walk there first. Walking is free.', gCam: 'Tap the camera. Each tap turns it a quarter turn.', gDoor: 'Tap the door to open or close it.', gMirror: 'Tap the mirror to flip it.',
+    gPanel: 'Tap the fuse box: everything wired to it changes at once.', gLight: 'Tap the lamp to wait. It swings a quarter turn.', gGuardPick: 'Tap the guard to select him.', gGuardGo: 'Tap the arrow to walk him along his route.', gGuardTurn: 'Tap the turn button to make him face the other way.',
+    gDogPick: 'Tap the dog to select it.', gDogGo: 'Tap the arrow to send the dog along its route.', gExit: 'The way is dark. Tap the exit tile, or press Space, to walk out.',
     deskProg: (st, mx, done, n) => `${st} / ${mx} stars · ${done} / ${n} levels escaped`, goalT: 'Stars', goalPar: 'Par', goalAny: 'Any escape',
     deskKeys: [['← ↑ ↓ →', 'Walk the prisoner'], ['Space', 'Walk to the exit'], ['⌫', 'Undo an action'], ['Click', 'Use a camera, door, mirror…']], deskKeysT: 'Keys',
     dogTip: 'Dog selected: tap a tile of its rail to send it there, tap the prisoner to let go.', doorBlocked: 'The dog is standing in the doorway.',
@@ -1181,7 +1205,11 @@ const T = {
   fa: {
     tag: 'تاریکی را جابه‌جا کن و زندانی را از کنار دوربین‌ها و نگهبان‌ها رد کن.', foot: PORTAL ? '© 2026 ' : 'نسخهٔ آزمایشی',
     play: 'شروع بازی', cont: lv => 'ادامه · مرحلهٔ ' + lv, levels: 'مرحله‌ها', how: 'راهنمای بازی', settings: 'تنظیمات', close: 'بستن', back: 'بازگشت',
-    adLoading: 'در حال بارگیری یک ویدیوی کوتاه…',
+    adLoading: 'در حال بارگیری یک ویدیوی کوتاه…', home: 'خانه', skipGuide: 'رد کردن',
+    sGuide: 'آموزش گام‌به‌گام', sGuideS: 'در مرحله‌های اول و هر آیتم تازه، یک اشاره‌گر لمس بعدی را نشان می‌دهد.',
+    gWalk: 'خانهٔ درخشان را لمس کن تا اول به آنجا بروی.', gCam: 'دوربین را لمس کن. هر لمس یک‌چهارم می‌چرخاندش.', gDoor: 'در را لمس کن تا باز یا بسته شود.', gMirror: 'آینه را لمس کن تا برگردد.',
+    gPanel: 'تابلو برق را لمس کن: همهٔ وصل‌شده‌ها با هم عوض می‌شوند.', gLight: 'چراغ را لمس کن تا صبر کنی. یک‌چهارم می‌چرخد.', gGuardPick: 'نگهبان را لمس کن تا انتخاب شود.', gGuardGo: 'فلش را لمس کن تا نگهبان در مسیرش برود.', gGuardTurn: 'دکمهٔ چرخش را لمس کن تا برگردد.',
+    gDogPick: 'سگ را لمس کن تا انتخاب شود.', gDogGo: 'فلش را لمس کن تا سگ در مسیرش برود.', gExit: 'راه تاریک است. خانهٔ خروج را لمس کن (یا Space بزن).',
     deskProg: (st, mx, done, n) => `${st} / ${mx} ستاره · ${done} / ${n} مرحله`, goalT: 'ستاره‌ها', goalPar: 'بهترین', goalAny: 'هر فرار',
     deskKeys: [['← ↑ ↓ →', 'راه رفتن زندانی'], ['Space', 'رفتن به خروج'], ['⌫', 'برگشت یک عمل'], ['کلیک', 'استفاده از دوربین، در، آینه…']], deskKeysT: 'کلیدها',
     dogTip: 'سگ انتخاب شد: خانهٔ ریلش را لمس کن تا برود، زندانی را لمس کن تا رها شود.', doorBlocked: 'سگ توی چارچوب در ایستاده است.',
@@ -1271,6 +1299,14 @@ const ICONS = {
   trophy: ['XXXXXXX', 'X.XXX.X', 'X.XXX.X', '.XXXXX.', '..XXX..', '...X...', '..XXX..'],
   user: ['..XXX..', '.XXXXX.', '.XXXXX.', '..XXX..', '.XXXXX.', 'XXXXXXX', 'XXXXXXX'],
   help: ['.XXXXX.', 'XX...XX', '.....XX', '...XXX.', '..XX...', '.......', '..XX...'],
+  home: ['....X....', '...XXX...', '..XXXXX..', '.XXXXXXX.', 'XXXXXXXXX', '.XX...XX.', '.XX...XX.', '.XX...XX.'],
+  retry: ['..XXXX.XX', '.XX..XXXX', 'XX....XXX', 'XX....XX.', 'XX.......', '.XX....XX', '..XXXXXX.'],
+  next: ['XX....XX', 'XXXX..XX', 'XXXXX.XX', 'XXXXXXXX', 'XXXXX.XX', 'XXXX..XX', 'XX....XX'],
+  close: ['XX...XX', 'XXX.XXX', '.XXXXX.', '..XXX..', '.XXXXX.', 'XXX.XXX', 'XX...XX'],
+  check: ['......XX', '.....XXX', 'XX..XXX.', 'XXXXXX..', '.XXXX...', '..XX....'],
+  flag: ['XXXXXX..', 'XXXXXXX.', 'XXXXXX..', 'XXXX....', 'XX......', 'XX......', 'XX......'],
+  skip: ['XX..XX...', 'XXX.XXX..', 'XXXXXXXX.', 'XXXXXXXX.', 'XXX.XXX..', 'XX..XX...'],
+  hand: ['....XX....', '...XXXX...', '...XXXX...', '...XXXX...', '.X.XXXXXX.', 'XXXXXXXXXX', 'XXXXXXXXXX', '.XXXXXXXXX', '..XXXXXXX.', '..XXXXXX..', '...XXXXX..'],
 };
 const iconCache = {};
 function iconData(name) {
@@ -1282,6 +1318,8 @@ function iconData(name) {
   }
   return iconCache[name];
 }
+/* a pixel icon button: the picture is the label, the word lives in aria-label and the tooltip */
+function setIcon(id, name, label, extra = '', cell = 4) { const b = $(id); b.innerHTML = icon(name, cell, name === 'heart' ? 'red' : '') + extra; b.setAttribute('aria-label', label); b.title = label; }
 function icon(name, cell = 3, cls = '') { const d = iconData(name); return `<i class="ic ${cls}" style="--m:url(${d.url});width:${d.w * cell}px;height:${d.h * cell}px"></i>`; }
 const esc = x => String(x).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 const starsHTML = (n, total = 3, cell = 4) => Array.from({ length: total }, (_, i) => icon('star', cell, i < n ? 'gold' : 'dim')).join('');
@@ -1546,7 +1584,7 @@ let li = 0, L, dg, thief, thiefDir = 2, hist = [], moves = 0, sel = -1, hintWho 
 let alarm = null, heartPop = -1;                           // alarm: the refused action being replayed as a siren animation
 let flash = 0, flashCell = -1, shake = 0, hearts = HEARTS_MAX, lost = 0, hintsUsed = 0, caughtOn = false;
 const gdraw = [], ddraw = [];
-const heartsOn = () => settings.hearts;
+const heartsOn = () => settings.hearts && !guideOn();                 // no hearts are lost while the tutorial pointer is leading
 function setHeartsMode(v) { settings.hearts = !!v; saveSettings(); if (L) { hearts = HEARTS_MAX; lost = 0; } syncUI(); }   // test hook
 const tipFor = id => tr().tips[id] || '';
 
@@ -1643,7 +1681,7 @@ const gateOn = () => adsOn() && strikes >= STRIKES_MAX;
 function caught() {
   walking = null; caughtOn = true; Sfx.play('caught'); if (lvl) { track('level_caught', { n: lvl.id, ms: lvlMs(), moves }); lvl.done = true; } strikes++; store.set('pb_strikes', strikes);
   $('caughtTitle').textContent = tr().caught; $('caughtText').textContent = tr().caughtText + (adsOn() ? ' ' + tr().strikesNote(Math.min(strikes, STRIKES_MAX), STRIKES_MAX) : '');
-  $('caughtRetry').textContent = gateOn() ? tr().retryAd : tr().retry; $('caughtRevive').textContent = tr().revive; $('caughtRevive').style.display = adsOn() ? '' : 'none';
+  setIcon('caughtRetry', 'retry', gateOn() ? tr().retryAd : tr().retry, gateOn() ? '<span class="adtag">AD</span>' : ''); setIcon('caughtRevive', 'heart', tr().revive, '<span class="adtag">AD</span>'); $('caughtRevive').style.display = adsOn() ? '' : 'none';
   $('caughtOv').classList.add('on');
 }
 function refuse() { setTip(tr().refused, 'warn'); flashCell = thief; flash = 1; shake = 1; Sfx.play('refuse'); }
@@ -1830,20 +1868,21 @@ function applyLang() {
   const set = (id, v) => { $(id).textContent = v; };
   set('menuTag', t.tag); set('menuFoot', t.foot);
   $('mLevels').innerHTML = icon('levels', 3) + ' ' + t.levels; $('mHow').innerHTML = icon('help', 3) + ' ' + t.how; $('mSettings').innerHTML = icon('gear', 3) + ' ' + t.settings; $('mAccount').innerHTML = icon('user', 3) + ' <span>' + esc(acct.loggedIn ? (acct.username || acct.email.split('@')[0]) : t.account) + '</span>'; $('mLeaders').innerHTML = icon('trophy', 3) + ' <span>' + t.leaders + '</span>';
-  set('pauseTitle', t.pause); set('pResume', t.resume); set('pRestart', t.restart); set('pLevels', t.levels); set('pSettings', t.settings); set('pMenu', t.mainMenu);
-  set('winRetry', t.retry); set('winLevels', t.levels); set('lvTitle', t.levels); set('lvClose', t.close); set('howTitle', t.howTitle); set('howClose', t.close);
-  set('setTitle', t.setTitle); set('setClose', t.close); set('sLangL', t.sLang); set('sSfxL', t.sSfx); set('sVolL', t.sVol); set('sMusL', t.sMus); set('sMusVolL', t.sMusVol); set('sVibL', t.sVib);
-  set('sStatsL', t.sStats); set('sStatsS', t.sStatsS); set('pReport', t.repBtn); set('winReport', t.repBtn); set('caughtReport', t.repBtn); set('sAlarmL', t.sAlarm); set('sAlarmS', t.sAlarmS); set('alFull', t.alFull); set('alSoft', t.alSoft); set('sMotionL', t.sMotion); set('sMotionS', t.sMotionS); set('sUnlockL', t.sUnlock); set('sUnlockS', t.sUnlockS);
+  set('pauseTitle', t.pause); setIcon('pResume', 'play', t.resume, '', 5); setIcon('pRestart', 'retry', t.restart); setIcon('pLevels', 'levels', t.levels); setIcon('pSettings', 'gear', t.settings); setIcon('pMenu', 'home', t.home);
+  setIcon('winRetry', 'retry', t.retry); setIcon('winMenu', 'home', t.home); setIcon('caughtMenu', 'home', t.home); set('lvTitle', t.levels); setIcon('lvClose', 'close', t.close); set('howTitle', t.howTitle); setIcon('howClose', 'close', t.close);
+  set('setTitle', t.setTitle); setIcon('setClose', 'close', t.close); set('sGuideL', t.sGuide); set('sGuideS', t.sGuideS); $('guideSkip').innerHTML = icon('skip', 2) + ' ' + t.skipGuide; set('sLangL', t.sLang); set('sSfxL', t.sSfx); set('sVolL', t.sVol); set('sMusL', t.sMus); set('sMusVolL', t.sMusVol); set('sVibL', t.sVib);
+  set('sStatsL', t.sStats); set('sStatsS', t.sStatsS); setIcon('pReport', 'flag', t.repBtn, '', 3); setIcon('winReport', 'flag', t.repBtn, '', 3); setIcon('caughtReport', 'flag', t.repBtn, '', 3); set('sAlarmL', t.sAlarm); set('sAlarmS', t.sAlarmS); set('alFull', t.alFull); set('alSoft', t.alSoft); set('sMotionL', t.sMotion); set('sMotionS', t.sMotionS); set('sUnlockL', t.sUnlock); set('sUnlockS', t.sUnlockS);
   set('howItemsL', t.itemsL); $('howItems').innerHTML = ''; ['cam', 'guard', 'door', 'mirror', 'dog', 'light', 'panel', 'glass'].forEach(k => { const b = document.createElement('button'); b.textContent = t.itemNames[k]; b.onclick = () => showIntro(k, false); $('howItems').appendChild(b); });
-  set('introOk', t.gotIt);
+  setIcon('introOk', 'check', t.gotIt);
   set('adTitle', t.adTitle); set('adText', t.adText); set('adCancel', t.adCancel); set('adClaim', t.adClaim);
+  setIcon('winNext', 'next', t.next);
   $('howList').innerHTML = t.howList.map(s => `<li>${s}</li>`).join('');
   $('mPlay').innerHTML = icon('play', 3, fa ? 'flipx' : '') + ' ' + (best[LEVELS[0].id] ? t.cont(LEVELS[firstOpenLevel()].id) : t.play);
   syncSettingsUI(); syncDesk();
 }
 function syncSettingsUI() {
   const t = tr(), tog = (id, on) => { $(id).textContent = on ? t.on : t.off; $(id).className = 'tog' + (on ? ' on' : ''); };
-  tog('sSfx', settings.sfx); tog('sMus', settings.music); tog('sVib', settings.vibrate); tog('sStats', settings.stats); tog('sMotion', settings.reduceMotion); tog('sUnlock', settings.unlockAll);
+  tog('sGuide', settings.guide); tog('sSfx', settings.sfx); tog('sMus', settings.music); tog('sVib', settings.vibrate); tog('sStats', settings.stats); tog('sMotion', settings.reduceMotion); tog('sUnlock', settings.unlockAll);
   $('alFull').className = settings.alarm !== 'soft' ? 'sel' : ''; $('alSoft').className = settings.alarm === 'soft' ? 'sel' : ''; $('sVol').value = settings.vol; $('sMusVol').value = settings.musicVol; $('langEn').className = settings.lang === 'en' ? 'sel' : ''; $('langFa').className = settings.lang === 'fa' ? 'sel' : '';
   $('sReset').textContent = t.sReset; $('sReset').className = '';
 }
@@ -1921,13 +1960,17 @@ function starsNow() {
   return s;
 }
 function win() {
-  Sfx.play('win'); const id = LEVELS[li].id, st = starsNow();
+  const wasGuided = guideOn(); Sfx.play('win'); const id = LEVELS[li].id, st = starsNow();
+  if (wasGuided) { guideDone[id] = true; store.set('pb_guide', guideDone); }
   if (!best[id] || best[id].stars < st || (best[id].stars === st && best[id].moves > moves)) { best[id] = { stars: st, moves }; store.set('pb_best3', best); }
   pushSoon(); if (lvl) { track('level_win', { n: lvl.id, ms: lvlMs(), moves, par: LEVELS[li].par, hints: lvl.hints, lost, undo: lvl.undo, stars: st }); lvl.done = true; }
-  $('winTitle').textContent = tr().escaped; $('winStars').innerHTML = starsHTML(st, 3, 6); $('winText').textContent = tr().winText(moves, LEVELS[li].par, heartsOn() ? lost : 0);
+  const t = tr(), par = LEVELS[li].par, lostNow = heartsOn() ? lost : 0;
+  $('winTitle').textContent = t.escaped; $('winStars').innerHTML = starsHTML(st, 3, 6);
+  $('winChips').innerHTML = `<span class="chip" title="${t.moves}">${icon('hand', 3)} ${moves}</span><span class="chip" title="${t.best}">${icon('trophy', 3, 'gold')} ${par}</span>` + (lostNow ? `<span class="chip" title="${t.hearts || 'Hearts'}">${icon('heart', 3, 'red')} −${lostNow}</span>` : '');
   const last = li === LEVELS.length - 1, nextCi = last ? -1 : chapterOf(li + 1), locked = !last && levelLocked(li + 1);
-  $('winGate').textContent = locked ? tr().gate(chapNeed(nextCi), starsBefore(nextCi)) : '';
-  $('winNext').textContent = last ? tr().done : tr().next; $('winNext').disabled = last || locked;
+  $('winGate').innerHTML = locked ? `${icon('lock', 3)} ${starsBefore(nextCi)} / ${chapNeed(nextCi)} ${icon('star', 3, 'gold')}` : last ? t.done : '';
+  $('winGate').title = locked ? t.gate(chapNeed(nextCi), starsBefore(nextCi)) : '';
+  setIcon('winNext', locked ? 'lock' : last ? 'trophy' : 'next', last ? t.done : t.next); $('winNext').disabled = last || locked;
   $('winOv').classList.add('on');
 }
 function openLevels() {
@@ -1968,7 +2011,8 @@ $('lvClose').onclick = () => hide('lvOv');
 $('setClose').onclick = () => { hide('setOv'); if (settingsFrom === 'pause' && inGame) show('pauseOv'); };
 $('winRetry').onclick = () => load(li);
 $('winNext').onclick = () => load(li + 1);
-$('winLevels').onclick = () => { hide('winOv'); openLevels(); };
+$('winMenu').onclick = toMenu;
+$('caughtMenu').onclick = toMenu;
 const clearStrikes = () => { strikes = 0; store.set('pb_strikes', 0); };
 $('caughtRetry').onclick = () => { if (!gateOn()) { load(li); return; } Ads.rewarded('retry').then(ok => { if (ok) { clearStrikes(); load(li); } }); };
 $('caughtRevive').onclick = () => Ads.rewarded('revive').then(ok => {
@@ -2027,7 +2071,7 @@ async function refreshAccount(fromLink) {
 function accMsg(text, cls) { const el = $('accMsg'); el.className = cls || ''; el.textContent = text || ''; }
 function renderAccount() {
   const t = tr();
-  $('accTitle').textContent = t.accTitle; $('accIntro').textContent = t.accIntro; $('accPrivacy').textContent = t.accPrivacy; $('accClose').textContent = t.close;
+  $('accTitle').textContent = t.accTitle; $('accIntro').textContent = t.accIntro; $('accPrivacy').textContent = t.accPrivacy; setIcon('accClose', 'close', t.close);
   $('accEmail').placeholder = t.accEmail; $('accSend').textContent = t.accSend;
   $('accName').placeholder = t.accName; $('accNameSave').textContent = t.accNameSave; $('accSyncNow').textContent = t.accSync; $('accLogout').textContent = t.accOut;
   $('accOut').style.display = acct.loggedIn ? 'none' : 'block'; $('accIn').style.display = acct.loggedIn ? 'block' : 'none';
@@ -2069,7 +2113,7 @@ $('accLogout').onclick = async () => { try { await api('/api/auth/logout', { met
 /* ------------------------------------------------- statistics and reports */
 /* Anonymous play statistics (random id kept in this browser, never linked to an account) help tune the levels: how many start, win, get caught,
    take hints, leave. Only on the game's own site (and localhost, flagged as test traffic). Players can switch them off in Settings. */
-const BUILD = "2026-10-13-346510b";
+const BUILD = "2026-10-13-f5fba8d";
 const TEST_HOST = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
 const STATS_HOST = !PORTAL && (new RegExp('^(www\\.)?luckylion\\.games$').test(location.hostname) || TEST_HOST);
 const rid = n => Array.from(crypto.getRandomValues(new Uint8Array(n)), b => b.toString(16).padStart(2, '0')).join('');
@@ -2099,7 +2143,7 @@ track('session_start', { first: firstVisit });
 let repKind = null, repLevel = 0;
 function openReport() {
   const t = tr(); repKind = null; repLevel = LEVELS[li].id; $('repTitle').textContent = t.repTitle(repLevel); $('repNote').value = ''; $('repNote').placeholder = t.repNote; $('repMsg').textContent = '';
-  $('repSend').textContent = t.repSend; $('repCancel').textContent = t.repCancel; $('repSend').disabled = false;
+  setIcon('repSend', 'check', t.repSend); setIcon('repCancel', 'close', t.repCancel); $('repSend').disabled = false;
   $('repKinds').innerHTML = ''; Object.keys(t.repKinds).forEach(k => { const b = document.createElement('button'); b.textContent = t.repKinds[k]; b.onclick = () => { repKind = k; [...$('repKinds').children].forEach(c => { c.className = c === b ? 'sel' : ''; }); $('repMsg').textContent = ''; }; $('repKinds').appendChild(b); });
   show('repOv');
 }
@@ -2117,7 +2161,7 @@ $('repSend').onclick = async () => {
 
 /* ----------------------------------------------------------- leaderboard */
 async function openLeaders() {
-  const t = tr(); $('lbTitle').textContent = t.lbTitle; $('lbClose').textContent = t.close; $('lbList').innerHTML = ''; $('lbMsg').textContent = t.lbHow; show('lbOv');
+  const t = tr(); $('lbTitle').textContent = t.lbTitle; setIcon('lbClose', 'close', t.close); $('lbList').innerHTML = ''; $('lbMsg').textContent = t.lbHow; show('lbOv');
   if (!ONLINE) { $('lbMsg').textContent = t.lbOffline; return; }
   try {
     const r = await api('/api/blind-eye/leaderboard');
@@ -2157,6 +2201,7 @@ $('sStats').onclick = () => { flip('stats'); if (!settings.stats) evq.length = 0
 $('alFull').onclick = () => { settings.alarm = 'full'; saveSettings(); syncSettingsUI(); Sfx.play('siren'); };
 $('alSoft').onclick = () => { settings.alarm = 'soft'; saveSettings(); syncSettingsUI(); Sfx.play('spotted'); };
 $('sMotion').onclick = () => flip('reduceMotion');
+$('sGuide').onclick = () => { flip('guide'); guideSig = ''; };
 $('sUnlock').onclick = () => { flip('unlockAll'); };
 $('sMus').onclick = () => { flip('music'); Music.sync(); };
 $('sMusVol').oninput = e => { settings.musicVol = Number(e.target.value); saveSettings(); Music.sync(); };
@@ -2165,7 +2210,7 @@ $('sVol').onchange = () => Sfx.play('step');
 let resetArmed = false;
 $('sReset').onclick = () => {
   if (!resetArmed) { resetArmed = true; $('sReset').textContent = tr().sResetSure; $('sReset').className = 'on'; setTimeout(() => { resetArmed = false; syncSettingsUI(); }, 3000); return; }
-  resetArmed = false; best = {}; store.set('pb_best3', best); store.set('pb_last', 0); $('sReset').textContent = tr().sResetDone; applyLang();
+  resetArmed = false; best = {}; store.set('pb_best3', best); store.set('pb_last', 0); guideDone = {}; store.set('pb_guide', guideDone); $('sReset').textContent = tr().sResetDone; applyLang();
 };
 document.addEventListener('click', e => { const b = e.target.closest && e.target.closest('button'); if (b && !b.closest('#bar') && b.id !== 'sVib') Sfx.play('click'); });
 
@@ -2456,6 +2501,51 @@ function setFavicon() {                                                         
   pxr(g, '#16101f', 10, 4, 5, 7); pxr(g, '#ff3b52', 11, 5, 3, 5); pxr(g, '#ffffff', 11, 5, 1, 1);
   const link = document.querySelector('link[rel=icon]'); if (link) { link.type = 'image/png'; link.href = c.toDataURL(); }
 }
+/* ------------------------------------------------------ guided tutorial */
+/* The first three levels and the first level of every new item are played with a pointing hand: it shows the next tap, worked out by the exact solver from the
+   position the player is in (so it is right after a mistake or an undo too). No hearts are lost meanwhile. It stops once the level has been escaped; "Skip" or
+   the Settings switch turns it off. */
+const GUIDED = new Set([1, 2, 3, 7, 37, 57, 97, 117, 137, 157]);
+let guideDone = store.get('pb_guide', {}), guideStep = null, guideSig = '';
+function guideOn() { return !!(L && inGame && settings.guide && GUIDED.has(LEVELS[li].id) && !guideDone[LEVELS[li].id]); }
+const centreOf = el => { const r = el.getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; };
+function guideCompute() {
+  if (!guideOn() || walking || alarm || caughtOn) return null;
+  const t = tr(); P.prepare(L);
+  const r = P.solve(L, { digits: dg, thief, maxDepth: 60 });
+  if (!r || !r.solvable) return null;
+  if (r.par === 0) return { type: 'exit', text: t.gExit, pt: () => cellPoint(L.E) };
+  const next = r.configs[0], who = r.who[0], e2 = P.evalConfig(L, next, false);
+  if (e2.lit[thief] || e2.occ[thief]) {                                              // he has to stand somewhere else before this action: walk first
+    for (let c = 0; c < L.w * L.h; c++) {
+      if (L.wall[c] || e2.lit[c] || e2.occ[c] || c === thief || !pathTo(c)) continue;
+      const r2 = P.solve(L, { digits: next, thief: c, maxDepth: 60 });
+      if (r2 && r2.solvable && r2.par === r.par - 1) return { type: 'walk', text: t.gWalk, pt: () => cellPoint(c) };
+    }
+  }
+  const kind = kindOf(who);
+  if (kind === 'guard' || kind === 'dog') {
+    if (sel !== who) return { type: 'pick', text: kind === 'dog' ? t.gDogPick : t.gGuardPick, pt: () => tapPoint(who) };
+    const opts = options(who), idx = opts.findIndex(o => o.dg && o.dg.join() === next.join());
+    if (idx < 0) return null;
+    return { type: 'go', text: opts[idx].kind === 'turn' ? t.gGuardTurn : kind === 'dog' ? t.gDogGo : t.gGuardGo, pt: () => { const b = $('ctx').children[idx]; return b ? centreOf(b) : null; } };
+  }
+  return { type: 'tap', text: kind === 'cam' ? t.gCam : kind === 'door' ? t.gDoor : kind === 'mirror' ? t.gMirror : kind === 'panel' ? t.gPanel : t.gLight, pt: () => tapPoint(who) };
+}
+function guideTick() {
+  const hand = $('guideHand'), ring = $('guideRing'), skip = $('guideSkip');
+  const live = guideOn() && !document.querySelector('.overlay.on') && !$('menu').classList.contains('on');
+  skip.style.display = live ? 'inline-flex' : 'none';
+  if (!live) { guideSig = ''; guideStep = null; hand.style.display = ring.style.display = 'none'; return; }
+  const sig = dg.join() + '|' + thief + '|' + sel + '|' + (walking ? 1 : 0) + '|' + (alarm ? 1 : 0) + '|' + (caughtOn ? 1 : 0) + '|' + li;
+  if (sig !== guideSig) { guideSig = sig; guideStep = guideCompute(); if (guideStep) setTip(guideStep.text, 'good'); }
+  const p = guideStep && guideStep.pt();
+  if (!p) { hand.style.display = ring.style.display = 'none'; return; }
+  if (!hand.firstChild) hand.innerHTML = icon('hand', 4);
+  ring.style.display = hand.style.display = 'block'; ring.style.left = p[0] + 'px'; ring.style.top = p[1] + 'px'; hand.style.left = (p[0] - 20) + 'px'; hand.style.top = (p[1] + 10) + 'px';
+}
+$('guideSkip').onclick = () => { settings.guide = false; saveSettings(); syncSettingsUI(); guideSig = ''; setTip(tipFor(LEVELS[li].id) || tr().pick); };
+
 /* CrazyGames gameplay events: gameplayStart while a level is being played, gameplayStop on every break (menu, any panel, win, caught). Not on focus loss. */
 let cgPlay = false, cgPoll = 0;
 function cgSync(now) {
@@ -2467,7 +2557,7 @@ if (CG && CG.game) { try { CG.game.addSettingsChangeListener(() => Music.sync())
 let last = performance.now(), frameDt = 16.7;
 const ease = k => 1 - Math.pow(1 - k, frameDt / 16.7);                       // the same speed at 60, 120 or 144 Hz
 function frame(now) {
-  const dt = Math.min(50, now - last); last = now; frameDt = dt; stepWalk(dt); cgSync(now);
+  const dt = Math.min(50, now - last); last = now; frameDt = dt; stepWalk(dt); cgSync(now); guideTick();
   if (alarm) { alarm.t += dt; if (alarm.t >= 1300) endAlarm(); }
   flash = Math.max(0, flash - dt / 500); shake = Math.max(0, shake - dt / 350);
   if (introKind) drawIntro(now);

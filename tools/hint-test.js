@@ -11,7 +11,7 @@ const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
     const ctx = await b.newContext({ viewport: vp, isMobile: touch, hasTouch: touch, deviceScaleFactor: 1 }), pg = await ctx.newPage(), errs = [];
     pg.on('pageerror', e => errs.push(String(e).slice(0, 200)));
     await pg.goto(url); await pg.waitForFunction(() => typeof onHint === 'function', null, { timeout: 8000 }); await pg.waitForTimeout(250);
-    const setup = () => { settings.sfx = false; settings.music = false; settings.vibrate = false; settings.guide = false; settings.hearts = false; introSeen = { cam: 1, guard: 1, door: 1, mirror: 1, all: 1, dog: 1, light: 1, panel: 1, glass: 1 }; };
+    const setup = () => { settings.sfx = false; settings.music = false; settings.vibrate = false; settings.guide = false; settings.hearts = false; introSeen = { cam: 1, guard: 1, door: 1, mirror: 1, all: 1, dog: 1, light: 1, panel: 1, glass: 1, shield: 1 }; };
     await pg.evaluate(setup);
     const hintBtn = '#bar button:nth-child(3)';
     const state = () => pg.evaluate(() => ({ stage: hintShown && hintShown.stage, used: hintUsed, ring: document.getElementById('guideRing').style.display, hand: document.getElementById('guideHand').style.display, tip: document.getElementById('tip').textContent, ad: !!document.querySelector('#bar .adtag'), cnt: !!document.querySelector('#bar .cnt'), moves, win: document.getElementById('winOv').classList.contains('on') }));

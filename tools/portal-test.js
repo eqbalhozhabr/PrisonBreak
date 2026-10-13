@@ -46,7 +46,7 @@ function mockSdk(o) {
     await pg.goto(base); await pg.waitForFunction(() => typeof settings !== 'undefined', null, { timeout: 8000 }).catch(() => {}); await pg.waitForTimeout(250);
     st.pg = pg; st.ctx = ctx; return st;
   }
-  const quiet = () => { settings.sfx = false; settings.music = false; introSeen = { cam: 1, guard: 1, door: 1, mirror: 1, all: 1, dog: 1, light: 1, panel: 1, glass: 1 }; };
+  const quiet = () => { settings.sfx = false; settings.music = false; introSeen = { cam: 1, guard: 1, door: 1, mirror: 1, all: 1, dog: 1, light: 1, panel: 1, glass: 1, shield: 1 }; };
 
   // ---- layouts at the platform's iframe sizes: desktop (mouse) everywhere, phone (touch) at the phone sizes
   const runs = []; for (const [w, h] of SIZES) { const key = w + 'x' + h; if (key !== '390x844' && key !== '844x390') runs.push([w, h, 'desk']); if (PHONE.has(key) || (key === '800x450')) runs.push([w, h, 'phone']); }

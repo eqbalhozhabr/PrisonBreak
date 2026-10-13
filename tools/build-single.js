@@ -19,7 +19,8 @@ const T = target === 'crazygames'
 let html = rd('play/index.html').replace("'__BUILD__'", () => JSON.stringify(build));
 html = html.replace(/<!--@PORTAL_META@-->/, () => T.PORTAL_META).replace(/@(TARGET|SITE_PATH|SITE_RE|POM_EN|POM_FA|OWNER|YEAR)@/g, (m, k) => T[k]);
 html = html.replace('<script src="../src/prison.js"></script>', () => '<script>\n' + rd('src/prison.js') + '\n</script>')
-           .replace('<script src="levels.js"></script>', () => '<script>\n' + rd('play/levels.js') + '\n</script>');
+           .replace('<script src="levels.js"></script>', () => '<script>\n' + rd('play/levels.js') + '\n</script>')
+           .replace('<script src="daily.js"></script>', () => fs.existsSync(path.join(root, 'play/daily.js')) ? '<script>\n' + rd('play/daily.js') + '\n</script>' : '');
 // inline the pixel fonts so the single file also works offline
 html = html.replace(/url\(fonts\/([^)]+)\)/g, (m, f) => {
   const mime = f.endsWith('.woff2') ? 'font/woff2' : 'font/ttf';

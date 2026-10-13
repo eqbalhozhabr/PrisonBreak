@@ -92,7 +92,7 @@ function evalConfig(L, digits, wantRays) {
   const lit = new Uint8Array(n), occ = new Uint8Array(n), opq = new Uint8Array(n), mir = new Int8Array(n).fill(-1), scent = new Uint8Array(n);
   if (L.glass) for (let c = 0; c < n; c++) if (L.glass[c]) occ[c] = 1;                 // sight passes, bodies and scent do not
   const gpos = L.guards.map((g, k) => g.rail[digits[nc + k] >> 1]);
-  for (const c of gpos) { occ[c] = 1; opq[c] = 1; }
+  for (const c of gpos) { occ[c] = 1; if (!L.ghostGuards) opq[c] = 1; }               // (ghostGuards is a test variant: guards would not block sight; see shieldOnly)
   tog.forEach((t, j) => {
     const v = digits[nc + ng + j];
     if (t.kind === 'door') { if (v === 1) { occ[t.c] = 1; opq[t.c] = 1; } }
@@ -527,7 +527,7 @@ function mounts(L) {
   return out;
 }
 function cloneLevel(L) {
-  return { w: L.w, h: L.h, wall: L.wall.slice(), S: L.S, E: L.E, cams: L.cams.map(c => ({ ...c })),
+  return { ghostGuards: !!L.ghostGuards, w: L.w, h: L.h, wall: L.wall.slice(), S: L.S, E: L.E, cams: L.cams.map(c => ({ ...c })),
     guards: L.guards.map(g => ({ ...g, rail: g.rail.slice() })), toggles: L.toggles.map(t => ({ ...t })), dogs: (L.dogs || []).map(d => ({ ...d, rail: d.rail.slice() })), lights: (L.lights || []).map(l => ({ ...l })), panels: (L.panels || []).map(p => ({ c: p.c, links: p.links.slice() })), glass: L.glass ? L.glass.slice() : new Uint8Array(L.w * L.h) };
 }
 /* One random change to a layout (walls, exit, a camera mount, a guard rail, a door or a mirror). null if it breaks the layout. */
@@ -659,7 +659,7 @@ function pickStart(L, g, rnd, t, minUsed) {
   return best < 0 ? null : best;
 }
 /* Like pickStart, but also chooses the prisoner's start tile so that the walk count falls in [wLo, wHi]. */
-function pickStartPhased(L, g, rnd, t, minUsed, wLo, wHi) {
+function pickStartPhased(L, g, rnd, t, minUsed, wLo, wHi, gN, minGap) {
   const cands = [];
   for (let nd = 0; nd < g.dist.length; nd++) if (g.dist[nd] === t) cands.push(nd);
   if (!cands.length) return null;
@@ -669,8 +669,9 @@ function pickStartPhased(L, g, rnd, t, minUsed, wLo, wHi) {
     const nd = cands[(rnd() * cands.length) | 0], users = new Set();
     for (let q = nd; g.parent[q] >= 0; q = g.parent[q]) users.add(g.via[q]);
     if (users.size < minUsed) continue;
-    const id = g.cfgOf[nd], k = nd - g.base[id], cells = [];
-    for (let x = 0; x < g.n; x++) if (g.labs[id * g.n + x] === k && x !== L.E && !marked.has(x)) cells.push(x);
+    const id = g.cfgOf[nd], k = nd - g.base[id]; let cells = [];
+    if (gN) cells = shieldOnlyCells(g, gN, nd, 64, minGap).filter(x => x !== L.E && !marked.has(x));          // only tiles from which just the shield solves it
+    else for (let x = 0; x < g.n; x++) if (g.labs[id * g.n + x] === k && x !== L.E && !marked.has(x)) cells.push(x);
     for (let q = 0; q < Math.min(5, cells.length); q++) {
       const S = cells[(rnd() * cells.length) | 0], w = phasesDP(L, g, id, S);
       if (w < wLo || w > wHi) continue;
@@ -708,6 +709,39 @@ function applyStart(L, g, nd, rnd, forceS) {
 
 /* Builds one level whose par is `target` (or one less). A random layout is grown by hill-climbing on the largest
    par its whole state graph contains, then a starting state at the wanted par is chosen. null when attempts run out. */
+/* Guards also stop cameras' sight: a guard standing in a camera's beam is a moving shield. A start is "shield-only" when it is solvable but would NOT be if guards were
+   transparent to sight (the variant graph `gN`, built with L.ghostGuards): the prisoner can only get out by putting a guard in a camera's way somewhere along the route. */
+function ghostOf(L) { const c = cloneLevel(L); c.ghostGuards = true; return c; }
+function shieldOnlyCells(g, gN, nd, cap, minGap) {          // the tiles of start node nd from which only the shield solves it (or the shield-free way is at least minGap actions longer)
+  const id = g.cfgOf[nd], k = nd - g.base[id], out = [];
+  for (let x = 0; x < g.n && out.length < cap; x++) {
+    if (g.labs[id * g.n + x] !== k) continue;
+    const kN = gN.labs[id * g.n + x];
+    if (kN < 0) continue; const gd = gN.dist[gN.base[id] + kN];
+    if (gd === -1 || (minGap > 0 && gd - g.dist[nd] >= minGap)) out.push(x);
+  }
+  return out;
+}
+function shieldCount(g, gN, rnd, t) {                      // how many sampled starts at distance t need the shield (a guide for the hill-climb)
+  const cands = []; for (let nd = 0; nd < g.dist.length; nd++) if (g.dist[nd] === t) cands.push(nd);
+  let c = 0; for (let s = 0; s < Math.min(60, cands.length); s++) if (shieldOnlyCells(g, gN, cands[(rnd() * cands.length) | 0], 1).length) c++;
+  return c;
+}
+/* A smooth guide for the hill-climb: over sampled starts at distance t (a tile that is dark in both worlds), how much longer the best shield-free solution is
+   (6 = none at all). Layouts where the guards matter more score higher, until some starts need the shield outright. */
+function shieldGap(g, gN, rnd, t) {
+  const cands = []; for (let nd = 0; nd < g.dist.length; nd++) if (g.dist[nd] === t) cands.push(nd);
+  let sum = 0, cnt = 0;
+  for (let s = 0; s < Math.min(40, cands.length); s++) {
+    const nd = cands[(rnd() * cands.length) | 0], id = g.cfgOf[nd], k = nd - g.base[id];
+    for (let x = 0, seen = 0; x < g.n && seen < 2; x++) {
+      if (g.labs[id * g.n + x] !== k) continue;
+      const kN = gN.labs[id * g.n + x]; if (kN < 0) continue; seen++;
+      const gd = gN.dist[gN.base[id] + kN]; sum += gd < 0 ? 6 : Math.max(0, Math.min(6, gd - t)); cnt++;
+    }
+  }
+  return cnt ? sum / cnt : 0;
+}
 function genLevel(spec, seed, target, iters) {
   const rnd = mulberry32(seed);
   let L = null;
@@ -718,32 +752,40 @@ function genLevel(spec, seed, target, iters) {
   let cur = buildGraph(L, spec.cap || 20000), curScore = -1;
   const maxOf = g => { let m = 0; for (let i = 0; i < g.dist.length; i++) if (g.dist[i] > m) m = g.dist[i]; return m; };
   const score = (g) => { const m = maxOf(g); return Math.min(m, target + 1) * 100 + (m >= target ? Math.min(sampleMaxPhases(L2, g, rnd, Math.min(m, target)), wLo) * 10 : 0); };
-  let L2 = L;
+  let L2 = L, curN = null;
+  const needS = !!spec.needShield && L.guards.length > 0 && L.cams.length > 0, shieldMin = spec.shieldMin == null ? 2 : spec.shieldMin;
   if (cur) curScore = score(cur);
   const t0 = Date.now(), budget = spec.timeMs || 25000;
+  if (spec.needShield && !needS) return null;                                                // a shield needs a guard and a camera
   for (let it = 0; it < (iters || 400); it++) {
     if (Date.now() - t0 > budget) return null;
     if (cur && curScore >= (target - 1) * 100) {
-      for (let tryNo = 0; tryNo < 6; tryNo++) {
+      if (needS && !curN) curN = buildGraph(ghostOf(L), spec.cap || 20000);
+      for (let tryNo = 0; tryNo < 6 && (!needS || curN); tryNo++) {
         const t = tryNo % 2 ? Math.max(1, target - 1) : target;
-        const pick = pickStartPhased(L, cur, rnd, t, Math.max(1, minUsed - 1), wLo, wHi);
+        const pick = pickStartPhased(L, cur, rnd, t, Math.max(1, minUsed - 1), wLo, wHi, needS ? curN : null, shieldMin);
         if (!pick) continue;
         if (!applyStart(L, cur, pick.nd, rnd, pick.S)) continue;
         const r = solve(L, { maxDepth: 40 });
         if (!r || !r.solvable || r.par !== t) continue;
+        if (needS) {                                                                                  // double check, from the real start: dark in the ghost world too, and without the shield there is no way out (or one at least shieldMin actions longer)
+          const G = ghostOf(L); prepare(G); const e = evalConfig(G, initialDigits(G), false); if (e.lit[L.S] || e.occ[L.S]) continue;
+          const rg = solve(G, { maxDepth: 40 }); if (rg && rg.solvable && rg.par < t + shieldMin) continue;
+        }
         const need = necessary(L, t);
         if (need >= minUsed) return { level: L, par: t, phases: pick.w, used: need, total, states: r.explored, iters: it };
       }
     }
     const M = mutateLayout(L, rnd); if (!M) continue;
     const g = buildGraph(M, spec.cap || 20000); if (!g) continue;
-    L2 = M; const sc = score(g);
-    if (!cur || sc >= curScore) { L = M; cur = g; curScore = sc; }
+    L2 = M; let sc = score(g), gNM = null;
+    if (needS && sc >= (target - 1) * 100) { gNM = buildGraph(ghostOf(M), spec.cap || 20000); if (gNM) sc += Math.round(shieldGap(g, gNM, rnd, target) * 12); }       // layouts where starts need the shield are preferred
+    if (!cur || sc >= curScore) { L = M; cur = g; curScore = sc; curN = gNM; }
   }
   return null;
 }
 
-const api = { analyze, _layout: randomLayout, solve, draw, mulberry32, hash2, initialDigits, evalConfig, prepare, parseLevel, toMap, guardFacingDir, radices, actions, genLevel, buildGraph, sweep, panelApply };
+const api = { ghostOf, shieldOnlyCells, shieldCount, shieldGap, cloneLevel, analyze, _layout: randomLayout, solve, draw, mulberry32, hash2, initialDigits, evalConfig, prepare, parseLevel, toMap, guardFacingDir, radices, actions, genLevel, buildGraph, sweep, panelApply };
 if (typeof module !== 'undefined' && module.exports) module.exports = api;
 if (typeof window !== 'undefined') window.Prison = api;
 })();

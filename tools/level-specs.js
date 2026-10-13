@@ -1,4 +1,4 @@
-/* The difficulty ramp: what every level n (1..176) is made of. Eighteen blocks: 6 camera-only levels (from very easy to very hard), then seventeen of ten.
+/* The difficulty ramp: what every level n (1..176) is made of. Twenty blocks: 6 camera-only levels (from very easy to very hard), seventeen of ten, then two Shield blocks (177-196).
    cams/guards/doors/mirrors/dogs/lights/panels/glass are counts (a panel is wired to `wire` of the cameras, doors and mirrors), par is the number of actions the best solution takes. */
 'use strict';
 const BLOCKS = [
@@ -21,17 +21,24 @@ const BLOCKS = [
   { name: 'Fuse Box II', grid: [[7,7],[7,7],[7,7],[8,7],[8,7],[8,7],[8,7],[8,8],[8,8],[8,8]], blocks: [3,3,4,4,4,4,5,5,5,6], cams: [2,2,3,3,3,3,3,3,3,3], guards: [0,0,0,0,1,1,1,1,1,1], doors: 2, mirrors: [0,0,0,0,0,0,1,1,1,1], lights: [0,0,0,0,0,0,1,1,1,1], panels: [1,1,2,2,2,2,2,2,2,2], wire: [3,3,2,2,2,2,2,2,2,2], par: [7,8,8,9,9,10,10,11,11,12], phases: [2,2,3,3,3,3,4,4,4,4], cap: 80000, timeMs: 90000, minUnused: 1 },
   { name: 'Glass House I',  grid: [[7,6],[7,6],[7,6],[7,7],[7,7],[7,7],[7,7],[8,7],[8,7],[8,7]], blocks: [4,4,4,5,5,5,5,6,6,6], cams: [1,1,2,2,2,2,2,2,2,3], guards: 0, doors: [0,1,0,1,1,1,1,2,2,2], mirrors: 0, glass: [1,1,1,1,2,2,2,2,2,2], par: [2,3,4,4,5,6,7,7,8,9], phases: [1,1,1,2,2,2,2,3,3,3], cap: 40000, timeMs: 60000, minUnused: 1 },
   { name: 'Glass House II', grid: [[8,7],[8,7],[8,7],[8,8],[8,8],[8,8],[8,8],[8,8],[8,8],[8,8]], blocks: [5,5,5,6,6,6,6,6,7,7], cams: [2,2,2,2,2,2,2,3,3,3], guards: [0,0,0,0,1,1,1,1,1,1], doors: [1,1,1,2,2,2,2,2,2,2], mirrors: [0,0,0,0,0,0,1,1,1,1], dogs: [0,0,0,1,1,1,1,1,1,1], lights: [0,0,0,0,0,0,0,1,1,1], glass: 2, par: [7,8,8,9,9,10,10,11,11,12], phases: [2,2,3,3,3,3,4,4,4,4], cap: 80000, timeMs: 80000, minUnused: 2 },
+  /* Shield blocks (levels 177-196): every level needs a guard to stand in a camera's beam. shieldMin = how many actions longer the best shield-free way is (or it does not exist). */
+  { name: 'Shield I',  grid: [[5,5],[6,5],[6,6],[6,6],[7,6],[7,6],[7,7],[7,7],[7,7],[7,7]], blocks: [1,1,2,2,2,2,3,3,3,3], cams: [1,1,1,2,2,2,2,2,2,2], guards: [1,1,2,2,2,2,2,2,2,2], doors: 0, mirrors: 0, needShield: true, shieldMin: [1,1,1,2,2,2,2,2,2,2],
+    par: [2,3,4,4,5,5,6,6,7,7], phases: [1,1,1,2,2,2,2,2,2,2], cap: 30000, timeMs: 12000, minUnused: 1 },
+  { name: 'Shield II', grid: [[7,7],[7,7],[7,7],[8,7],[8,7],[8,7],[8,7],[8,8],[8,8],[8,8]], blocks: [2,2,3,3,3,3,3,3,4,4], cams: [2,2,2,2,3,3,3,3,3,3], guards: 2, doors: [1,0,0,1,0,1,1,0,1,0], mirrors: [0,1,0,0,1,0,1,0,0,1], lights: [0,0,1,0,0,0,0,1,0,0], glass: [0,0,0,0,0,1,0,0,1,1], dogs: 0, needShield: true, shieldMin: 2,
+    par: [6,6,7,7,8,8,9,9,10,10], phases: [2,2,2,2,2,2,2,2,2,2], cap: 60000, timeMs: 30000, minUnused: 2 },
 ];
 /* Walk counts the generator could actually reach after two full rebuild passes (tools/regen-low.js); the block arrays above ask for more.
    Levels listed here use this number as their target, so the specs match what can be built. */
 const PHASE_CAP = {35: 4, 36: 3, 56: 4, 70: 2, 74: 2, 75: 2, 76: 2, 83: 3, 84: 3, 85: 3, 86: 3, 91: 4, 92: 3, 93: 2, 94: 3, 95: 2, 96: 3, 100: 1, 101: 1, 102: 1, 105: 2, 106: 2, 109: 2, 116: 1, 169: 2, 175: 1};
+/* Shield levels whose first spec (a tiny board with one camera) has no solution with a guard standing in the beam; they get a little more room. */
+const SPEC_FIX = {177: {w: 6, h: 6, par: 3, cams: 1, guards: 1}, 179: {w: 6, h: 5, guards: 1, cams: 1, par: 3}};
 const TOTAL = BLOCKS.reduce((n, b) => n + b.par.length, 0);
 const pick = (v, i) => Array.isArray(v) ? v[i] : v;
 function specFor(n) {
   let bi = 0, i = n - 1;
   while (i >= BLOCKS[bi].par.length) { i -= BLOCKS[bi].par.length; bi++; }
   const b = BLOCKS[bi];
-  return { name: b.name, w: b.grid[i][0], h: b.grid[i][1], blocks: pick(b.blocks, i), cams: pick(b.cams, i), guards: pick(b.guards, i), doors: pick(b.doors, i), mirrors: pick(b.mirrors, i), dogs: pick(b.dogs, i) || 0, lights: pick(b.lights, i) || 0, panels: pick(b.panels, i) || 0, glass: pick(b.glass, i) || 0, wire: pick(b.wire, i) || 2,
-    par: b.par[i], phases: Math.min(b.phases[i], PHASE_CAP[n] || 99), cap: b.cap || 20000, timeMs: b.timeMs || 25000, minUnused: b.minUnused };
+  return Object.assign({ name: b.name, w: b.grid[i][0], h: b.grid[i][1], blocks: pick(b.blocks, i), cams: pick(b.cams, i), guards: pick(b.guards, i), doors: pick(b.doors, i), mirrors: pick(b.mirrors, i), dogs: pick(b.dogs, i) || 0, lights: pick(b.lights, i) || 0, panels: pick(b.panels, i) || 0, glass: pick(b.glass, i) || 0, wire: pick(b.wire, i) || 2,
+    par: b.par[i], phases: Math.min(b.phases[i], PHASE_CAP[n] || 99), cap: b.cap || 20000, timeMs: b.timeMs || 25000, minUnused: b.minUnused, needShield: !!b.needShield, shieldMin: pick(b.shieldMin, i) }, SPEC_FIX[n] || {});
 }
 module.exports = { BLOCKS, specFor, TOTAL };

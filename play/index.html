@@ -129,6 +129,11 @@
   .irow { display:flex; justify-content:center; align-items:stretch; gap:14px; margin-top:18px; }
   button.ib { position:relative; flex:none; width:64px; height:64px; min-height:64px; padding:0; margin:0; }
   button.ib.wide { width:auto; flex:1 1 auto; min-width:96px; max-width:170px; padding:0 18px; }
+  .drows { display:flex; flex-direction:column; gap:12px; margin:14px 0 2px; }
+  button.drow { width:100%; min-height:60px; justify-content:space-between; padding:10px 18px; margin:0; }
+  button.drow b { font-family:var(--tf); font-weight:400; font-size:13px; letter-spacing:.04em; text-transform:uppercase; }
+  button.drow.tier0 b { color:var(--ok); } button.drow.tier1 b { color:var(--gold); } button.drow.tier2 b { color:var(--red-hi); }
+  body.is-daily .web-only { display:none !important; }
   .irow.eq > button.ib { flex:1 1 0; min-width:0; max-width:170px; }
   button.ib .adtag { top:-8px; right:-8px; }
   button .cnt { position:absolute; top:-8px; right:-6px; min-width:20px; padding:1px 5px; background:var(--gold); color:#1a1420; font-family:var(--pf); font-size:10px; box-shadow:0 0 0 2px var(--edge); } button .cnt.plus { background:var(--ok); }
@@ -214,7 +219,8 @@
   <div class="mpanel pix">
     <div class="col">
       <button class="primary big" id="mPlay"></button>
-      <button class="big" id="mLevels"></button>
+      <button class="big" id="mDaily"></button>
+    <button class="big" id="mLevels"></button>
       <button class="big" id="mHow"></button>
       <button class="big" id="mSettings"></button>
       <div class="duo web-only"><button class="big" id="mLeaders"></button><button class="big" id="mAccount"></button></div>
@@ -241,6 +247,12 @@
   <button class="cornerbtn web-only" id="caughtReport"></button>
   <h2 id="caughtTitle"></h2><div id="caughtText" class="muted"></div>
   <div class="irow"><button class="ib" id="caughtMenu"></button><button class="ib primary wide" id="caughtRetry"></button><button class="ib wide" id="caughtRevive"></button></div>
+</div></div>
+
+<div class="overlay" id="dailyOv"><div class="card">
+  <h2 id="dailyTitle"></h2><div class="muted" id="dailyDate"></div><div class="chips" id="dailyChips"></div>
+  <div class="drows" id="dailyRows"></div>
+  <div class="irow"><button class="ib wide" id="dailyClose"></button></div>
 </div></div>
 
 <div class="overlay" id="hintOv"><div class="card">
@@ -323,6 +335,7 @@
 <div id="guideRing"></div><div id="guideHand"></div>
 <script src="../src/prison.js"></script>
 <script src="levels.js"></script>
+<script src="daily.js"></script>
 <script id="game-src">
 'use strict';
 const P = window.Prison, LEVELS = window.PRISON_LEVELS;
@@ -371,6 +384,7 @@ const CHAPTERS = [
   { en: 'Night Shift I', fa: 'شیفت شب ۱', size: 10 }, { en: 'Night Shift II', fa: 'شیفت شب ۲', size: 10 },
   { en: 'Fuse Box I', fa: 'تابلو برق ۱', size: 10 }, { en: 'Fuse Box II', fa: 'تابلو برق ۲', size: 10 },
   { en: 'Glass House I', fa: 'خانهٔ شیشه‌ای ۱', size: 10 }, { en: 'Glass House II', fa: 'خانهٔ شیشه‌ای ۲', size: 10 },
+  { en: 'Shield I', fa: 'سپر ۱', size: 10 }, { en: 'Shield II', fa: 'سپر ۲', size: 10 },
 ];
 const chapStart = CHAPTERS.map((_, i) => CHAPTERS.slice(0, i).reduce((n, c) => n + c.size, 0));
 const chapterOf = i => { let ci = 0; while (ci + 1 < CHAPTERS.length && i >= chapStart[ci + 1]) ci++; return ci; };    // level index -> chapter index
@@ -378,7 +392,7 @@ const chapterOf = i => { let ci = 0; while (ci + 1 < CHAPTERS.length && i >= cha
    (an average of 1.5 stars per level, gentle while the player is still deciding to stay) to 70 % at the last one (more than 2 stars on average; 2/3 is
    reached around chapter 14). A star tier is about 2 actions over par for 2 stars, so 2 stars on average is a solid but fair run. */
 const GATE_FROM = 0.5, GATE_TO = 0.7;
-const gateShare = ci => GATE_FROM + (GATE_TO - GATE_FROM) * (ci - 1) / (CHAPTERS.length - 2);
+const gateShare = ci => GATE_FROM + (GATE_TO - GATE_FROM) * (Math.min(ci, 17) - 1) / 16;               // the ramp ends at chapter 18; later chapters keep the top share
 const chapNeed = ci => Math.round(chapStart[ci] * 3 * gateShare(ci));                                                    // stars from earlier chapters needed to enter
 /* Level numbers changed once (the camera-only block went from 15 levels to 6). Progress saved before that is carried over: the 6 camera levels that were kept
    map to 1..6, every later level moves down by 9, the 9 camera levels that were cut have no place any more. */
@@ -403,6 +417,7 @@ const T = {
     tag: 'Move the darkness. Slip the prisoner past cameras and guards.', foot: PORTAL ? '© @YEAR@ @OWNER@' : 'Playtest build',
     play: 'Play', cont: lv => 'Continue · Level ' + lv, levels: 'Levels', how: 'How to play', settings: 'Settings', close: 'Close', back: 'Back',
     adLoading: 'Loading a short video…', home: 'Home', skipGuide: 'Skip',
+    daily: 'Daily', tiers: ['Easy', 'Medium', 'Hard'], days: n => n === 1 ? 'day' : 'days', streakT: 'Days in a row with a daily level solved', nextIn: 'New levels in', dailyDone: 'All three done today',
     hintWalk: 'Try: walk to the ringed tile first.', hintNoneT: 'No hints left', hintNoneS: 'Watch a short video for one more hint, or earn one by playing: every three new 3-star levels give a hint.', hintVideo: 'Watch a short video: +1 hint', hintGained: 'You got one more hint.', hintCap: 'A hint was used: 2 stars at most for this level.',
     sGuide: 'Guided tutorial', sGuideS: 'A pointer shows the next tap on the first levels and on every new item.',
     gWalk: 'Tap the glowing tile to walk there first. Walking is free.', gCam: 'Tap the camera. Each tap turns it a quarter turn.', gDoor: 'Tap the door to open or close it.', gMirror: 'Tap the mirror to flip it.',
@@ -411,7 +426,7 @@ const T = {
     deskProg: (st, mx, done, n) => `${st} / ${mx} stars · ${done} / ${n} levels escaped`, goalT: 'Stars', goalPar: 'Par', goalAny: 'Any escape',
     deskKeys: [['← ↑ ↓ →', 'Walk the prisoner'], ['Space', 'Walk to the exit'], ['⌫', 'Undo an action'], ['Click', 'Use a camera, door, mirror…']], deskKeysT: 'Keys',
     dogTip: 'Dog selected: tap a tile of its rail to send it there, tap the prisoner to let go.', doorBlocked: 'The dog is standing in the doorway.',
-    guardTip: 'Guard selected: tap it again to turn, tap a rail tile to send it, tap the prisoner to let go.', gotIt: 'Got it', itemsL: 'Items', itemNames: { cam: 'Camera', guard: 'Guard', door: 'Door', mirror: 'Mirror', dog: 'Dog', light: 'Searchlight', panel: 'Power panel', glass: 'Glass wall' },
+    guardTip: 'Guard selected: tap it again to turn, tap a rail tile to send it, tap the prisoner to let go.', gotIt: 'Got it', itemsL: 'Items', itemNames: { shield: 'Guard shield', cam: 'Camera', guard: 'Guard', door: 'Door', mirror: 'Mirror', dog: 'Dog', light: 'Searchlight', panel: 'Power panel', glass: 'Glass wall' },
     intro: {
       cam: { title: 'New: Camera', list: ['A camera throws red light along a line. The prisoner can never stand in it.', 'Tap a camera to turn it a quarter turn clockwise.', 'Walking is free. Only your taps on cameras count.'] },
       guard: { title: 'New: Guard', list: ['A guard walks back and forth on its rail and sees 3 tiles ahead. Behind it is a blind spot.', 'Tap it to select it, tap again to turn it round, or tap a tile of its rail to send it there.', 'Every step is one action.'] },
@@ -420,6 +435,7 @@ const T = {
       dog: { title: 'New: Guard dog', list: ['A dog smells every tile it can walk to. The prisoner can never stand on a smelly tile.', 'Tap the dog, then a tile of its rail to send it there. Every step is one action.', 'A closed door stops the smell. Shut the dog into another room!', 'A door cannot be closed while the dog stands in it.'] },
       light: { title: 'New: Searchlight', list: ['A searchlight throws red light like a camera, but you cannot turn it. After EVERY action you take, it swings a quarter turn clockwise by itself.', 'Tap the searchlight to wait: an action that changes nothing else, so only the lights swing.', 'The dashed outline shows where the light will point after your next action.', 'An action is refused if the swing would light the prisoner.'] },
       panel: { title: 'New: Power panel', list: ['A power panel is wired to two or three cameras, doors or mirrors. The coloured wires show which.', 'Wired things have no controls of their own. Tap the panel and ALL of them change at once: cameras turn a quarter turn, doors and mirrors switch.', 'One action, several changes. Look for the order that leaves the prisoner in the dark.'] },
+      shield: { title: 'New: Guards as shields', list: ['A guard blocks a camera\'s sight like a wall does.', 'Slide a guard along its rail into a camera\'s beam: everything behind it is in the dark.', 'In these levels the only way out is to put a guard in the way of a camera.'] },
       glass: { title: 'New: Glass wall', list: ['Light shines straight through glass, so a camera can light a room it is not even in.', 'Nobody can walk through glass, and a dog cannot smell through it either.', 'You cannot change glass. Use doors, guards and turns of the cameras to keep the beam off the prisoner.'] },
       all: { title: 'Everything together', list: ['Cameras, guards, doors and mirrors work as you know them.', 'Some levels need several rounds: move the prisoner on, then change the room again.'] },
     },
@@ -477,6 +493,7 @@ const T = {
     tag: 'تاریکی را جابه‌جا کن و زندانی را از کنار دوربین‌ها و نگهبان‌ها رد کن.', foot: PORTAL ? '© @YEAR@ @OWNER@' : 'نسخهٔ آزمایشی',
     play: 'شروع بازی', cont: lv => 'ادامه · مرحلهٔ ' + lv, levels: 'مرحله‌ها', how: 'راهنمای بازی', settings: 'تنظیمات', close: 'بستن', back: 'بازگشت',
     adLoading: 'در حال بارگیری یک ویدیوی کوتاه…', home: 'خانه', skipGuide: 'رد کردن',
+    daily: 'روزانه', tiers: ['آسان', 'متوسط', 'سخت'], days: n => 'روز', streakT: 'روزهای پیاپی با حل یک مرحلهٔ روزانه', nextIn: 'مرحله‌های تازه تا', dailyDone: 'هر سه مرحلهٔ امروز تمام شد',
     hintWalk: 'پیشنهاد: اول به خانهٔ حلقه‌دار برو.', hintNoneT: 'راهنما تمام شد', hintNoneS: 'یک ویدیوی کوتاه ببین تا یک راهنمای دیگر بگیری، یا با بازی به دستش بیاور: با هر سه مرحلهٔ تازه با ۳ ستاره یک راهنما می‌گیری.', hintVideo: 'ویدیوی کوتاه: ۱+ راهنما', hintGained: 'یک راهنمای دیگر گرفتی.', hintCap: 'راهنما استفاده شد: این مرحله حداکثر ۲ ستاره می‌گیرد.',
     sGuide: 'آموزش گام‌به‌گام', sGuideS: 'در مرحله‌های اول و هر آیتم تازه، یک اشاره‌گر لمس بعدی را نشان می‌دهد.',
     gWalk: 'خانهٔ درخشان را لمس کن تا اول به آنجا بروی.', gCam: 'دوربین را لمس کن. هر لمس یک‌چهارم می‌چرخاندش.', gDoor: 'در را لمس کن تا باز یا بسته شود.', gMirror: 'آینه را لمس کن تا برگردد.',
@@ -485,7 +502,7 @@ const T = {
     deskProg: (st, mx, done, n) => `${st} / ${mx} ستاره · ${done} / ${n} مرحله`, goalT: 'ستاره‌ها', goalPar: 'بهترین', goalAny: 'هر فرار',
     deskKeys: [['← ↑ ↓ →', 'راه رفتن زندانی'], ['Space', 'رفتن به خروج'], ['⌫', 'برگشت یک عمل'], ['کلیک', 'استفاده از دوربین، در، آینه…']], deskKeysT: 'کلیدها',
     dogTip: 'سگ انتخاب شد: خانهٔ ریلش را لمس کن تا برود، زندانی را لمس کن تا رها شود.', doorBlocked: 'سگ توی چارچوب در ایستاده است.',
-    guardTip: 'نگهبان انتخاب شد: دوباره لمسش کن تا برگردد، خانهٔ ریل را لمس کن تا برود، زندانی را لمس کن تا رها شود.', gotIt: 'فهمیدم', itemsL: 'آیتم‌ها', itemNames: { cam: 'دوربین', guard: 'نگهبان', door: 'در', mirror: 'آینه', dog: 'سگ', light: 'نورافکن', panel: 'تابلو برق', glass: 'دیوار شیشه‌ای' },
+    guardTip: 'نگهبان انتخاب شد: دوباره لمسش کن تا برگردد، خانهٔ ریل را لمس کن تا برود، زندانی را لمس کن تا رها شود.', gotIt: 'فهمیدم', itemsL: 'آیتم‌ها', itemNames: { shield: 'نگهبان سپر', cam: 'دوربین', guard: 'نگهبان', door: 'در', mirror: 'آینه', dog: 'سگ', light: 'نورافکن', panel: 'تابلو برق', glass: 'دیوار شیشه‌ای' },
     intro: {
       cam: { title: 'تازه: دوربین', list: ['دوربین روی یک خط نور قرمز می‌اندازد. زندانی هرگز نباید در آن بایستد.', 'دوربین را لمس کن تا یک‌چهارم دور ساعتگرد بچرخد.', 'راه رفتن رایگان است. فقط لمس‌هایت روی دوربین‌ها شمرده می‌شود.'] },
       guard: { title: 'تازه: نگهبان', list: ['نگهبان روی ریلش جلو و عقب می‌رود و ۳ خانه جلویش را می‌بیند. پشتش نقطهٔ کور است.', 'لمسش کن تا انتخاب شود، دوباره لمس کن تا برگردد، یا یک خانهٔ ریلش را لمس کن تا به آنجا برود.', 'هر قدم یک عمل است.'] },
@@ -494,6 +511,7 @@ const T = {
       dog: { title: 'تازه: سگ نگهبان', list: ['سگ هر خانه‌ای را که بتواند به آن برسد بو می‌کند. زندانی هرگز نباید روی خانهٔ بودار بایستد.', 'سگ را لمس کن، بعد یک خانهٔ ریلش را لمس کن تا به آنجا برود. هر قدم یک عمل است.', 'در بسته بو را می‌بندد. سگ را پشت یک در در اتاق دیگر گیر بینداز!', 'تا سگ در چارچوب در ایستاده، نمی‌شود آن در را بست.'] },
       light: { title: 'تازه: نورافکن', list: ['نورافکن مثل دوربین نور قرمز می‌اندازد، ولی تو نمی‌توانی آن را بچرخانی. بعد از هر عملی که انجام بدهی، خودش یک‌چهارم دور ساعتگرد می‌چرخد.', 'نورافکن را لمس کن تا صبر کنی: عملی که چیز دیگری را عوض نمی‌کند و فقط نورافکن‌ها می‌چرخند.', 'خط‌چین نشان می‌دهد بعد از عمل بعدی‌ات نور به کجا می‌افتد.', 'اگر چرخش نور زندانی را روشن کند، آن عمل رد می‌شود.'] },
       panel: { title: 'تازه: تابلو برق', list: ['تابلو برق به دو یا سه دوربین، در یا آینه سیم‌کشی شده است. سیم‌های رنگی نشان می‌دهند به کدام‌ها.', 'چیزهای سیم‌کشی‌شده کنترل جداگانه ندارند. تابلو را لمس کن تا همه‌شان با هم عوض شوند: دوربین‌ها یک‌چهارم می‌چرخند، در و آینه عوض می‌شوند.', 'یک عمل، چند تغییر. ترتیبی پیدا کن که زندانی در تاریکی بماند.'] },
+      shield: { title: 'تازه: نگهبان سپر است', list: ['نگهبان مثل دیوار جلوی دید دوربین را می‌گیرد.', 'نگهبان را روی ریلش جلوی پرتوی دوربین ببر: هرچه پشتش است تاریک می‌شود.', 'در این مرحله‌ها تنها راه فرار این است که نگهبانی را سر راه دوربین بگذاری.'] },
       glass: { title: 'تازه: دیوار شیشه‌ای', list: ['نور از شیشه مستقیم رد می‌شود، پس دوربین می‌تواند اتاقی را که در آن نیست هم روشن کند.', 'هیچ‌کس نمی‌تواند از شیشه رد شود و بوی سگ هم رد نمی‌شود.', 'شیشه را نمی‌شود تغییر داد. با در، نگهبان و چرخاندن دوربین‌ها نور را از زندانی دور نگه دار.'] },
       all: { title: 'همه با هم', list: ['دوربین، نگهبان، در و آینه همان‌طور که می‌شناسی کار می‌کنند.', 'بعضی مرحله‌ها چند دور می‌خواهند: زندانی را جلو ببر، بعد اتاق را دوباره عوض کن.'] },
     },
@@ -578,6 +596,8 @@ const ICONS = {
   check: ['......XX', '.....XXX', 'XX..XXX.', 'XXXXXX..', '.XXXX...', '..XX....'],
   flag: ['XXXXXX..', 'XXXXXXX.', 'XXXXXX..', 'XXXX....', 'XX......', 'XX......', 'XX......'],
   skip: ['XX..XX...', 'XXX.XXX..', 'XXXXXXXX.', 'XXXXXXXX.', 'XXX.XXX..', 'XX..XX...'],
+  calendar: ['.X.....X.', 'XXXXXXXXX', 'X.......X', 'X.XX.XX.X', 'X.......X', 'X.XX.XX.X', 'X.......X', 'XXXXXXXXX'],
+  flame: ['...X...', '..XX...', '..XXX..', '.XXXXX.', 'XXXXXXX', 'XXXXXXX', '.XXXXX.'],
   video: ['XXXXXXXXX', 'X.......X', 'X.X.....X', 'X.XX....X', 'X.XXX...X', 'X.XX....X', 'X.X.....X', 'X.......X', 'XXXXXXXXX'],
   hand: ['....XX....', '...XXXX...', '...XXXX...', '...XXXX...', '.X.XXXXXX.', 'XXXXXXXXXX', 'XXXXXXXXXX', '.XXXXXXXXX', '..XXXXXXX.', '..XXXXXX..', '...XXXXX..'],
 };
@@ -731,7 +751,7 @@ const Music = (() => {
 
 /* ---------------------------------------------------- item introductions */
 /* A card with a small looping demonstration appears the first time a level introduces a new item (and can be replayed from How to play). */
-const INTROS = { 1: 'cam', 7: 'guard', 37: 'door', 57: 'mirror', 77: 'all', 97: 'dog', 117: 'light', 137: 'panel', 157: 'glass' };
+const INTROS = { 1: 'cam', 7: 'guard', 37: 'door', 57: 'mirror', 77: 'all', 97: 'dog', 117: 'light', 137: 'panel', 157: 'glass', 177: 'shield' };
 let introSeen = store.get('pb_intro', {}), introKind = null, introMark = false;
 function showIntro(kind, mark) {
   introKind = kind; introMark = mark; const t = tr().intro[kind];
@@ -774,6 +794,19 @@ function drawIntro(now) {
     spr(w.img, w.x, w.y, false);
     spr(person('guard', 1, 0), 12, 45, face === 3);
     if (t > 1.8 && t < 2.8) { ix.strokeStyle = `rgba(255,255,255,${.4 + .6 * Math.abs(Math.sin(t * 8))})`; ix.lineWidth = 2; ix.strokeRect(3, 21, 18, 26); }
+  } else if (introKind === 'shield') {
+    // the camera looks along the middle row; at 2.4 s the guard slides down its rail into the beam, and everything behind him is dark; the prisoner walks to the exit
+    const g = Math.min(1, Math.max(0, (t - 2.4) / .6)), gy = 21 + g * 24, blocked = g >= 1;
+    wall(0, 24, 8, 24);
+    for (let i = 0; i < 2; i++) R('rgba(160,190,255,.35)', 30 + i * 0, 4 + i * 8, 4, 2);
+    for (let r = 0; r < 2; r++) R('rgba(160,190,255,.3)', 34, 10 + r * 16, 4, 2);
+    if (!blocked) { for (let c = 1; c < 5; c++) lit(c, 1); R('rgba(255,59,82,.5)', 14, 33, 106, 6); } else R('rgba(255,59,82,.5)', 14, 33, 14, 6);
+    exit(4, 1); spr(camSprite(1), 10, 42, false);
+    spr(person('guard', 2, 0), 36, gy, false);
+    const w = walker(84, 108, 3.2, 45, 24);
+    if (!blocked && t > 1) bang(w.x, 14);
+    spr(w.img, w.x, w.y, false);
+    if (t > 1.8 && t < 2.8) { ix.strokeStyle = `rgba(255,255,255,${.4 + .6 * Math.abs(Math.sin(t * 8))})`; ix.lineWidth = 2; ix.strokeRect(27, 3, 18, 26); }
   } else if (introKind === 'glass') {
     // the camera's beam goes straight through the pane and lights the exit side; the prisoner walks up to the pane and stops
     wall(48, 0, 24, 24); wall(48, 48, 24, 24);
@@ -864,19 +897,26 @@ const heartsOn = () => settings.hearts && !guideOn();                 // no hear
 function setHeartsMode(v) { settings.hearts = !!v; saveSettings(); if (L) { hearts = HEARTS_MAX; lost = 0; } syncUI(); }   // test hook
 const tipFor = id => tr().tips[id] || '';
 
-function load(i) {
-  li = Math.max(0, Math.min(LEVELS.length - 1, i));
-  L = P.parseLevel(LEVELS[li].map, LEVELS[li].meta);
+/* The level being played: a numbered level of the game, or one of today's daily levels (dailyRun). */
+let dailyRun = null;
+const curLv = () => dailyRun ? dailyRun.lv : LEVELS[li];
+function load(i) { dailyRun = null; document.body.classList.remove('is-daily'); li = Math.max(0, Math.min(LEVELS.length - 1, i)); startLevel(LEVELS[li]); }
+function loadDaily(tier) {
+  const idx = dailyIndex(), day = dayKey(dailyNow()), lv = Object.assign({ id: 10000 + idx * 3 + tier }, DAILY.days[idx][tier]);
+  dailyRun = { day, idx, tier, lv }; document.body.classList.add('is-daily'); startLevel(lv);
+}
+function startLevel(lv) {
+  L = P.parseLevel(lv.map, lv.meta);
   P.prepare(L);
-  leaveLevel(); const again = lvl && lvl.id === LEVELS[li].id;
+  leaveLevel(); const again = lvl && lvl.id === curLv().id;
   dg = P.initialDigits(L); thief = L.S; thiefDir = 2; hist = []; moves = 0; sel = -1; hintWho = -1; walking = null;
   hearts = HEARTS_MAX; lost = 0; hintUsed = false; hintShown = null; caughtOn = false; alarm = null; heartPop = -1; gdraw.length = 0; ddraw.length = 0; loadToken++; gBusy = false;
   document.querySelectorAll('.overlay.on').forEach(o => o.classList.remove('on'));
-  $('menu').classList.remove('on'); inGame = true; store.set('pb_last', li);
-  setTip(tipFor(LEVELS[li].id) || tr().pick);
+  $('menu').classList.remove('on'); inGame = true; if (!dailyRun) store.set('pb_last', li);
+  setTip(tipFor(curLv().id) || tr().pick);
   syncUI(); buildBar(); resize();
   startLevelStats(again);
-  const kind = INTROS[LEVELS[li].id]; if (kind && !introSeen[kind]) showIntro(kind, true);
+  const kind = dailyRun ? null : INTROS[curLv().id]; if (kind && !introSeen[kind]) showIntro(kind, true);
 }
 function ev(d) { P.prepare(L); return P.evalConfig(L, d || dg, false); }
 const nCam = () => L.cams.length, nGuard = () => L.guards.length, nTog = () => L.toggles.length, nDog = () => L.dogs.length, nLight = () => L.lights.length, nPanel = () => L.panels.length, nAll = () => nCam() + nGuard() + nTog() + nDog() + nLight() + nPanel();
@@ -1150,7 +1190,7 @@ function syncDesk() {
   $('menuProg').textContent = t.deskProg(st, LEVELS.length * 3, done, LEVELS.length); $('menuKeys').innerHTML = keyListHTML(t.deskKeysT, t.deskKeys);
   $('keys').innerHTML = keyListHTML(t.deskKeysT, t.deskKeys);
   if (L) {
-    const p = LEVELS[li].par, p2 = p + Math.max(2, Math.ceil(p * .3)), cur = moves === 0 && !hist.length ? 3 : starsNow();
+    const p = curLv().par, p2 = p + Math.max(2, Math.ceil(p * .3)), cur = moves === 0 && !hist.length ? 3 : starsNow();
     const row = (n, label) => `<div class="gr${cur === n ? ' cur' : ''}"><span>${starsHTML(n, 3, 2)}</span><b>${label}</b></div>`;
     $('goal').innerHTML = `<div class="kt">${t.goalT}</div>` + row(3, '≤ ' + p) + row(2, '≤ ' + p2) + row(1, t.goalAny);
   }
@@ -1160,12 +1200,12 @@ function applyLang() {
   document.documentElement.lang = settings.lang; document.documentElement.dir = fa ? 'rtl' : 'ltr';
   const set = (id, v) => { $(id).textContent = v; };
   set('menuTag', t.tag); set('menuFoot', t.foot);
-  $('mLevels').innerHTML = icon('levels', 3) + ' ' + t.levels; $('mHow').innerHTML = icon('help', 3) + ' ' + t.how; $('mSettings').innerHTML = icon('gear', 3) + ' ' + t.settings; $('mAccount').innerHTML = icon('user', 3) + ' <span>' + esc(acct.loggedIn ? (acct.username || acct.email.split('@')[0]) : t.account) + '</span>'; $('mLeaders').innerHTML = icon('trophy', 3) + ' <span>' + t.leaders + '</span>';
+  $('mDaily').innerHTML = icon('calendar', 3) + ' ' + t.daily; $('mDaily').style.display = DAILY ? '' : 'none'; $('mLevels').innerHTML = icon('levels', 3) + ' ' + t.levels; $('mHow').innerHTML = icon('help', 3) + ' ' + t.how; $('mSettings').innerHTML = icon('gear', 3) + ' ' + t.settings; $('mAccount').innerHTML = icon('user', 3) + ' <span>' + esc(acct.loggedIn ? (acct.username || acct.email.split('@')[0]) : t.account) + '</span>'; $('mLeaders').innerHTML = icon('trophy', 3) + ' <span>' + t.leaders + '</span>';
   set('pauseTitle', t.pause); setIcon('pResume', 'play', t.resume, '', 5); setIcon('pRestart', 'retry', t.restart); setIcon('pLevels', 'levels', t.levels); setIcon('pSettings', 'gear', t.settings); setIcon('pMenu', 'home', t.home);
-  setIcon('winRetry', 'retry', t.retry); setIcon('winMenu', 'home', t.home); setIcon('caughtMenu', 'home', t.home); set('lvTitle', t.levels); setIcon('lvClose', 'close', t.close); set('howTitle', t.howTitle); setIcon('howClose', 'close', t.close);
+  setIcon('winRetry', 'retry', t.retry); setIcon('winMenu', 'home', t.home); setIcon('caughtMenu', 'home', t.home); set('lvTitle', t.levels); setIcon('lvClose', 'close', t.close); setIcon('dailyClose', 'close', t.close); set('howTitle', t.howTitle); setIcon('howClose', 'close', t.close);
   set('setTitle', t.setTitle); setIcon('setClose', 'close', t.close); set('sGuideL', t.sGuide); set('sGuideS', t.sGuideS); $('guideSkip').innerHTML = icon('skip', 2) + ' ' + t.skipGuide; set('sLangL', t.sLang); set('sSfxL', t.sSfx); set('sVolL', t.sVol); set('sMusL', t.sMus); set('sMusVolL', t.sMusVol); set('sVibL', t.sVib);
   set('sStatsL', t.sStats); set('sStatsS', t.sStatsS); setIcon('pReport', 'flag', t.repBtn, '', 3); setIcon('winReport', 'flag', t.repBtn, '', 3); setIcon('caughtReport', 'flag', t.repBtn, '', 3); set('sAlarmL', t.sAlarm); set('sAlarmS', t.sAlarmS); set('alFull', t.alFull); set('alSoft', t.alSoft); set('sMotionL', t.sMotion); set('sMotionS', t.sMotionS); set('sUnlockL', t.sUnlock); set('sUnlockS', t.sUnlockS);
-  set('howItemsL', t.itemsL); $('howItems').innerHTML = ''; ['cam', 'guard', 'door', 'mirror', 'dog', 'light', 'panel', 'glass'].forEach(k => { const b = document.createElement('button'); b.textContent = t.itemNames[k]; b.onclick = () => showIntro(k, false); $('howItems').appendChild(b); });
+  set('howItemsL', t.itemsL); $('howItems').innerHTML = ''; ['cam', 'guard', 'door', 'mirror', 'dog', 'light', 'panel', 'glass', 'shield'].forEach(k => { const b = document.createElement('button'); b.textContent = t.itemNames[k]; b.onclick = () => showIntro(k, false); $('howItems').appendChild(b); });
   setIcon('introOk', 'check', t.gotIt);
   set('adTitle', t.adTitle); set('adText', t.adText); set('adCancel', t.adCancel); set('adClaim', t.adClaim);
   setIcon('winNext', 'next', t.next);
@@ -1180,8 +1220,9 @@ function syncSettingsUI() {
   $('sReset').textContent = t.sReset; $('sReset').className = '';
 }
 function syncUI() {
-  const t = tr(), lv = LEVELS[li];
-  $('lvLabel').textContent = t.level + ' ' + lv.id; $('blockLabel').textContent = CHAPTERS[chapterOf(li)][settings.lang];
+  const t = tr(), lv = curLv();
+  if (dailyRun) { $('lvLabel').textContent = t.daily + ' · ' + t.tiers[dailyRun.tier]; $('blockLabel').textContent = dailyRun.day; }
+  else { $('lvLabel').textContent = t.level + ' ' + lv.id; $('blockLabel').textContent = CHAPTERS[chapterOf(li)][settings.lang]; }
   $('movesLabel').textContent = t.moves; $('parLabel').textContent = t.best; $('moves').textContent = moves; $('par').textContent = lv.par;
   $('hearts').innerHTML = Array.from({ length: HEARTS_MAX }, (_, i) => icon('heart', 3, i < hearts ? 'red' : (i === heartPop ? 'dim break' : 'dim'))).join('');
   $('btnMenu').innerHTML = icon('menu', 3);
@@ -1247,6 +1288,30 @@ function openHintCard() {
 $('hintNo').onclick = () => hide('hintOv');
 $('hintAd').onclick = () => { hide('hintOv'); Ads.rewarded('hint').then(ok => { if (ok) { hintBank.n++; saveBank(); buildBar(); setTip(tr().hintGained, 'good'); } }); };
 
+/* ------------------------------------------------------------- daily challenge */
+/* Three levels a day (easy, medium, hard) from a bank made in advance (play/daily.js): every level is a puzzle whose best solution needs a guard standing in a camera's beam. The day
+   is the UTC date; the bank starts on DAILY.start and repeats after its last day. Stars and the day streak live in their own save (pb_daily), apart from the numbered levels. */
+const DAILY = window.PRISON_DAILY || null;
+if (!DAILY) $('mDaily').style.display = 'none';                                       // no bank in this build: no button
+const DAY_MS = 864e5;
+let dailyNow = () => Date.now();                                                      // (a test can replace the clock)
+const dayKey = ms => new Date(ms).toISOString().slice(0, 10);
+let dailyStore = store.get('pb_daily', { days: {}, streak: 0, last: '' });
+function dailyIndex() { const n = DAILY.days.length, i = Math.floor((dailyNow() - Date.parse(DAILY.start + 'T00:00:00Z')) / DAY_MS); return ((i % n) + n) % n; }
+let dailyTimer = null;
+function openDaily() {
+  if (!DAILY) return;
+  const t = tr(), today = dayKey(dailyNow()), row = dailyStore.days[today] || [0, 0, 0], alive = dailyStore.last === today || dailyStore.last === dayKey(dailyNow() - DAY_MS);
+  $('dailyTitle').textContent = t.daily; $('dailyDate').textContent = today;
+  const clock = () => { const left = Math.max(0, Date.parse(today + 'T00:00:00Z') + DAY_MS - dailyNow()), h = Math.floor(left / 36e5), m = Math.floor(left % 36e5 / 6e4), s = Math.floor(left % 6e4 / 1e3), p = n => String(n).padStart(2, '0'); $('dailyLeft').textContent = `${p(h)}:${p(m)}:${p(s)}`; };
+  $('dailyChips').innerHTML = `<span class="chip" title="${t.streakT}">${icon('flame', 3, alive ? 'gold' : 'dim')} ${alive ? dailyStore.streak : 0}</span><span class="chip" title="${t.nextIn}">${icon('clock', 3)} <span id="dailyLeft"></span></span>`;
+  clock(); clearInterval(dailyTimer); dailyTimer = setInterval(clock, 1000);
+  $('dailyRows').innerHTML = [0, 1, 2].map(i => `<button class="drow tier${i}" data-t="${i}"><b>${t.tiers[i]}</b><span>${starsHTML(row[i], 3, 3)}</span></button>`).join('');
+  $('dailyRows').querySelectorAll('button').forEach(b => { b.onclick = () => { clearInterval(dailyTimer); loadDaily(Number(b.dataset.t)); }; });
+  show('dailyOv');
+}
+function closeDaily() { clearInterval(dailyTimer); hide('dailyOv'); }
+
 /* Rewarded ads. Web build: a stand-in (a 3 second wait). Portal build with CG_ADS on (Full Launch only): the CrazyGames SDK. Ads only ever appear after the player
    asks for a hint or a revive, never during play. The screen is blocked from the request until the SDK answers, the game is muted only while an ad really plays,
    and an error never rewards (the game just carries on). */
@@ -1271,16 +1336,29 @@ const Ads = {
 };
 
 function starsNow() {
-  const p = LEVELS[li].par; let s = moves <= p ? 3 : moves <= p + Math.max(2, Math.ceil(p * .3)) ? 2 : 1;
+  const p = curLv().par; let s = moves <= p ? 3 : moves <= p + Math.max(2, Math.ceil(p * .3)) ? 2 : 1;
   return hintUsed ? Math.min(s, 2) : s;
 }
+/* A daily level is won: its stars go to today's entry (never to the numbered levels), the streak counts days, and the card offers the next tier. */
+function winDaily(st) {
+  const t = tr(), r = dailyRun, d = dailyStore, par = curLv().par;
+  const row = d.days[r.day] || (d.days[r.day] = [0, 0, 0]); if (st > row[r.tier]) row[r.tier] = st;
+  if (d.last !== r.day) { d.streak = d.last === dayKey(dailyNow() - 864e5) ? d.streak + 1 : 1; d.last = r.day; }
+  store.set('pb_daily', d);
+  $('winTitle').textContent = t.escaped; $('winStars').innerHTML = starsHTML(st, 3, 6);
+  $('winChips').innerHTML = `<span class="chip" title="${t.moves}">${icon('hand', 3)} ${moves}</span><span class="chip" title="${t.best}">${icon('trophy', 3, 'gold')} ${par}</span>` + (hintUsed ? `<span class="chip" title="${t.hintCap}">${icon('bulb', 3, 'gold')} 2★</span>` : '');
+  $('winGate').innerHTML = `${icon('flame', 3, 'gold')} ${d.streak} ${t.days(d.streak)}`; $('winGate').title = t.streakT;
+  const last = r.tier >= 2; setIcon('winNext', last ? 'trophy' : 'next', last ? t.dailyDone : t.next); $('winNext').disabled = last;
+  $('winOv').classList.add('on');
+}
 function win() {
-  const wasGuided = guideOn(); Sfx.play('win'); const id = LEVELS[li].id, st = starsNow(); let earned = false;
+  if (dailyRun) { Sfx.play('win'); winDaily(starsNow()); return; }
+  const wasGuided = guideOn(); Sfx.play('win'); const id = curLv().id, st = starsNow(); let earned = false;
   if (adsOn() && st === 3 && (!best[id] || best[id].stars < 3)) { hintBank.p++; if (hintBank.p >= HINT_EARN) { hintBank.p = 0; hintBank.n++; earned = true; } saveBank(); }
   if (wasGuided) { guideDone[id] = true; store.set('pb_guide', guideDone); }
   if (!best[id] || best[id].stars < st || (best[id].stars === st && best[id].moves > moves)) { best[id] = { stars: st, moves }; store.set('pb_best3', best); }
-  pushSoon(); if (lvl) { track('level_win', { n: lvl.id, ms: lvlMs(), moves, par: LEVELS[li].par, hints: lvl.hints, lost, undo: lvl.undo, stars: st }); lvl.done = true; }
-  const t = tr(), par = LEVELS[li].par, lostNow = heartsOn() ? lost : 0;
+  pushSoon(); if (lvl) { track('level_win', { n: lvl.id, ms: lvlMs(), moves, par: curLv().par, hints: lvl.hints, lost, undo: lvl.undo, stars: st }); lvl.done = true; }
+  const t = tr(), par = curLv().par, lostNow = heartsOn() ? lost : 0;
   $('winTitle').textContent = t.escaped; $('winStars').innerHTML = starsHTML(st, 3, 6);
   $('winChips').innerHTML = `<span class="chip" title="${t.moves}">${icon('hand', 3)} ${moves}</span><span class="chip" title="${t.best}">${icon('trophy', 3, 'gold')} ${par}</span>` + (lostNow ? `<span class="chip" title="${t.hearts || 'Hearts'}">${icon('heart', 3, 'red')} −${lostNow}</span>` : '') + (hintUsed ? `<span class="chip" title="${t.hintCap}">${icon('bulb', 3, 'gold')} 2★</span>` : '') + (earned ? `<span class="chip" title="${t.hintGained}">${icon('bulb', 3, 'gold')} +1</span>` : '');
   const last = li === LEVELS.length - 1, nextCi = last ? -1 : chapterOf(li + 1), locked = !last && levelLocked(li + 1);
@@ -1313,24 +1391,26 @@ function toMenu() {
   leaveLevel(); document.querySelectorAll('.overlay.on').forEach(o => o.classList.remove('on')); inGame = false; applyLang(); $('menu').classList.add('on'); }
 $('btnMenu').onclick = () => show('pauseOv');
 $('pResume').onclick = () => hide('pauseOv');
-$('pRestart').onclick = () => load(li);
+const reload = () => dailyRun ? loadDaily(dailyRun.tier) : load(li);
+$('pRestart').onclick = reload;
 $('pLevels').onclick = () => { hide('pauseOv'); openLevels(); };
 let settingsFrom = 'menu';
 $('pSettings').onclick = () => { hide('pauseOv'); settingsFrom = 'pause'; syncSettingsUI(); show('setOv'); };
 $('pMenu').onclick = toMenu;
 $('mPlay').onclick = () => load(best[LEVELS[0].id] ? firstOpenLevel() : 0);
 $('mLevels').onclick = () => openLevels();
+$('mDaily').onclick = openDaily; $('dailyClose').onclick = closeDaily;
 $('mHow').onclick = () => show('howOv');
 $('mSettings').onclick = () => { settingsFrom = 'menu'; syncSettingsUI(); show('setOv'); };
 $('howClose').onclick = () => hide('howOv');
 $('lvClose').onclick = () => hide('lvOv');
 $('setClose').onclick = () => { hide('setOv'); if (settingsFrom === 'pause' && inGame) show('pauseOv'); };
-$('winRetry').onclick = () => load(li);
-$('winNext').onclick = () => load(li + 1);
+$('winRetry').onclick = reload;
+$('winNext').onclick = () => { if (!dailyRun) load(li + 1); else if (dailyRun.tier < 2) loadDaily(dailyRun.tier + 1); else toMenu(); };
 $('winMenu').onclick = toMenu;
 $('caughtMenu').onclick = toMenu;
 const clearStrikes = () => { strikes = 0; store.set('pb_strikes', 0); };
-$('caughtRetry').onclick = () => { if (!gateOn()) { load(li); return; } Ads.rewarded('retry').then(ok => { if (ok) { clearStrikes(); load(li); } }); };
+$('caughtRetry').onclick = () => { if (!gateOn()) { reload(); return; } Ads.rewarded('retry').then(ok => { if (ok) { clearStrikes(); reload(); } }); };
 $('caughtRevive').onclick = () => Ads.rewarded('revive').then(ok => {
   if (!ok) return;
   clearStrikes(); hearts = 1; caughtOn = false; hide('caughtOv'); setTip(''); syncUI(); buildBar();
@@ -1436,7 +1516,7 @@ const rid = n => Array.from(crypto.getRandomValues(new Uint8Array(n)), b => b.to
 let aid = store.get('pb_aid', null); const firstVisit = !aid; if (!aid) { aid = rid(8); store.set('pb_aid', aid); }
 const sid = rid(8); let evq = [], flushT = null;
 function track(e, extra) {
-  if (!settings.stats || !STATS_HOST) return;
+  if (!settings.stats || !STATS_HOST || dailyRun) return;                                  // the daily levels are not part of the numbered levels' statistics
   evq.push(Object.assign({ e, t: Date.now() }, extra));
   if (evq.length >= 15) flushEvents(); else if (!flushT) flushT = setTimeout(() => flushEvents(), 8000);
 }
@@ -1449,7 +1529,7 @@ function flushEvents(beacon) {
   } catch (e) {}
 }
 let lvl = null;                                                                  // the level being played: when it started, hints, undos
-const lvlId = () => LEVELS[li].id, lvlMs = () => Math.min(1800000, Date.now() - lvl.t0);
+const lvlId = () => curLv().id, lvlMs = () => Math.min(1800000, Date.now() - lvl.t0);
 function leaveLevel() { if (lvl && !lvl.done) { track('level_leave', { n: lvl.id, ms: Math.min(1800000, Date.now() - lvl.t0), moves }); lvl.done = true; } }
 function startLevelStats(again) { lvl = { id: lvlId(), t0: Date.now(), hints: 0, undo: 0, done: false }; track('level_start', { n: lvl.id, again: !!again }); }
 window.addEventListener('pagehide', () => { leaveLevel(); flushEvents(true); });
@@ -1458,7 +1538,8 @@ track('session_start', { first: firstVisit });
 
 let repKind = null, repLevel = 0;
 function openReport() {
-  const t = tr(); repKind = null; repLevel = LEVELS[li].id; $('repTitle').textContent = t.repTitle(repLevel); $('repNote').value = ''; $('repNote').placeholder = t.repNote; $('repMsg').textContent = '';
+  if (dailyRun) return;
+  const t = tr(); repKind = null; repLevel = curLv().id; $('repTitle').textContent = t.repTitle(repLevel); $('repNote').value = ''; $('repNote').placeholder = t.repNote; $('repMsg').textContent = '';
   setIcon('repSend', 'check', t.repSend); setIcon('repCancel', 'close', t.repCancel); $('repSend').disabled = false;
   $('repKinds').innerHTML = ''; Object.keys(t.repKinds).forEach(k => { const b = document.createElement('button'); b.textContent = t.repKinds[k]; b.onclick = () => { repKind = k; [...$('repKinds').children].forEach(c => { c.className = c === b ? 'sel' : ''; }); $('repMsg').textContent = ''; }; $('repKinds').appendChild(b); });
   show('repOv');
@@ -1509,7 +1590,7 @@ $('accVis').onclick = async () => {
 };
 /* settings controls */
 const flip = key => { settings[key] = !settings[key]; saveSettings(); syncSettingsUI(); };
-const setLang = lg => { settings.lang = lg; saveSettings(); applyLang(); if (L) { syncUI(); buildBar(); setTip(tipFor(LEVELS[li].id) || tr().pick); } };
+const setLang = lg => { settings.lang = lg; saveSettings(); applyLang(); if (L) { syncUI(); buildBar(); setTip(tipFor(curLv().id) || tr().pick); } };
 $('langEn').onclick = () => setLang('en');
 $('langFa').onclick = () => setLang('fa');
 $('sSfx').onclick = () => flip('sfx'); $('sVib').onclick = () => { flip('vibrate'); Sfx.play('refuse'); };
@@ -1833,9 +1914,9 @@ function setFavicon() {                                                         
 /* The first three levels and the first level of every new item are played with a pointing hand: it shows the next tap, worked out by the exact solver from the
    position the player is in (so it is right after a mistake or an undo too). No hearts are lost meanwhile. It stops once the level has been escaped; "Skip" or
    the Settings switch turns it off. */
-const GUIDED = new Set([1, 2, 3, 7, 37, 57, 97, 117, 137, 157]);
+const GUIDED = new Set([1, 2, 3, 7, 37, 57, 97, 117, 137, 157, 177]);
 let guideDone = store.get('pb_guide', {}), guideStep = null, guideSig = '';
-function guideOn() { return !!(L && inGame && settings.guide && GUIDED.has(LEVELS[li].id) && !guideDone[LEVELS[li].id]); }
+function guideOn() { return !!(L && inGame && settings.guide && GUIDED.has(curLv().id) && !guideDone[curLv().id]); }
 const centreOf = el => { const r = el.getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; };
 function stepFor() {                                                                  // the next tap, worked out by the solver from where the player is
   const t = tr(); P.prepare(L);
@@ -1901,7 +1982,7 @@ function guideTick() {
   if (!hand.firstChild) hand.innerHTML = icon('hand', 4);
   ring.style.display = 'block'; hand.style.display = withHand ? 'block' : 'none'; ring.style.left = p[0] + 'px'; ring.style.top = p[1] + 'px'; hand.style.left = (p[0] - 20) + 'px'; hand.style.top = (p[1] + 10) + 'px';
 }
-$('guideSkip').onclick = () => { settings.guide = false; saveSettings(); syncSettingsUI(); guideSig = ''; setTip(tipFor(LEVELS[li].id) || tr().pick); };
+$('guideSkip').onclick = () => { settings.guide = false; saveSettings(); syncSettingsUI(); guideSig = ''; setTip(tipFor(curLv().id) || tr().pick); };
 
 /* CrazyGames gameplay events: gameplayStart while a level is being played, gameplayStop on every break (menu, any panel, win, caught). Not on focus loss. */
 let cgPlay = false, cgPoll = 0;

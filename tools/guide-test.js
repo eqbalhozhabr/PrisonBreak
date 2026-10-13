@@ -12,7 +12,7 @@ const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
     const ctx = await b.newContext({ viewport: vp, isMobile: touch, hasTouch: touch, deviceScaleFactor: 1 }), pg = await ctx.newPage(), errs = [];
     pg.on('pageerror', e => errs.push(String(e).slice(0, 200)));
     await pg.goto(url); await pg.waitForFunction(() => typeof GUIDED !== 'undefined', null, { timeout: 8000 }); await pg.waitForTimeout(250);
-    await pg.evaluate(() => { settings.sfx = false; settings.music = false; settings.vibrate = false; settings.guide = true; guideDone = {}; introSeen = { cam: 1, guard: 1, door: 1, mirror: 1, all: 1, dog: 1, light: 1, panel: 1, glass: 1 }; });
+    await pg.evaluate(() => { settings.sfx = false; settings.music = false; settings.vibrate = false; settings.guide = true; guideDone = {}; introSeen = { cam: 1, guard: 1, door: 1, mirror: 1, all: 1, dog: 1, light: 1, panel: 1, glass: 1, shield: 1 }; });
     const ids = await pg.evaluate(() => [...GUIDED].sort((a, c) => a - c));
     const rows = [];
     for (const id of ids) {

@@ -14,7 +14,7 @@ const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
     const ctx = await b.newContext({ viewport: vp, isMobile: touch, hasTouch: touch, deviceScaleFactor: 1 }), pg = await ctx.newPage(), errs = [];
     pg.on('pageerror', e => errs.push(String(e).slice(0, 200)));
     await pg.goto(url); await pg.waitForFunction(() => typeof scentPath === 'function', null, { timeout: 8000 }); await pg.waitForTimeout(250);
-    await pg.evaluate(() => { settings.sfx = false; settings.music = false; settings.vibrate = false; settings.guide = false; settings.hearts = false; introSeen = { cam: 1, guard: 1, door: 1, mirror: 1, all: 1, dog: 1, light: 1, panel: 1, glass: 1 }; });
+    await pg.evaluate(() => { settings.sfx = false; settings.music = false; settings.vibrate = false; settings.guide = false; settings.hearts = false; introSeen = { cam: 1, guard: 1, door: 1, mirror: 1, all: 1, dog: 1, light: 1, panel: 1, glass: 1, shield: 1 }; });
     const wait = ms => pg.waitForTimeout(ms);
     // ---- 1. a door tile on the rail of the selected dog
     const found = await pg.evaluate(() => { for (let i = 0; i < LEVELS.length; i++) { load(i); P.prepare(L); for (let j = 0; j < L.dogs.length; j++) for (const t of L.toggles) if (t.kind === 'door' && L.dogs[j].rail.includes(t.c)) { const k = dogBase() + j, tg = nCam() + nGuard() + L.toggles.indexOf(t); if (!panelOf(tg) || panelOf(tg) < 0) return { i, k, tg, cell: t.c }; } } return null; });

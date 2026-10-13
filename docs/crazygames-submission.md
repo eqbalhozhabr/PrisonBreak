@@ -59,7 +59,7 @@ Also in both builds (portal requirements that are harmless on the web): `user-se
 >
 > Turn security cameras, walk guards and guard dogs along their routes, open and close doors, flip mirrors, wait for the searchlights and rewire power panels so that no line of sight touches the prisoner's way to the exit. Walking is free; only your actions count, and every level has a proven best score to chase for three stars.
 >
-> 176 hand-checked pixel-art puzzles that start easy and end very hard. Undo is unlimited, a hint is always one tap away, and there is no timer.
+> 196 hand-checked pixel-art puzzles that start easy and end very hard, plus a new set of three puzzles every day (easy, medium, hard) with a day streak. Undo is unlimited, a hint is always one tap away, and there is no timer.
 
 **Controls:**
 - Desktop: click a dark tile to walk there; click a camera, door, mirror or panel to use it; click a guard or dog, then a tile on its path. Keyboard: arrow keys walk, Space or Enter goes to the exit, Backspace undoes.

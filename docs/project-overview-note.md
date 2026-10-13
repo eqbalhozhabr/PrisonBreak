@@ -5,7 +5,7 @@ Read this first; then `README.md` (file map and rebuild commands) and `docs/game
 ## What the game is
 **Blind Eye** (Persian name «چشم‌بسته») is a pixel-art stealth puzzle for web and phones. You never move the prisoner by force: you **move the darkness**. Cameras, guards, dogs, doors, mirrors, searchlights, power panels and glass walls decide which floor tiles are lit/smelled; the prisoner may only stand on dark tiles and walks for free to the exit. **Only actions are counted**; every level has a **par** (fewest actions) proved by an exact solver, and stars come only from action count (3 = par, 2 = par + max(2, 30 %), 1 = any finish). An action that would expose the prisoner is refused and costs a heart instead (3 hearts per level, can be switched off in settings). Undo is unlimited.
 
-## Content (176 levels, 18 blocks, star-gated)
+## Content (196 levels, 20 blocks + a 365-day daily challenge, star-gated)
 Block 1 "Cells" = 6 camera-only levels (easy → very hard; it used to be 15, cut on player feedback). Then ten-level blocks that introduce one item each, each followed by a mixing block: guard (level 7), door (37), mirror (57), "all combined" (77), dog (97), rotating searchlight (117), power panel (137), glass wall (157). Level ids are stable only within a **progress version** (`PROGRESS_V = 2`); the renumbering from 185 to 176 levels is migrated in the browser (`OLD_TO_NEW`) and on the server (`v` field).
 
 ## Code map

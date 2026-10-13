@@ -142,12 +142,15 @@ function mockSdk(o) {
   for (const fails of [false, true]) {
     st = await open({ adFails: fails }, { viewport: { width: 1280, height: 720 } }); pg = st.pg; await pg.evaluate(quiet);
     const ad = await pg.evaluate(async () => {
-      CG_ADS = true; window.cgAdPlayingProbe = () => cgMuted(); load(6); const out = { gate: adsOn(), adTag: !!document.querySelector('#bar .adtag') === false }; buildBar(); out.adTag = !!document.querySelector('#bar .adtag');
-      const before = hintsUsed; document.querySelector('#bar button:nth-child(3)').click(); out.blocked = document.getElementById('adOv').classList.contains('on');
-      await new Promise(r => setTimeout(r, 400)); out.hintsDelta = hintsUsed - before; out.closed = !document.getElementById('adOv').classList.contains('on'); out.calls = window.__cgCalls.filter(c => c.startsWith('ad:')); out.mutedDuring = window.__adPlayingSeen === true; out.mutedAfter = cgAdPlaying;
+      CG_ADS = true; window.cgAdPlayingProbe = () => cgMuted(); settings.guide = false; hintBank = { n: 0, p: 0 }; load(9); buildBar();
+      const out = { gate: adsOn(), plus: document.querySelector('#bar .cnt').textContent === '+', noAdTag: !document.querySelector('#bar .adtag') };
+      document.querySelector('#bar button:nth-child(3)').click(); out.card = document.getElementById('hintOv').classList.contains('on');
+      const a = document.getElementById('hintNo').getBoundingClientRect(), c = document.getElementById('hintAd').getBoundingClientRect(); out.sameSize = Math.abs(a.width - c.width) < 2 && Math.abs(a.height - c.height) < 2;
+      document.getElementById('hintAd').click(); out.blocked = document.getElementById('adOv').classList.contains('on');
+      await new Promise(r => setTimeout(r, 400)); out.closed = !document.getElementById('adOv').classList.contains('on'); out.bank = hintBank.n; out.calls = window.__cgCalls.filter(c => c.startsWith('ad:')); out.mutedDuring = window.__adPlayingSeen === true; out.mutedAfter = cgAdPlaying;
       return out;
     });
-    check('Full Launch path (CG_ADS on), ad ' + (fails ? 'fails: no reward' : 'finishes: hint rewarded') + ', screen blocked meanwhile, muted only while it plays', ad.gate && ad.adTag && ad.blocked && ad.closed && ad.calls.join() === 'ad:rewarded' && ad.hintsDelta === (fails ? 0 : 1) && ad.mutedDuring && !ad.mutedAfter, JSON.stringify(ad));
+    check('Full Launch path (CG_ADS on), ad ' + (fails ? 'fails: no reward' : 'finishes: hint rewarded') + ', screen blocked meanwhile, muted only while it plays', ad.gate && ad.plus && ad.noAdTag && ad.card && ad.sameSize && ad.blocked && ad.closed && ad.calls.join() === 'ad:rewarded' && ad.bank === (fails ? 0 : 1) && ad.mutedDuring && !ad.mutedAfter, JSON.stringify(ad));
     await st.ctx.close();
   }
 

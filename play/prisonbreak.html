@@ -129,7 +129,9 @@
   .irow { display:flex; justify-content:center; align-items:stretch; gap:14px; margin-top:18px; }
   button.ib { position:relative; flex:none; width:64px; height:64px; min-height:64px; padding:0; margin:0; }
   button.ib.wide { width:auto; flex:1 1 auto; min-width:96px; max-width:170px; padding:0 18px; }
+  .irow.eq > button.ib { flex:1 1 0; min-width:0; max-width:170px; }
   button.ib .adtag { top:-8px; right:-8px; }
+  button .cnt { position:absolute; top:-8px; right:-6px; min-width:20px; padding:1px 5px; background:var(--gold); color:#1a1420; font-family:var(--pf); font-size:10px; box-shadow:0 0 0 2px var(--edge); } button .cnt.plus { background:var(--ok); }
   button.cornerbtn { position:absolute; top:12px; inset-inline-end:12px; width:42px; height:42px; min-height:42px; padding:0; margin:0; }
   .chips { display:flex; justify-content:center; gap:12px; margin:6px 0 2px; flex-wrap:wrap; }
   .chip { display:inline-flex; align-items:center; gap:9px; min-width:84px; justify-content:center; padding:10px 14px; background:var(--lo); font-family:var(--tf); font-size:14px; box-shadow:0 -3px 0 0 var(--edge), 0 3px 0 0 var(--edge), -3px 0 0 0 var(--edge), 3px 0 0 0 var(--edge); }
@@ -239,6 +241,11 @@
   <button class="cornerbtn web-only" id="caughtReport"></button>
   <h2 id="caughtTitle"></h2><div id="caughtText" class="muted"></div>
   <div class="irow"><button class="ib" id="caughtMenu"></button><button class="ib primary wide" id="caughtRetry"></button><button class="ib wide" id="caughtRevive"></button></div>
+</div></div>
+
+<div class="overlay" id="hintOv"><div class="card">
+  <h2 id="hintTitle"></h2><div class="muted" id="hintText"></div><div class="chips" id="hintProg"></div>
+  <div class="irow eq"><button class="ib wide" id="hintNo"></button><button class="ib primary wide" id="hintAd"></button></div>
 </div></div>
 
 <div class="overlay" id="lvOv"><div class="card">
@@ -1101,8 +1108,13 @@ if (PORTAL) document.body.classList.add('portal');
 /* Ads. The web build runs its own stand-in rewarded ads. The portal build runs none during Basic Launch (no SDK ads exist there): hints are free and a lost
    round just restarts. For Full Launch set CG_ADS to true: hints, the 3rd-catch retry and the revive then go through SDK.ad.requestAd('rewarded'). */
 let CG_ADS = false;
-const adsOn = () => !PORTAL || (CG_ADS && !!(CG && CG.ad));
-const freeHints = () => adsOn() ? 0 : 1e9;
+let WEB_ADS = false;                                                              // the website's stand-in ads (hint refill, 3rd-catch retry, revive): off, like Basic Launch, until a real provider is chosen
+const adsOn = () => PORTAL ? (CG_ADS && !!(CG && CG.ad)) : WEB_ADS;
+/* Hints. With no ads (Basic Launch and the website for now) they are free and unlimited. With ads on (Full Launch): a bank of 3 to start, one more for every
+   three levels newly finished with 3 stars, and a rewarded video when the bank is empty (asked in a card, never on the play screen). Any hint caps the level at 2 stars. */
+const HINT_START = 3, HINT_EARN = 3;
+let hintBank = store.get('pb_hints', { n: HINT_START, p: 0 });                    // n = hints in the bank, p = new 3-star levels towards the next one
+const saveBank = () => store.set('pb_hints', hintBank);
 const HEARTS_MAX = 3, STRIKES_MAX = 3;     // hints always cost an ad; being caught 3 times (all hearts lost) costs an ad to retry
 const CHAPTERS = [
   { en: 'Cells', fa: 'سلول‌ها', size: 6 },
@@ -1146,10 +1158,11 @@ const T = {
     tag: 'Move the darkness. Slip the prisoner past cameras and guards.', foot: PORTAL ? '© 2026 ' : 'Playtest build',
     play: 'Play', cont: lv => 'Continue · Level ' + lv, levels: 'Levels', how: 'How to play', settings: 'Settings', close: 'Close', back: 'Back',
     adLoading: 'Loading a short video…', home: 'Home', skipGuide: 'Skip',
+    hintWalk: 'Try: walk to the ringed tile first.', hintNoneT: 'No hints left', hintNoneS: 'Watch a short video for one more hint, or earn one by playing: every three new 3-star levels give a hint.', hintVideo: 'Watch a short video: +1 hint', hintGained: 'You got one more hint.', hintCap: 'A hint was used: 2 stars at most for this level.',
     sGuide: 'Guided tutorial', sGuideS: 'A pointer shows the next tap on the first levels and on every new item.',
     gWalk: 'Tap the glowing tile to walk there first. Walking is free.', gCam: 'Tap the camera. Each tap turns it a quarter turn.', gDoor: 'Tap the door to open or close it.', gMirror: 'Tap the mirror to flip it.',
     gPanel: 'Tap the fuse box: everything wired to it changes at once.', gLight: 'Tap the lamp to wait. It swings a quarter turn.', gGuardPick: 'Tap the guard to select him.', gGuardGo: 'Tap the arrow to walk him along his route.', gGuardTurn: 'Tap the turn button to make him face the other way.',
-    gDogPick: 'Tap the dog to select it.', gDogGo: 'Tap the arrow to send the dog along its route.', gExit: 'The way is dark. Tap the exit tile, or press Space, to walk out.',
+    gRelease: 'Tap the prisoner first to let go of the selected guard or dog.', gDogPick: 'Tap the dog to select it.', gDogGo: 'Tap the arrow to send the dog along its route.', gExit: 'The way is dark. Tap the exit tile, or press Space, to walk out.',
     deskProg: (st, mx, done, n) => `${st} / ${mx} stars · ${done} / ${n} levels escaped`, goalT: 'Stars', goalPar: 'Par', goalAny: 'Any escape',
     deskKeys: [['← ↑ ↓ →', 'Walk the prisoner'], ['Space', 'Walk to the exit'], ['⌫', 'Undo an action'], ['Click', 'Use a camera, door, mirror…']], deskKeysT: 'Keys',
     dogTip: 'Dog selected: tap a tile of its rail to send it there, tap the prisoner to let go.', doorBlocked: 'The dog is standing in the doorway.',
@@ -1219,10 +1232,11 @@ const T = {
     tag: 'تاریکی را جابه‌جا کن و زندانی را از کنار دوربین‌ها و نگهبان‌ها رد کن.', foot: PORTAL ? '© 2026 ' : 'نسخهٔ آزمایشی',
     play: 'شروع بازی', cont: lv => 'ادامه · مرحلهٔ ' + lv, levels: 'مرحله‌ها', how: 'راهنمای بازی', settings: 'تنظیمات', close: 'بستن', back: 'بازگشت',
     adLoading: 'در حال بارگیری یک ویدیوی کوتاه…', home: 'خانه', skipGuide: 'رد کردن',
+    hintWalk: 'پیشنهاد: اول به خانهٔ حلقه‌دار برو.', hintNoneT: 'راهنما تمام شد', hintNoneS: 'یک ویدیوی کوتاه ببین تا یک راهنمای دیگر بگیری، یا با بازی به دستش بیاور: با هر سه مرحلهٔ تازه با ۳ ستاره یک راهنما می‌گیری.', hintVideo: 'ویدیوی کوتاه: ۱+ راهنما', hintGained: 'یک راهنمای دیگر گرفتی.', hintCap: 'راهنما استفاده شد: این مرحله حداکثر ۲ ستاره می‌گیرد.',
     sGuide: 'آموزش گام‌به‌گام', sGuideS: 'در مرحله‌های اول و هر آیتم تازه، یک اشاره‌گر لمس بعدی را نشان می‌دهد.',
     gWalk: 'خانهٔ درخشان را لمس کن تا اول به آنجا بروی.', gCam: 'دوربین را لمس کن. هر لمس یک‌چهارم می‌چرخاندش.', gDoor: 'در را لمس کن تا باز یا بسته شود.', gMirror: 'آینه را لمس کن تا برگردد.',
     gPanel: 'تابلو برق را لمس کن: همهٔ وصل‌شده‌ها با هم عوض می‌شوند.', gLight: 'چراغ را لمس کن تا صبر کنی. یک‌چهارم می‌چرخد.', gGuardPick: 'نگهبان را لمس کن تا انتخاب شود.', gGuardGo: 'فلش را لمس کن تا نگهبان در مسیرش برود.', gGuardTurn: 'دکمهٔ چرخش را لمس کن تا برگردد.',
-    gDogPick: 'سگ را لمس کن تا انتخاب شود.', gDogGo: 'فلش را لمس کن تا سگ در مسیرش برود.', gExit: 'راه تاریک است. خانهٔ خروج را لمس کن (یا Space بزن).',
+    gRelease: 'اول زندانی را لمس کن تا نگهبان یا سگ انتخاب‌شده رها شود.', gDogPick: 'سگ را لمس کن تا انتخاب شود.', gDogGo: 'فلش را لمس کن تا سگ در مسیرش برود.', gExit: 'راه تاریک است. خانهٔ خروج را لمس کن (یا Space بزن).',
     deskProg: (st, mx, done, n) => `${st} / ${mx} ستاره · ${done} / ${n} مرحله`, goalT: 'ستاره‌ها', goalPar: 'بهترین', goalAny: 'هر فرار',
     deskKeys: [['← ↑ ↓ →', 'راه رفتن زندانی'], ['Space', 'رفتن به خروج'], ['⌫', 'برگشت یک عمل'], ['کلیک', 'استفاده از دوربین، در، آینه…']], deskKeysT: 'کلیدها',
     dogTip: 'سگ انتخاب شد: خانهٔ ریلش را لمس کن تا برود، زندانی را لمس کن تا رها شود.', doorBlocked: 'سگ توی چارچوب در ایستاده است.',
@@ -1319,6 +1333,7 @@ const ICONS = {
   check: ['......XX', '.....XXX', 'XX..XXX.', 'XXXXXX..', '.XXXX...', '..XX....'],
   flag: ['XXXXXX..', 'XXXXXXX.', 'XXXXXX..', 'XXXX....', 'XX......', 'XX......', 'XX......'],
   skip: ['XX..XX...', 'XXX.XXX..', 'XXXXXXXX.', 'XXXXXXXX.', 'XXX.XXX..', 'XX..XX...'],
+  video: ['XXXXXXXXX', 'X.......X', 'X.X.....X', 'X.XX....X', 'X.XXX...X', 'X.XX....X', 'X.X.....X', 'X.......X', 'XXXXXXXXX'],
   hand: ['....XX....', '...XXXX...', '...XXXX...', '...XXXX...', '.X.XXXXXX.', 'XXXXXXXXXX', 'XXXXXXXXXX', '.XXXXXXXXX', '..XXXXXXX.', '..XXXXXX..', '...XXXXX..'],
 };
 const iconCache = {};
@@ -1362,12 +1377,13 @@ const Sfx = (() => {
   const S = {
     click: (a, t) => tone(a, t, 900, 700, .03, 'square', .04),
     step: (a, t) => { tone(a, t, 150 + Math.random() * 25, 90, .06, 'triangle', .13); noise(a, t, .03, .03, 0, 3000); },
-    cam: (a, t) => { tone(a, t, 170, 330, .2, 'sawtooth', .07, 0, 900); tone(a, t, 1300, 1300, .02, 'square', .05, .2); },
+    /* a camera turning: a motor click, a thin servo whine, two detent ticks and a lock-in thunk with a small ping (no low buzzing sweep, which sounded rude) */
+    cam: (a, t) => { noise(a, t, .025, .06, 0, 2800); tone(a, t, 640, 940, .11, 'triangle', .05, .01, 2600); noise(a, t, .02, .045, .045, 3200); noise(a, t, .02, .045, .095, 3200); tone(a, t, 260, 120, .07, 'sine', .1, .12); tone(a, t, 1760, 1760, .03, 'square', .03, .125); },
     guardStep: (a, t) => { tone(a, t, 130, 55, .14, 'sine', .3); noise(a, t, .05, .05, 0, 2000); },
     dogStep: (a, t) => { tone(a, t, 240, 150, .09, 'sawtooth', .09, 0, 700); noise(a, t, .03, .04, .08, 2500); noise(a, t, .03, .04, .14, 2500); },
     panel: (a, t) => { tone(a, t, 1200, 180, .12, 'square', .07, 0, 2500); noise(a, t, .06, .06, 0, 3500); tone(a, t, 90, 60, .12, 'sine', .2, .06); },
-    sweep: (a, t) => { tone(a, t, 220, 360, .2, 'sawtooth', .06, 0, 800); tone(a, t, 1500, 1500, .015, 'square', .04, .2); },
-    wait: (a, t) => { tone(a, t, 330, 330, .05, 'triangle', .1); tone(a, t, 220, 360, .2, 'sawtooth', .06, .05, 800); tone(a, t, 1500, 1500, .015, 'square', .04, .25); },
+    sweep: (a, t) => { tone(a, t, 420, 560, .13, 'sine', .05); noise(a, t, .03, .04, 0, 2600); noise(a, t, .03, .04, .09, 2600); tone(a, t, 1500, 1500, .015, 'square', .035, .14); },
+    wait: (a, t) => { tone(a, t, 330, 330, .05, 'triangle', .1); tone(a, t, 420, 560, .13, 'sine', .05, .05); noise(a, t, .03, .04, .08, 2600); tone(a, t, 1500, 1500, .015, 'square', .035, .2); },
     turn: (a, t) => { tone(a, t, 520, 330, .07, 'square', .05); tone(a, t, 400, 300, .07, 'square', .05, .08); noise(a, t, .12, .03, 0, 4000); },
     door: (a, t) => { tone(a, t, 210, 110, .16, 'square', .07, 0, 700); noise(a, t, .08, .05, .02, 1200); tone(a, t, 90, 60, .1, 'sine', .22, .12); },
     mirror: (a, t) => { tone(a, t, 1900, 2600, .1, 'sine', .07); tone(a, t, 2600, 3100, .08, 'sine', .04, .05); },
@@ -1387,6 +1403,8 @@ const Sfx = (() => {
     },
     unlock() { get(); },
     context() { return get(); },
+    /* renders one effect offline (a tool for listening to it in a file; nothing plays) */
+    async preview(name, ms = 600) { const sr = 44100, off = new OfflineAudioContext(1, Math.floor(sr * ms / 1000), sr), prev = master; master = off.createGain(); master.gain.value = .8; master.connect(off.destination); try { S[name](off, 0); return await off.startRendering(); } finally { master = prev; } },
     volume() { if (master) master.gain.value = settings.vol / 100 * .8; },
   };
 })();
@@ -1595,7 +1613,7 @@ $('introOk').onclick = closeIntro;
 /* ---------------------------------------------------------------- state */
 let li = 0, L, dg, thief, thiefDir = 2, hist = [], moves = 0, sel = -1, hintWho = -1, walking = null, inGame = false;
 let alarm = null, heartPop = -1;                           // alarm: the refused action being replayed as a siren animation
-let flash = 0, flashCell = -1, shake = 0, hearts = HEARTS_MAX, lost = 0, hintsUsed = 0, caughtOn = false;
+let flash = 0, flashCell = -1, shake = 0, hearts = HEARTS_MAX, lost = 0, hintUsed = false, hintShown = null, caughtOn = false;   // hintShown: {stage, sig} while a hint is on the board
 const gdraw = [], ddraw = [];
 const heartsOn = () => settings.hearts && !guideOn();                 // no hearts are lost while the tutorial pointer is leading
 function setHeartsMode(v) { settings.hearts = !!v; saveSettings(); if (L) { hearts = HEARTS_MAX; lost = 0; } syncUI(); }   // test hook
@@ -1607,7 +1625,7 @@ function load(i) {
   P.prepare(L);
   leaveLevel(); const again = lvl && lvl.id === LEVELS[li].id;
   dg = P.initialDigits(L); thief = L.S; thiefDir = 2; hist = []; moves = 0; sel = -1; hintWho = -1; walking = null;
-  hearts = HEARTS_MAX; lost = 0; hintsUsed = 0; caughtOn = false; alarm = null; heartPop = -1; gdraw.length = 0; ddraw.length = 0; loadToken++; gBusy = false;
+  hearts = HEARTS_MAX; lost = 0; hintUsed = false; hintShown = null; caughtOn = false; alarm = null; heartPop = -1; gdraw.length = 0; ddraw.length = 0; loadToken++; gBusy = false;
   document.querySelectorAll('.overlay.on').forEach(o => o.classList.remove('on'));
   $('menu').classList.remove('on'); inGame = true; store.set('pb_last', li);
   setTip(tipFor(LEVELS[li].id) || tr().pick);
@@ -1851,6 +1869,7 @@ window.addEventListener('keydown', e => {
   if (!inGame && document.body.classList.contains('desk') && e.key === 'Enter' && $('menu').classList.contains('on') && !document.querySelector('.overlay.on') && !(e.target && e.target.tagName === 'BUTTON')) { e.preventDefault(); $('mPlay').click(); return; }
   if (!inGame || e.ctrlKey || e.metaKey || e.altKey || document.querySelector('.overlay.on') || /^(INPUT|TEXTAREA|SELECT)$/.test((e.target && e.target.tagName) || '')) return;
   if (e.key === 'Backspace') { e.preventDefault(); undo(); return; }
+  if ((e.key === 'h' || e.key === 'H') && !e.repeat) { e.preventDefault(); onHint(); return; }
   if ((e.key === ' ' || e.key === 'Enter') && !(e.target && e.target.tagName === 'BUTTON')) { e.preventDefault(); if (!walking && !alarm && !caughtOn) { Sfx.play('click'); walkTo(L.E); } return; }
   const m = { ArrowUp: 0, ArrowRight: 1, ArrowDown: 2, ArrowLeft: 3 }[e.key]; if (m === undefined || walking || alarm) return;
   e.preventDefault();
@@ -1924,27 +1943,46 @@ function buildBar() {
   }
   add(bar, icon('undo', 3) + ' ' + t.undo, undo, '', !hist.length || !!walking);
   add(bar, icon('door', 3) + ' ' + t.toExit, () => { Sfx.play('click'); walkTo(L.E); }, '', !!walking);
-  add(bar, icon('bulb', 3) + ' ' + t.hint + (hintsUsed < freeHints() ? '' : '<span class="adtag">AD</span>'), onHint);     // the label never changes length
+  const hb = add(bar, icon('bulb', 3) + ' ' + t.hint + (adsOn() ? `<span class="cnt${hintBank.n < 1 ? ' plus' : ''}">${hintBank.n < 1 ? '+' : hintBank.n}</span>` : ''), onHint, hintShown ? 'on' : '');     // the label never changes length
+  hb.setAttribute('aria-label', t.hint);
 }
 function undo() {
   if (!hist.length || walking || gBusy || alarm) return;
   Sfx.play('undo'); if (lvl) lvl.undo++; const h = hist.pop(); dg = h.dg; thief = h.thief; moves = h.moves; thiefDir = h.thiefDir;         // hearts are never given back by Undo
   hintWho = -1; caughtOn = false; setTip(''); syncUI(); buildBar();
 }
+/* A hint comes in two steps. The first tap rings the thing that matters now (it does not say what to do); a second tap, while nothing has changed, adds the pointing
+   hand and the exact tap, the same as the tutorial. Any hint caps the level at 2 stars: 3 stars mean "solved without help". */
+const puzzleSig = () => dg.join() + '|' + thief;
+function clearHint() { if (!hintShown) return; hintShown = null; hintWho = -1; if (inGame) buildBar(); }
 function onHint() {
   if (walking || caughtOn || alarm) return;
-  if (hintsUsed < freeHints()) { hintsUsed++; doHint(); buildBar(); return; }
-  Ads.rewarded('hint').then(ok => { if (ok) { hintsUsed++; doHint(); buildBar(); } });
+  if (guideOn()) { setTip(guideStep ? guideStep.text : tr().pick, 'good'); return; }       // the tutorial is already pointing
+  if (hintShown && hintShown.sig === puzzleSig()) {                                          // second tap: the exact action
+    if (hintShown.stage === 1) { hintShown.stage = 2; hintShown.sig2 = sel + '|2'; Sfx.play('hint'); if (hintShown.step) setTip(hintShown.step.text, 'good'); buildBar(); }     // the step is already worked out
+    return;
+  }
+  if (adsOn() && hintBank.n < 1) { openHintCard(); return; }
+  const st = stepFor();
+  if (!st) { setTip('—', 'warn'); return; }
+  if (adsOn()) { hintBank.n--; saveBank(); }
+  hintUsed = true; Sfx.play('hint'); track('hint', { n: lvlId() }); if (lvl) lvl.hints++;
+  hintShown = { stage: 1, sig: puzzleSig(), sig2: sel + '|1', step: st };
+  const t = tr();
+  if (st.type === 'exit') setTip(t.pathClear, 'good');
+  else { hintWho = st.who; const kind = kindOf(st.who); setTip(st.type === 'walk' ? t.hintWalk : t.hintWho + (kind === 'cam' ? t.hintCam : kind === 'guard' ? t.hintGuard : kind === 'dog' ? t.hintDog : kind === 'light' ? t.hintLight : kind === 'panel' ? t.hintPanel : kind === 'door' ? t.hintDoor : t.hintMirror), 'good'); }
+  buildBar();
 }
-function doHint() {
-  Sfx.play('hint'); track('hint', { n: lvlId() }); if (lvl) lvl.hints++;
-  const r = P.solve(L, { digits: dg, thief, maxDepth: 40 });
-  if (!r || !r.solvable) { setTip('—', 'warn'); return; }
-  if (r.par === 0) { setTip(tr().pathClear, 'good'); return; }
-  hintWho = r.who[0]; sel = hintWho;
-  const kind = kindOf(hintWho), t = tr();
-  setTip(t.hintWho + (kind === 'cam' ? t.hintCam : kind === 'guard' ? t.hintGuard : kind === 'dog' ? t.hintDog : kind === 'light' ? t.hintLight : kind === 'panel' ? t.hintPanel : kind === 'door' ? t.hintDoor : t.hintMirror), 'good'); buildBar();
+/* Full Launch only: the card that offers a rewarded video for one more hint. Two buttons of the same size, and a way to earn hints by playing. */
+function openHintCard() {
+  const t = tr();
+  $('hintTitle').textContent = t.hintNoneT; $('hintText').textContent = t.hintNoneS;
+  $('hintProg').innerHTML = `<span class="chip">${icon('star', 3, 'gold')} ${hintBank.p} / ${HINT_EARN}</span><span class="chip">${icon('bulb', 3, 'gold')} +1</span>`;
+  setIcon('hintNo', 'close', t.close); setIcon('hintAd', 'video', t.hintVideo, ` +1 ${icon('bulb', 4, 'gold')}`);
+  show('hintOv');
 }
+$('hintNo').onclick = () => hide('hintOv');
+$('hintAd').onclick = () => { hide('hintOv'); Ads.rewarded('hint').then(ok => { if (ok) { hintBank.n++; saveBank(); buildBar(); setTip(tr().hintGained, 'good'); } }); };
 
 /* Rewarded ads. Web build: a stand-in (a 3 second wait). Portal build with CG_ADS on (Full Launch only): the CrazyGames SDK. Ads only ever appear after the player
    asks for a hint or a revive, never during play. The screen is blocked from the request until the SDK answers, the game is muted only while an ad really plays,
@@ -1971,16 +2009,17 @@ const Ads = {
 
 function starsNow() {
   const p = LEVELS[li].par; let s = moves <= p ? 3 : moves <= p + Math.max(2, Math.ceil(p * .3)) ? 2 : 1;
-  return s;
+  return hintUsed ? Math.min(s, 2) : s;
 }
 function win() {
-  const wasGuided = guideOn(); Sfx.play('win'); const id = LEVELS[li].id, st = starsNow();
+  const wasGuided = guideOn(); Sfx.play('win'); const id = LEVELS[li].id, st = starsNow(); let earned = false;
+  if (adsOn() && st === 3 && (!best[id] || best[id].stars < 3)) { hintBank.p++; if (hintBank.p >= HINT_EARN) { hintBank.p = 0; hintBank.n++; earned = true; } saveBank(); }
   if (wasGuided) { guideDone[id] = true; store.set('pb_guide', guideDone); }
   if (!best[id] || best[id].stars < st || (best[id].stars === st && best[id].moves > moves)) { best[id] = { stars: st, moves }; store.set('pb_best3', best); }
   pushSoon(); if (lvl) { track('level_win', { n: lvl.id, ms: lvlMs(), moves, par: LEVELS[li].par, hints: lvl.hints, lost, undo: lvl.undo, stars: st }); lvl.done = true; }
   const t = tr(), par = LEVELS[li].par, lostNow = heartsOn() ? lost : 0;
   $('winTitle').textContent = t.escaped; $('winStars').innerHTML = starsHTML(st, 3, 6);
-  $('winChips').innerHTML = `<span class="chip" title="${t.moves}">${icon('hand', 3)} ${moves}</span><span class="chip" title="${t.best}">${icon('trophy', 3, 'gold')} ${par}</span>` + (lostNow ? `<span class="chip" title="${t.hearts || 'Hearts'}">${icon('heart', 3, 'red')} −${lostNow}</span>` : '');
+  $('winChips').innerHTML = `<span class="chip" title="${t.moves}">${icon('hand', 3)} ${moves}</span><span class="chip" title="${t.best}">${icon('trophy', 3, 'gold')} ${par}</span>` + (lostNow ? `<span class="chip" title="${t.hearts || 'Hearts'}">${icon('heart', 3, 'red')} −${lostNow}</span>` : '') + (hintUsed ? `<span class="chip" title="${t.hintCap}">${icon('bulb', 3, 'gold')} 2★</span>` : '') + (earned ? `<span class="chip" title="${t.hintGained}">${icon('bulb', 3, 'gold')} +1</span>` : '');
   const last = li === LEVELS.length - 1, nextCi = last ? -1 : chapterOf(li + 1), locked = !last && levelLocked(li + 1);
   $('winGate').innerHTML = locked ? `${icon('lock', 3)} ${starsBefore(nextCi)} / ${chapNeed(nextCi)} ${icon('star', 3, 'gold')}` : last ? t.done : '';
   $('winGate').title = locked ? t.gate(chapNeed(nextCi), starsBefore(nextCi)) : '';
@@ -2127,7 +2166,7 @@ $('accLogout').onclick = async () => { try { await api('/api/auth/logout', { met
 /* ------------------------------------------------- statistics and reports */
 /* Anonymous play statistics (random id kept in this browser, never linked to an account) help tune the levels: how many start, win, get caught,
    take hints, leave. Only on the game's own site (and localhost, flagged as test traffic). Players can switch them off in Settings. */
-const BUILD = "2026-10-13-dcc2892";
+const BUILD = "2026-10-13-8e1e9f7";
 const TEST_HOST = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
 const STATS_HOST = !PORTAL && (new RegExp('^(www\\.)?luckylion\\.games$').test(location.hostname) || TEST_HOST);
 const rid = n => Array.from(crypto.getRandomValues(new Uint8Array(n)), b => b.toString(16).padStart(2, '0')).join('');
@@ -2523,40 +2562,69 @@ const GUIDED = new Set([1, 2, 3, 7, 37, 57, 97, 117, 137, 157]);
 let guideDone = store.get('pb_guide', {}), guideStep = null, guideSig = '';
 function guideOn() { return !!(L && inGame && settings.guide && GUIDED.has(LEVELS[li].id) && !guideDone[LEVELS[li].id]); }
 const centreOf = el => { const r = el.getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; };
-function guideCompute() {
-  if (!guideOn() || walking || alarm || caughtOn) return null;
+function stepFor() {                                                                  // the next tap, worked out by the solver from where the player is
   const t = tr(); P.prepare(L);
   const r = P.solve(L, { digits: dg, thief, maxDepth: 60 });
   if (!r || !r.solvable) return null;
-  if (r.par === 0) return { type: 'exit', text: t.gExit, pt: () => cellPoint(L.E) };
-  const next = r.configs[0], who = r.who[0], e2 = P.evalConfig(L, next, false);
-  if (e2.lit[thief] || e2.occ[thief]) {                                              // he has to stand somewhere else before this action: walk first
-    for (let c = 0; c < L.w * L.h; c++) {
-      if (L.wall[c] || e2.lit[c] || e2.occ[c] || c === thief || !pathTo(c)) continue;
-      const r2 = P.solve(L, { digits: next, thief: c, maxDepth: 60 });
-      if (r2 && r2.solvable && r2.par === r.par - 1) return { type: 'walk', text: t.gWalk, pt: () => cellPoint(c) };
+  if (r.par === 0) return { type: 'exit', who: -1, text: t.gExit, pt: () => cellPoint(L.E) };
+  const next = r.configs[0], who = r.who[0], e2 = P.evalConfig(L, next, false), item = () => tapPoint(who);
+  /* The solver plans with the dark region he can reach, not with his exact tile. If the action would split that region, he must stand in the part the plan continues
+     in: when his own tile is not that part, the first step is a walk to the nearest tile of the right part. */
+  const want = r.par - 1, dark2 = c => !L.wall[c] && !e2.occ[c] && !e2.lit[c];
+  const own = dark2(thief) ? P.solve(L, { digits: next, thief, maxDepth: 60 }) : null;
+  if (!(own && own.solvable && own.par === want)) {
+    const n = L.w * L.h, dist = new Int16Array(n).fill(-1), nb = (c, f) => { const x = c % L.w, y = (c / L.w) | 0; for (let d = 0; d < 4; d++) { const nx = x + DX[d], ny = y + DY[d]; if (nx >= 0 && ny >= 0 && nx < L.w && ny < L.h) f(ny * L.w + nx); } };
+    const eNow = ev(); dist[thief] = 0; const q = [thief];
+    for (let qi = 0; qi < q.length; qi++) nb(q[qi], m => { if (dist[m] < 0 && !L.wall[m] && !eNow.occ[m] && !eNow.lit[m]) { dist[m] = dist[q[qi]] + 1; q.push(m); } });
+    const comp = new Int16Array(n).fill(-1); let nc = 0;
+    for (let c0 = 0; c0 < n; c0++) if (comp[c0] < 0 && dark2(c0)) { comp[c0] = nc; const qq = [c0]; for (let qi = 0; qi < qq.length; qi++) nb(qq[qi], m => { if (comp[m] < 0 && dark2(m)) { comp[m] = nc; qq.push(m); } }); nc++; }
+    const rep = new Int16Array(nc).fill(-1);                                         // the nearest reachable tile of each part
+    for (let c = 0; c < n; c++) if (comp[c] >= 0 && dist[c] >= 0 && (rep[comp[c]] < 0 || dist[c] < dist[rep[comp[c]]])) rep[comp[c]] = c;
+    let best = -1;
+    for (let k = 0; k < nc; k++) { if (rep[k] < 0 || (dark2(thief) && comp[thief] === k)) continue; const r2 = P.solve(L, { digits: next, thief: rep[k], maxDepth: 60 }); if (r2 && r2.solvable && r2.par === want && (best < 0 || dist[rep[k]] < dist[best])) best = rep[k]; }
+    if (best >= 0) {
+      const c = best, k = sel;                                                     // a selected guard or dog would take the tap for a move along its route: let go of it first
+      if (k >= 0 && (kindOf(k) === 'guard' || kindOf(k) === 'dog') && walkerRail(k).rail.includes(c)) return { type: 'release', who, text: t.gRelease, pt: () => thiefPoint() };
+      return { type: 'walk', who, text: t.gWalk, pt: () => cellPoint(c) };
     }
   }
   const kind = kindOf(who);
   if (kind === 'guard' || kind === 'dog') {
-    if (sel !== who) return { type: 'pick', text: kind === 'dog' ? t.gDogPick : t.gGuardPick, pt: () => tapPoint(who) };
+    if (sel !== who) return { type: 'pick', who, text: kind === 'dog' ? t.gDogPick : t.gGuardPick, pt: item };
     const opts = options(who), idx = opts.findIndex(o => o.dg && o.dg.join() === next.join());
     if (idx < 0) return null;
-    return { type: 'go', text: opts[idx].kind === 'turn' ? t.gGuardTurn : kind === 'dog' ? t.gDogGo : t.gGuardGo, pt: () => { const b = $('ctx').children[idx]; return b ? centreOf(b) : null; } };
+    return { type: 'go', who, itemPt: item, text: opts[idx].kind === 'turn' ? t.gGuardTurn : kind === 'dog' ? t.gDogGo : t.gGuardGo, pt: () => { const b = $('ctx').children[idx]; return b ? centreOf(b) : null; } };
   }
-  return { type: 'tap', text: kind === 'cam' ? t.gCam : kind === 'door' ? t.gDoor : kind === 'mirror' ? t.gMirror : kind === 'panel' ? t.gPanel : t.gLight, pt: () => tapPoint(who) };
+  return { type: 'tap', who, text: kind === 'cam' ? t.gCam : kind === 'door' ? t.gDoor : kind === 'mirror' ? t.gMirror : kind === 'panel' ? t.gPanel : t.gLight, pt: item };
 }
+const guideCompute = () => (!guideOn() || walking || alarm || caughtOn) ? null : stepFor();
+/* Draws the ring and the hand: for the tutorial, or for a hint (stage 1: the ring on the item only; stage 2: ring and hand on the exact tap). */
 function guideTick() {
   const hand = $('guideHand'), ring = $('guideRing'), skip = $('guideSkip');
-  const live = guideOn() && !document.querySelector('.overlay.on') && !$('menu').classList.contains('on');
-  skip.style.display = live ? 'inline-flex' : 'none';
-  if (!live) { guideSig = ''; guideStep = null; hand.style.display = ring.style.display = 'none'; return; }
-  const sig = dg.join() + '|' + thief + '|' + sel + '|' + (walking ? 1 : 0) + '|' + (alarm ? 1 : 0) + '|' + (caughtOn ? 1 : 0) + '|' + li;
-  if (sig !== guideSig) { guideSig = sig; guideStep = guideCompute(); if (guideStep) setTip(guideStep.text, 'good'); }
-  const p = guideStep && guideStep.pt();
+  const blocked = !!document.querySelector('.overlay.on') || $('menu').classList.contains('on');
+  const guideLive = guideOn() && !blocked;
+  skip.style.display = guideLive ? 'inline-flex' : 'none';
+  let st = null, withHand = true, at = null;
+  if (guideLive) {
+    guideSig = guideSig || '';
+    const sig = dg.join() + '|' + thief + '|' + sel + '|' + (walking ? 1 : 0) + '|' + (alarm ? 1 : 0) + '|' + (caughtOn ? 1 : 0) + '|' + li;
+    if (sig !== guideSig) { guideSig = sig; guideStep = guideCompute(); if (guideStep) setTip(guideStep.text, 'good'); }
+    st = guideStep; at = st && st.pt;
+  } else {
+    guideSig = ''; guideStep = null;
+    if (hintShown && inGame && !blocked) {
+      if (hintShown.sig !== puzzleSig()) clearHint();
+      else if (!walking && !alarm) {
+        const sig2 = sel + '|' + hintShown.stage;
+        if (sig2 !== hintShown.sig2) { hintShown.sig2 = sig2; hintShown.step = stepFor(); if (hintShown.stage === 2 && hintShown.step) setTip(hintShown.step.text, 'good'); }
+        st = hintShown.step; withHand = hintShown.stage === 2; at = st && (withHand ? st.pt : (st.itemPt || st.pt));
+      }
+    }
+  }
+  const p = at && at();
   if (!p) { hand.style.display = ring.style.display = 'none'; return; }
   if (!hand.firstChild) hand.innerHTML = icon('hand', 4);
-  ring.style.display = hand.style.display = 'block'; ring.style.left = p[0] + 'px'; ring.style.top = p[1] + 'px'; hand.style.left = (p[0] - 20) + 'px'; hand.style.top = (p[1] + 10) + 'px';
+  ring.style.display = 'block'; hand.style.display = withHand ? 'block' : 'none'; ring.style.left = p[0] + 'px'; ring.style.top = p[1] + 'px'; hand.style.left = (p[0] - 20) + 'px'; hand.style.top = (p[1] + 10) + 'px';
 }
 $('guideSkip').onclick = () => { settings.guide = false; saveSettings(); syncSettingsUI(); guideSig = ''; setTip(tipFor(LEVELS[li].id) || tr().pick); };
 

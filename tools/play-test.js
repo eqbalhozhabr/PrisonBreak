@@ -219,6 +219,7 @@ const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
   // ads: a hint always needs an ad; being caught 3 times (all hearts gone) makes the next retry need an ad, then the count starts again
   const ad = await pg.evaluate(async () => {
     const wait = ms => new Promise(r => setTimeout(r, ms)), out = {};
+    WEB_ADS = true; settings.guide = false;                                       // the website's stand-in ads are off by default; this block tests them
     load(6); clearStrikes();
     caught(); out.retry1 = document.getElementById('caughtRetry').getAttribute('aria-label') === tr().retry; document.getElementById('caughtOv').classList.remove('on'); caughtOn = false;
     caught(); out.retry2 = document.getElementById('caughtRetry').getAttribute('aria-label') === tr().retry; document.getElementById('caughtOv').classList.remove('on'); caughtOn = false;
@@ -226,15 +227,16 @@ const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
     const lv = li; document.getElementById('caughtRetry').click(); out.adShown = document.getElementById('adOv').classList.contains('on') && caughtOn;
     await wait(3300); document.getElementById('adClaim').click(); await wait(100);
     out.afterAd = strikes === 0 && !caughtOn && li === lv && moves === 0;
-    // hints
-    load(6); document.getElementById('bar').querySelectorAll('button')[2].click(); out.hintAd = document.getElementById('adOv').classList.contains('on');
-    await wait(3300); document.getElementById('adClaim').click(); await wait(150); out.hintGiven = hintWho >= 0 || /clear/i.test(document.getElementById('tip').textContent) || document.getElementById('tip').textContent.length > 0;
+    // hints with ads on: the bank is empty, the card offers a video, the reward adds one hint
+    hintBank = { n: 0, p: 0 }; load(6); settings.guide = false; guideSig = ''; document.getElementById('bar').querySelectorAll('button')[2].click(); out.hintCard = document.getElementById('hintOv').classList.contains('on');
+    document.getElementById('hintAd').click(); out.hintAd = document.getElementById('adOv').classList.contains('on');
+    await wait(3300); document.getElementById('adClaim').click(); await wait(150); out.hintGiven = hintBank.n === 1 && !document.getElementById('adOv').classList.contains('on');
     out.noHeartsRow = !document.getElementById('sHearts'); out.alarmRow = !!document.getElementById('alSoft');
     document.getElementById('alSoft').click(); out.soft = settings.alarm === 'soft'; document.getElementById('alFull').click(); out.full = settings.alarm === 'full';
     return out;
   });
   const adOk = Object.values(ad).every(Boolean);
-  console.log('ads: hint needs an ad, 3rd catch needs an ad to retry, alarm option:', JSON.stringify(ad), adOk ? 'OK' : 'FAIL'); ok = ok && adOk;
+  console.log('stand-in ads (switched on): empty hint bank offers a video, 3rd catch needs an ad to retry, alarm option:', JSON.stringify(ad), adOk ? 'OK' : 'FAIL'); ok = ok && adOk;
   const gate = await pg.evaluate(() => { settings.unlockAll = false; best = {}; const a = chapterLocked(1); best = {}; for (let id = 1; id <= 6; id++) best[id] = { stars: 3 }; const c = chapterLocked(1); best = {}; return [a, c]; });
   console.log('star gate check (locked with 0 stars, open with 18):', JSON.stringify(gate), gate[0] === true && gate[1] === false ? 'OK' : 'FAIL'); ok = ok && gate[0] === true && gate[1] === false;
   const refused = await pg.evaluate(() => {

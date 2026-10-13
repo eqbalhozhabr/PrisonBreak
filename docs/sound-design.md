@@ -31,3 +31,5 @@
 - در تنظیمات می‌شود موسیقی را خاموش کرد و بلندی‌اش را جدا از جلوه‌ها تنظیم کرد. وقتی تب پنهان شود قطع می‌شود.
 - الگوی نت‌ها داده‌ی ساده است (`LEAD`, `CH`, `BASS` در `play/index.html`)؛ تغییرش آسان است.
 - من نمی‌توانم بشنومش. یک فایل پیش‌نمایش (WAV) برایتان فرستادم. بلندی، سرعت و حس آن باید با گوش شما سنجیده شود.
+
+**2026-10-13:** the camera turn (`cam`), the searchlight swing (`sweep`) and the lamp wait (`wait`) shared a low sawtooth sweep through a low-pass that sounded rude. They are now short mechanical sounds: motor click, thin servo whine, two detent ticks, a lock-in thunk and a small ping. `Sfx.preview(name)` renders an effect offline for listening.

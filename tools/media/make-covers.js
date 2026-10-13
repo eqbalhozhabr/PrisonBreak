@@ -15,7 +15,7 @@ const COVERS = [
   fs.mkdirSync(out, { recursive: true });
   const b = await chromium.launch({ executablePath: process.env.CHROMIUM || '/opt/pw-browsers/chromium-1194/chrome-linux/chrome' });
   for (const c of COVERS) {
-    const pg = await b.newPage({ viewport: { width: c.W, height: c.H }, deviceScaleFactor: 1 });
+    const pg = await b.newPage({ viewport: { width: c.W, height: c.H }, deviceScaleFactor: 1 }); await pg.route('https://sdk.crazygames.com/**', r => r.abort());
     await pg.goto('file://' + path.join(__dirname, '..', '..', 'dist-crazygames', 'index.html')); await pg.waitForTimeout(400);
     await pg.evaluate(async c => {
       await document.fonts.load("24px 'Press Start 2P'"); await document.fonts.ready;

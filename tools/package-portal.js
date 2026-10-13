@@ -2,7 +2,7 @@
    usage: OWNER_NAME="Your Name" node tools/package-portal.js [--allow-placeholder]
    The zip has index.html at its root (relative paths only, everything inlined, one file) and lands in releases/crazygames/.
    The checks are the safety net from the playbook: the build must not contain the website's domain, another game's name, or an unreplaced token;
-   it must contain the owner's name; it must make no outside request (no http(s) addresses). */
+   it must contain the owner's name; it must make no outside request except the CrazyGames SDK script, and CG_ADS must be off (Basic Launch has no ads). */
 'use strict';
 const fs = require('fs'), path = require('path'), { execFileSync } = require('child_process');
 const root = path.join(__dirname, '..'), dist = path.join(root, 'dist-crazygames');
@@ -14,8 +14,11 @@ const html = fs.readFileSync(path.join(dist, 'index.html'), 'utf8'), problems = 
 const forbidden = /luckylion|pixels of the mist|zenith|dubiko|eqbalhozhabr/i.exec(html); if (forbidden) problems.push('forbidden text in the bundle: ' + forbidden[0]);
 const token = /@[A-Z_]{3,}@/.exec(html); if (token) problems.push('unreplaced build token: ' + token[0]);
 if (!html.includes(owner || '[Owner name]')) problems.push('the owner name is missing from the bundle');
-const urls = [...html.matchAll(/https?:\/\/[^\s"'<>)]+/g)].map(m => m[0]); if (urls.length) problems.push('outside addresses in the bundle: ' + [...new Set(urls)].join(', '));
-if (/\bfetch\(\s*['"]https?:/.test(html) || /<script[^>]+src=["']http/.test(html) || /<link[^>]+href=["']http/.test(html)) problems.push('an outside resource is loaded');
+const SDK_URL = 'https://sdk.crazygames.com/crazygames-sdk-v3.js';           // the platform's own SDK is the one outside address that is allowed (saves, gameplay events)
+const urls = [...html.matchAll(/https?:\/\/[^\s"'<>)]+/g)].map(m => m[0]).filter(u => u !== SDK_URL); if (urls.length) problems.push('outside addresses in the bundle: ' + [...new Set(urls)].join(', '));
+if (!html.includes('<script src="' + SDK_URL + '"></script>')) problems.push('the CrazyGames SDK script tag is missing');
+if (/\bfetch\(\s*['"]https?:/.test(html) || /<link[^>]+href=["']http/.test(html) || [...html.matchAll(/<script[^>]+src=["'](http[^"']*)/g)].some(m => m[1] !== SDK_URL)) problems.push('an outside resource is loaded');
+if (/CG_ADS\s*=\s*true/.test(html)) problems.push('CG_ADS is on: Basic Launch must have no ads');
 if (problems.length) { console.error('PORTAL CHECK FAILED:\n - ' + problems.join('\n - ')); process.exit(1); }
 const files = fs.readdirSync(dist), size = files.reduce((n, f) => n + fs.statSync(path.join(dist, f)).size, 0);
 let commit = 'nogit'; try { commit = execFileSync('git', ['rev-parse', '--short', 'HEAD'], { cwd: root }).toString().trim(); } catch (e) {}

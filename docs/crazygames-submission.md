@@ -1,31 +1,48 @@
-# Blind Eye on CrazyGames (Basic Launch, no SDK)
+# Blind Eye on CrazyGames (Basic Launch, SDK for saves only)
 
-Everything here follows the playbook the owner supplied. One code base, one build-time target; the web build is unchanged.
+Everything here follows the playbook the owner supplied (`CRAZYGAMES_PLAYBOOK.md`, summary of https://docs.crazygames.com/). One code base, one build-time target; the web build is unchanged.
 
 ## Build
 ```
-OWNER_NAME="Your Personal Name" node tools/package-portal.js      # builds dist-crazygames/index.html and the zip in releases/crazygames/
-node tools/portal-test.js                                         # fit, behaviour and "zero outside requests" at the platform's iframe sizes
+OWNER_NAME="Eqbal Hojabrosadati" node tools/package-portal.js     # builds dist-crazygames/index.html and the zip in releases/crazygames/
+node tools/portal-test.js                                         # layouts at the platform's iframe sizes, SDK behaviour, zero outside requests
 ```
-Without `OWNER_NAME` the packager refuses (use `--allow-placeholder` only for a trial: the game then shows `[Owner name]`). The packager also fails if the bundle contains the website domain, another game's name, an unreplaced `@TOKEN@`, any http(s) address, or lacks the owner name.
+Without `OWNER_NAME` the packager refuses (use `--allow-placeholder` only for a trial: the game then shows `[Owner name]`). The packager also fails if the bundle contains the website domain, another game's name, an unreplaced `@TOKEN@`, any http(s) address other than the platform's SDK script, or lacks the owner name, or if `CG_ADS` is switched on.
 
 Zip: one file, `index.html` at the root (everything inlined, relative paths only, ~110 KB zipped; limit 50 MB / 1500 files).
+
+## The CrazyGames SDK in this build
+Progress on phones is not backed up reliably when the game only uses `localStorage` (the owner's experience with the other game), so the portal build loads the SDK (`https://sdk.crazygames.com/crazygames-sdk-v3.js`, the only outside address in the bundle) and uses:
+- **`SDK.data`** for every save (settings, stars, last level, seen intro cards): guests and signed-in CrazyGames players, synced across devices. Writes are mirrored in `localStorage`; reads prefer `SDK.data`. **Select "Progress save: Yes" in the submission form** or the data module is disabled.
+- **`gameplayStart` / `gameplayStop`**: started while a level is being played, stopped on every break (main menu, any panel, win, caught); not on focus loss. Polled every 250 ms in `cgSync()`.
+- **`loadingStart` / `loadingStop`**, and **`game.settings.muteAudio`** (wins over the in-game sound and music toggles; `cgMuted()`).
+- No sign-in prompt, no user module, no leaderboard, no banners.
+
+How it starts (`tools/build-single.js`): the game script is stored as inert text (`<script type="text/plain" id="game-src">`) and a small loader starts it after `SDK.init()` has finished, failed, or taken 4 s, so the save data exists before the first line of the game reads it. Without a working SDK (blocked, offline, ad blocker) `window.__CG` is `null` and the game uses `localStorage` only.
+
+**Ads are prepared but off.** `let CG_ADS = false` in `play/index.html`. With it `true` (Full Launch only) hints, the third-catch retry and the revive go through `SDK.ad.requestAd('rewarded')`: the screen is blocked until the SDK answers, sound is muted only from `adStarted`, an error never rewards, the game just carries on. The packager refuses to build with `CG_ADS` on, and no ad button or ad wording is visible in Basic Launch (hints are free, a lost round just restarts). Before switching it on read the playbook's ad rules (§4): no midgame ad in the first minutes, "continue without watching" with the same size and colour, and an alternative to watching.
+
+## Layouts
+- **Desktop landscape** (`body.desk`, portal build only): a fine pointer (mouse) and a window at least 780 px wide with an aspect ratio of at least 1.25. Main menu: title, camera logo, total stars and escaped levels on the left; a button panel with the key list (arrows, Space, Backspace, click) on the right; Enter starts the game. Game: the board on the left, a side panel on the right with the level header, the star goals for this level (current tier highlighted), the tip, the key list and the controls (the star and key panels hide on windows shorter than 620 px). Levels panel in three columns, settings in two columns, item introductions with the animation next to the text, hover states on buttons, no tester switches.
+- **Phone / touch** (everything else, including a phone on its side): the original layouts; no rotate-phone overlay, no orientation lock.
+`tools/portal-test.js` checks every iframe size from the docs in desktop mode (mouse) and 390x844, 844x390 and 800x450 in phone mode (touch emulation): the right layout is chosen, menus, board, panels fit, the page never scrolls.
 
 ## What differs in the portal build (`PORTAL`)
 | Web build | Portal build |
 |---|---|
-| e-mail sign-in, progress sync, leaderboard | removed (progress stays in localStorage) |
+| e-mail sign-in, progress sync, leaderboard | removed; progress in `SDK.data` (+ `localStorage`) |
 | anonymous statistics, level reports | removed; nothing is sent anywhere |
-| rewarded ads (hints, 3 catches, revive) | no ads: hints are free, a lost round just restarts |
+| rewarded ads (hints, 3 catches, revive) | no ads: hints are free, a lost round just restarts (SDK ad path exists, `CG_ADS` off) |
 | footer with the studio and website | `© <year> <owner name>` only, no links |
-| tester/debug hooks | none |
+| tester/debug hooks, "unlock all levels" switch | none |
+| one layout (phone first) | desktop landscape layout on a mouse + wide window |
 
-Also in both builds (portal requirements that are harmless on the web): `user-select:none`, safe-area padding, frame-delta animation, iOS audio revive on `touchend`, wheel/context-menu guards, keyboard play (arrows, Space/Enter = go to exit, Backspace = undo), landscape and short-screen layouts, no rotate overlay, no custom fullscreen button.
+Also in both builds (portal requirements that are harmless on the web): `user-select:none`, safe-area padding, frame-delta animation, iOS audio revive on `touchend`, wheel/context-menu guards, keyboard play (arrows, Space/Enter = go to the exit, Backspace = undo), landscape and short-screen layouts, no custom fullscreen button.
 
 ## Form texts (English)
 **Name:** Blind Eye
 
-**Engine:** HTML5 · **Progress save:** No · **Mobile:** yes · **Multiplayer:** no · **SDK mutes audio:** no
+**Engine:** HTML5 · **Progress save: Yes** (SDK data module) · **Mobile:** yes · **Multiplayer:** no · **SDK mutes audio:** yes (`muteAudio` is respected)
 
 **Description** (no HTML, no company/website, no links):
 > Don't move the prisoner. Move the darkness.
@@ -35,23 +52,23 @@ Also in both builds (portal requirements that are harmless on the web): `user-se
 > 176 hand-checked pixel-art puzzles that start easy and end very hard. Undo is unlimited, a hint is always one tap away, and there is no timer.
 
 **Controls:**
-- Desktop: click or tap a dark tile to walk there; click a camera, door, mirror or panel to use it; click a guard or dog, then a tile on its path. Keyboard: arrow keys walk, Space or Enter goes to the exit, Backspace undoes.
+- Desktop: click a dark tile to walk there; click a camera, door, mirror or panel to use it; click a guard or dog, then a tile on its path. Keyboard: arrow keys walk, Space or Enter goes to the exit, Backspace undoes.
 - Mobile: tap everything.
 
 **Category:** Puzzle (fallback: Casual) · **Tags** (max 5, choose from their list; closest to): Puzzle, Pixel, Stealth, Escape, Logic
-**Orientation:** the game adapts to both; pick the "both"/auto option if the form has one, otherwise landscape (portrait is equally supported)
-**Devices:** desktop + mobile · **Age:** PEGI 3 to 7 (nothing violent; a prisoner is caught by an alarm, nothing is shown happening to him) — never a kids rating
+**Orientation:** the game adapts to both; pick the "both"/auto option if the form has one, otherwise landscape
+**Devices:** desktop + mobile · **Age:** PEGI 3 to 7 (nothing violent; a prisoner is caught by an alarm, nothing is shown happening to him), never a kids rating
 **Store links, download counts, marketing URL:** leave empty
 
 ## QA-tool answers
-- No external ads: **Yes**. Does not offer external login options: **Yes**. Terms/Privacy mention in game: **N/A** (nothing personal is collected). Detected SDK functions: none.
-- Tick "I confirm that these results are correct" only after playing in the QA environment and scanning the QR code with a real phone. **Not done yet** (the build was only tested in desktop Chromium at the listed iframe sizes, plus a 390x844 and 844x390 phone viewport; sound and real touch were not tested).
+- No external ads: **Yes**. Does not offer external login options: **Yes**. Terms/Privacy mention in game: **N/A** (nothing personal is collected). Detected SDK functions: game (gameplay, loading, settings) and data.
+- Tick "I confirm that these results are correct" only after playing in the QA environment and scanning the QR code with a real phone, and after checking that progress survives a reload and shows up on a second device. **Not done yet** (the build was tested in desktop Chromium at the listed iframe sizes, with touch emulation for phones, against a mock SDK that follows the documented API; the real SDK, sound and real touch were not tested).
 
 ## Media (generated, not committed: videos are large)
 - Covers: `node tools/media/make-covers.js <outdir>` → 1920x1080, 800x1200, 800x800. Only the title as text, kept out of the top-left label zone, exact 4x pixel scale.
-- Videos: `node tools/media/record-preview.js <outdir> <covers-dir>` → `preview-landscape-1920x1080.mp4` and `preview-portrait-1080x1620.mp4`, ~19 s, no audio, ~1 MB each, cover as the first 0.5 s. Needs `ffmpeg`. Plays short levels (cameras, guard, door, mirror, and as many of the dog and searchlight ones as fit) with real clicks on a deterministic clock.
+- Videos: `node tools/media/record-preview.js <outdir> <covers-dir>` → `preview-landscape-1920x1080.mp4` (recorded in the desktop layout) and `preview-portrait-1080x1620.mp4` (recorded in the phone layout), ~19 s, no sound, ~2 MB each, cover as the first 0.5 s. Needs `ffmpeg`. A bot plays real levels with real clicks on a deterministic clock and tours the game from the first camera level through guard, door, mirror, dog, searchlight, power panel and glass to a large late level (`TOUR` env: `id:frames,...`).
 
 ## Open points
-- The owner's personal name (rebuild with `OWNER_NAME`).
-- Real phone test (iOS audio, touch), real CrazyGames QA run.
+- Real phone test (iOS audio, touch, SDK save and load), real CrazyGames QA run.
 - Tag names must match their admin-managed list.
+- Full Launch (only after an invitation): `CG_ADS`, the playbook's ad rules, landing the player directly in gameplay (at most one click), checking the game with an ad blocker.

@@ -23,8 +23,8 @@ python3 -m http.server 8123      # from the repo root
 | `tools/regen-low.js` | rebuilds shipped levels whose walk count is below their block's target (keeps a new one only if walks go up and par does not go down): `node tools/regen-low.js low out.jsonl` |
 | `tools/build-levels.js` | merges generated files, re-solves every level, writes `play/levels.js` |
 | `tools/build-single.js` | inlines everything into `play/prisonbreak.html` |
-| `tools/package-portal.js` | CrazyGames build + zip: `OWNER_NAME="Your Name" node tools/package-portal.js` (see `docs/crazygames-submission.md`) |
-| `tools/portal-test.js`, `tools/media/*` | portal checks at the platform's iframe sizes; cover and preview-video makers |
+| `tools/package-portal.js` | CrazyGames build + zip (SDK for saves and gameplay events, desktop landscape layout, no ads): `OWNER_NAME="Your Name" node tools/package-portal.js` (see `docs/crazygames-submission.md`) |
+| `tools/portal-test.js`, `tools/media/*` | portal checks at the platform's iframe sizes (desktop + phone layouts, mock SDK); cover and preview-video makers |
 | `tools/play-test.js` | plays levels in a real browser with real clicks and checks par |
 
 ## Rebuild

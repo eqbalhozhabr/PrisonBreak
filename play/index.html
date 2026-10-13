@@ -59,6 +59,7 @@
     #bar button { padding:10px 4px; font-size:11px; }
   }
   body.portal .web-only { display:none !important; }
+  body.portal .test-only { display:none !important; }                /* the tester's "unlock all levels" switch is not shown on the portal */
   .overlay { position:fixed; inset:0; background:rgba(5,7,12,.88); display:none; align-items:center; justify-content:center; padding:20px; z-index:10; }
   .overlay.on { display:flex; }
   #pauseOv, #setOv, #lvOv, #howOv, #introOv, #accOv, #lbOv, #repOv { align-items:flex-start; padding-top:max(14px, 5vh); }
@@ -106,7 +107,8 @@
   #menu.on { display:flex; }
   #menuBg { position:absolute; inset:0; width:100%; height:100%; image-rendering:pixelated; z-index:0; }
   #menu::after { content:''; position:absolute; inset:0; z-index:1; pointer-events:none; background:radial-gradient(ellipse at 50% 38%, rgba(13,16,23,0) 0%, rgba(13,16,23,.4) 60%, rgba(6,8,13,.72) 100%); }
-  #menu > :not(#menuBg) { position:relative; z-index:2; }
+  #menu > :not(#menuBg), #menu .mbrand > *, #menu .mpanel > * { position:relative; z-index:2; }
+  .mbrand, .mpanel { display:contents; }                      /* on phones the wrappers vanish; the desktop layout below gives them boxes */
   #menu::after { z-index:1; }
   #logo { width:min(80vw, 330px); aspect-ratio:128/84; image-rendering:pixelated; }
   #menu h1 { margin:0; font-family:var(--tf); font-weight:400; font-size:min(8.6vw, 34px); line-height:1.25; letter-spacing:.02em; text-transform:uppercase; text-align:center; text-shadow:4px 4px 0 var(--edge); }
@@ -121,6 +123,49 @@
     #menu .col { display:grid; grid-template-columns:1fr 1fr; gap:10px; max-width:520px; margin-top:4px; } #menu .col .primary { grid-column:1 / -1; } #menu .col .duo { grid-column:1 / -1; }
     #menu button.big { min-height:44px; font-size:12px; }
   }
+  /* ---- desktop landscape (portal build): a fine pointer and a wide window get their own layouts; phones keep everything above.
+     body.desk is set by updateDesk() in the script. ---- */
+  .dk { display:none; }
+  body.desk .dk { display:block; }
+  .keycap { display:inline-block; min-width:26px; padding:3px 7px; margin:0 2px; font-family:var(--pf); font-weight:700; font-size:11px; letter-spacing:.04em; text-align:center; color:var(--ink); background:var(--panel2); box-shadow:0 -2px 0 0 var(--edge), 0 2px 0 0 var(--edge), -2px 0 0 0 var(--edge), 2px 0 0 0 var(--edge), inset 0 2px 0 0 var(--hi), inset 0 -2px 0 0 var(--lo); }
+  .keylist { text-align:start; }
+  .keylist .kt, #keys .kt, #goal .kt { font-family:var(--pf); font-size:10px; letter-spacing:.1em; text-transform:uppercase; color:var(--mute); margin-bottom:8px; }
+  .keylist .kr, #keys .kr { display:flex; align-items:center; justify-content:space-between; gap:10px; font-size:12px; color:#a9b2c6; padding:4px 0; }
+  body.desk button:hover:not(:disabled) { filter:brightness(1.14); }
+  body.desk .overlay { align-items:center !important; padding-top:20px !important; }
+  /* menu: the title on the left, the buttons in a panel on the right */
+  body.desk #menu { flex-direction:row; justify-content:center; align-items:center; gap:clamp(28px, 7vw, 130px); padding:24px 4vw calc(40px + env(safe-area-inset-bottom)); }
+  body.desk .mbrand { display:flex; flex-direction:column; align-items:flex-start; gap:14px; width:min(44vw, 520px); }
+  body.desk #logo { width:min(26vw, 400px, 44vh); }
+  body.desk #menu h1 { font-size:min(3.8vw, 6.4vh, 48px); text-align:start; }
+  body.desk #menu .tag { display:block; text-align:start; max-width:440px; font-size:15px; }
+  body.desk #menuProg { font-family:var(--pf); font-size:12px; letter-spacing:.06em; text-transform:uppercase; color:var(--gold); text-shadow:0 2px 0 #06080d; }
+  body.desk #menu > .foot { position:absolute !important; left:0; right:0; bottom:calc(14px + env(safe-area-inset-bottom)); text-align:center; }
+  body.desk .mpanel { display:flex; flex-direction:column; gap:16px; width:min(36vw, 400px); min-width:300px; padding:22px 20px; background:rgba(27,33,48,.94); }
+  body.desk #menu .col { display:flex; flex-direction:column; gap:12px; max-width:none; margin-top:0; }
+  body.desk #menu button.big { min-height:52px; font-size:13px; }
+  body.desk .mpanel .keylist { padding-top:6px; border-top:3px solid var(--edge); }
+  /* game: the board on the left, a panel on the right with the star goals and the keys */
+  body.desk #app { max-width:none; display:grid; grid-template-columns:minmax(0,1fr) clamp(300px, 24vw, 440px); grid-template-rows:auto auto auto minmax(0,1fr) auto auto auto; grid-template-areas:"stage hud" "stage goal" "stage tip" "stage gap" "stage keys" "stage ctx" "stage bar"; column-gap:14px; }
+  body.desk .hud { grid-area:hud; } body.desk #goal { grid-area:goal; } body.desk #tip { grid-area:tip; height:96px; } body.desk #keys { grid-area:keys; }
+  body.desk #stage { grid-area:stage; min-width:0; } body.desk #ctx { grid-area:ctx; } body.desk #bar { grid-area:bar; }
+  body.desk #bar button { padding:10px 4px; font-size:11px; }
+  body.desk #goal, body.desk #keys { margin:0 4px 8px; padding:10px 12px; background:var(--panel); }
+  body.desk #goal .gr { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:4px 6px; font-family:var(--pf); font-size:12px; letter-spacing:.05em; color:var(--mute); direction:ltr; }
+  body.desk #goal .gr b { font-family:var(--tf); font-size:12px; font-weight:400; }
+  body.desk #goal .gr.cur { color:var(--ink); background:rgba(255,197,74,.12); box-shadow:inset 3px 0 0 var(--gold); }
+  @media (max-height: 620px) { body.desk #goal, body.desk #keys { display:none; } body.desk #tip { height:112px; } }
+  /* overlays: wider cards that use the width */
+  body.desk #lvOv .card { max-width:1040px; }
+  body.desk #lvChapters { display:grid; grid-template-columns:repeat(auto-fill, minmax(300px, 1fr)); column-gap:34px; }
+  body.desk #setOv .card { max-width:860px; display:grid; grid-template-columns:1fr 1fr; column-gap:40px; }
+  body.desk #setOv .card h2, body.desk #setOv .card > .row { grid-column:1 / -1; }
+  body.desk #howOv .card { max-width:780px; }
+  body.desk #introOv .card { max-width:820px; display:grid; grid-template-columns:minmax(0,380px) 1fr; column-gap:28px; align-items:start; }
+  body.desk #introOv .card h2, body.desk #introOv .card > .row { grid-column:1 / -1; }
+  body.desk #introOv #introCv { width:100%; margin:0; }
+  body.desk #introOv .howl { margin:0; font-size:15px; }
+  body.desk #pauseOv .card, body.desk #winOv .card, body.desk #caughtOv .card { max-width:480px; }
 </style>
 </head>
 <body>
@@ -131,7 +176,9 @@
     <div class="stat"><span class="k" id="movesLabel"></span><b id="moves">0</b></div>
     <div class="stat"><span class="k" id="parLabel"></span><b id="par">0</b></div>
   </header>
+  <div id="goal" class="dk"></div>
   <div id="tip"></div>
+  <div id="keys" class="dk"></div>
   <div id="stage"><canvas id="cv"></canvas><div id="heartsWrap"><span id="hearts"></span></div></div>
   <div id="ctx"></div>
   <div id="bar"></div>
@@ -139,15 +186,21 @@
 
 <div id="menu" class="on">
   <canvas id="menuBg"></canvas>
-  <canvas id="logo" width="128" height="84"></canvas>
-  <h1>Blind <em>Eye</em></h1>
-  <div class="tag" id="menuTag"></div>
-  <div class="col">
-    <button class="primary big" id="mPlay"></button>
-    <button class="big" id="mLevels"></button>
-    <button class="big" id="mHow"></button>
-    <button class="big" id="mSettings"></button>
-    <div class="duo web-only"><button class="big" id="mLeaders"></button><button class="big" id="mAccount"></button></div>
+  <div class="mbrand">
+    <canvas id="logo" width="128" height="84"></canvas>
+    <h1>Blind <em>Eye</em></h1>
+    <div class="tag" id="menuTag"></div>
+    <div class="dk" id="menuProg"></div>
+  </div>
+  <div class="mpanel pix">
+    <div class="col">
+      <button class="primary big" id="mPlay"></button>
+      <button class="big" id="mLevels"></button>
+      <button class="big" id="mHow"></button>
+      <button class="big" id="mSettings"></button>
+      <div class="duo web-only"><button class="big" id="mLeaders"></button><button class="big" id="mAccount"></button></div>
+    </div>
+    <div class="dk keylist" id="menuKeys"></div>
   </div>
   <div class="foot" id="menuFoot"></div>
 </div>
@@ -165,7 +218,7 @@
 
 <div class="overlay" id="caughtOv"><div class="card">
   <h2 id="caughtTitle"></h2><div id="caughtText" class="muted"></div>
-  <div class="row"><button id="caughtRetry"></button><button class="primary web-only" id="caughtRevive"></button></div>
+  <div class="row"><button id="caughtRetry"></button><button class="primary" id="caughtRevive"></button></div>
   <div class="row web-only"><button id="caughtReport"></button></div>
 </div></div>
 
@@ -196,7 +249,7 @@
   <div class="set web-only"><div><label id="sStatsL"></label><small id="sStatsS"></small></div><button class="tog" id="sStats"></button></div>
   <div class="set"><div><label id="sAlarmL"></label><small id="sAlarmS"></small></div><div class="seg"><button id="alFull"></button><button id="alSoft"></button></div></div>
   <div class="set"><div><label id="sMotionL"></label><small id="sMotionS"></small></div><button class="tog" id="sMotion"></button></div>
-  <div class="set"><div><label id="sUnlockL"></label><small id="sUnlockS"></small></div><button class="tog" id="sUnlock"></button></div>
+  <div class="set test-only"><div><label id="sUnlockL"></label><small id="sUnlockS"></small></div><button class="tog" id="sUnlock"></button></div>
   <div class="set"><div><label id="sResetL"></label></div><button id="sReset"></button></div>
   <div class="row"><button class="primary" id="setClose"></button></div>
 </div></div>
@@ -242,14 +295,22 @@
 
 <script src="../src/prison.js"></script>
 <script src="levels.js"></script>
-<script>
+<script id="game-src">
 'use strict';
 const P = window.Prison, LEVELS = window.PRISON_LEVELS;
 const DX = [0, 1, 0, -1], DY = [-1, 0, 1, 0];
 const $ = id => document.getElementById(id);
+const PORTAL = '@TARGET@' === 'crazygames';                                  // the CrazyGames build: no server, no accounts, no ads (see docs/crazygames-submission.md)
+/* The CrazyGames SDK object, only in the portal build and only when its init() succeeded (the loader at the end of the page starts this script after init).
+   Phones do not back up localStorage reliably, so in the portal build saves go through SDK.data (cloud save for guests and signed-in players) and are
+   mirrored in localStorage as a fallback; without the SDK (blocked, offline) the game simply uses localStorage. */
+const CG = PORTAL ? (window.__CG || null) : null;
+const cgData = () => (CG && CG.data) || null;
+let cgAdPlaying = false;                                                      // a rewarded video is really playing (Full Launch only)
+const cgMuted = () => cgAdPlaying || !!(CG && CG.game && CG.game.settings && CG.game.settings.muteAudio);      // the platform's mute setting wins over our own toggles
 const store = {
-  get(k, d) { try { const v = localStorage.getItem(k); return v === null ? d : JSON.parse(v); } catch (e) { return d; } },
-  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} },
+  get(k, d) { try { const dd = cgData(); let v = dd ? dd.getItem(k) : null; if (v === null || v === undefined) v = localStorage.getItem(k); return v === null || v === undefined ? d : JSON.parse(v); } catch (e) { return d; } },
+  set(k, v) { const s = JSON.stringify(v); try { localStorage.setItem(k, s); } catch (e) {} try { const dd = cgData(); if (dd) dd.setItem(k, s); } catch (e) {} },
 };
 
 /* ------------------------------------------------------------ settings */
@@ -259,9 +320,13 @@ const saveSettings = () => store.set('pb_settings', settings);
 if (!settings.heartsV2) { settings.heartsV2 = true; settings.hearts = true; saveSettings(); }          // hearts are now on by default: mistakes cost a heart
 
 /* ----------------------------------------------------------- progression */
-const PORTAL = '@TARGET@' === 'crazygames';                                  // the CrazyGames build: no server, no accounts, no ads (see docs/crazygames-submission.md)
 if (PORTAL) document.body.classList.add('portal');
-const HEARTS_MAX = 3, FREE_HINTS = PORTAL ? 1e9 : 0, STRIKES_MAX = 3, STARS_FRACTION = 0.4;     // hints always cost an ad; being caught 3 times (all hearts lost) costs an ad to retry
+/* Ads. The web build runs its own stand-in rewarded ads. The portal build runs none during Basic Launch (no SDK ads exist there): hints are free and a lost
+   round just restarts. For Full Launch set CG_ADS to true: hints, the 3rd-catch retry and the revive then go through SDK.ad.requestAd('rewarded'). */
+let CG_ADS = false;
+const adsOn = () => !PORTAL || (CG_ADS && !!(CG && CG.ad));
+const freeHints = () => adsOn() ? 0 : 1e9;
+const HEARTS_MAX = 3, STRIKES_MAX = 3, STARS_FRACTION = 0.4;     // hints always cost an ad; being caught 3 times (all hearts lost) costs an ad to retry
 const CHAPTERS = [
   { en: 'Cells', fa: 'سلول‌ها', size: 6 },
   { en: 'Yard I', fa: 'حیاط ۱', size: 10 }, { en: 'Yard II', fa: 'حیاط ۲', size: 10 }, { en: 'Yard III', fa: 'حیاط ۳', size: 10 },
@@ -298,6 +363,9 @@ const T = {
   en: {
     tag: 'Move the darkness. Slip the prisoner past cameras and guards.', foot: PORTAL ? '© @YEAR@ @OWNER@' : 'Playtest build',
     play: 'Play', cont: lv => 'Continue · Level ' + lv, levels: 'Levels', how: 'How to play', settings: 'Settings', close: 'Close', back: 'Back',
+    adLoading: 'Loading a short video…',
+    deskProg: (st, mx, done, n) => `${st} / ${mx} stars · ${done} / ${n} levels escaped`, goalT: 'Stars', goalPar: 'Par', goalAny: 'Any escape',
+    deskKeys: [['← ↑ ↓ →', 'Walk the prisoner'], ['Space', 'Walk to the exit'], ['⌫', 'Undo an action'], ['Click', 'Use a camera, door, mirror…']], deskKeysT: 'Keys',
     dogTip: 'Dog selected: tap a tile of its rail to send it there, tap the prisoner to let go.', doorBlocked: 'The dog is standing in the doorway.',
     guardTip: 'Guard selected: tap it again to turn, tap a rail tile to send it, tap the prisoner to let go.', gotIt: 'Got it', itemsL: 'Items', itemNames: { cam: 'Camera', guard: 'Guard', door: 'Door', mirror: 'Mirror', dog: 'Dog', light: 'Searchlight', panel: 'Power panel', glass: 'Glass wall' },
     intro: {
@@ -326,7 +394,7 @@ const T = {
     pick: 'Tap a dark tile to walk. Tap a camera to turn it clockwise.',
     refused: 'Not allowed: that would expose the prisoner. Move him somewhere dark first.', unreach: 'The prisoner cannot get there from here.',
     pathClear: 'The way is clear. Send the prisoner to the exit.', hintWho: 'Try: ', hintCam: 'turn this camera', hintGuard: 'move this guard', hintDoor: 'use this door', hintMirror: 'flip this mirror', hintDog: 'move this dog', hintLight: 'wait: tap the searchlight', hintPanel: 'use this power panel', glassTip: 'Glass: you can see through it, but you cannot walk through it.', wiredTip: 'This one is wired to a power panel. Tap the panel instead.', wait: 'Wait',
-    escaped: 'Escaped!', winText: (m, p, l) => `${m} actions · best ${p}` + (l ? ` · ${l} heart(s) lost` : ''), retry: 'Retry', next: 'Next level', done: 'All levels cleared!',
+    escaped: 'Escaped!', winText: (m, p, l) => `${m} ${m === 1 ? 'action' : 'actions'} · best ${p}` + (l ? ` · ${l} ${l === 1 ? 'heart' : 'hearts'} lost` : ''), retry: 'Retry', next: 'Next level', done: 'All levels cleared!',
     seen: 'Spotted! You lost a heart.', seenFree: 'Spotted! That action was cancelled.', caught: 'Caught!', caughtText: 'You ran out of hearts.', revive: 'Ad: continue with 1 heart',
     locked: (n, h) => `Locked: needs ${n} stars (you have ${h})`, gate: (n, h) => `The next block needs ${n} stars. You have ${h}.`,
     adTitle: 'Placeholder ad', adText: 'In the real game a rewarded video plays here. This is only a stand-in; no real ad is shown.', adWhy: { hint: 'Watch a short ad to get a hint.', retry: 'Watch a short ad to try the level again.', revive: 'Watch a short ad to carry on with 1 heart.' },
@@ -364,6 +432,9 @@ const T = {
   fa: {
     tag: 'تاریکی را جابه‌جا کن و زندانی را از کنار دوربین‌ها و نگهبان‌ها رد کن.', foot: PORTAL ? '© @YEAR@ @OWNER@' : 'نسخهٔ آزمایشی',
     play: 'شروع بازی', cont: lv => 'ادامه · مرحلهٔ ' + lv, levels: 'مرحله‌ها', how: 'راهنمای بازی', settings: 'تنظیمات', close: 'بستن', back: 'بازگشت',
+    adLoading: 'در حال بارگیری یک ویدیوی کوتاه…',
+    deskProg: (st, mx, done, n) => `${st} / ${mx} ستاره · ${done} / ${n} مرحله`, goalT: 'ستاره‌ها', goalPar: 'بهترین', goalAny: 'هر فرار',
+    deskKeys: [['← ↑ ↓ →', 'راه رفتن زندانی'], ['Space', 'رفتن به خروج'], ['⌫', 'برگشت یک عمل'], ['کلیک', 'استفاده از دوربین، در، آینه…']], deskKeysT: 'کلیدها',
     dogTip: 'سگ انتخاب شد: خانهٔ ریلش را لمس کن تا برود، زندانی را لمس کن تا رها شود.', doorBlocked: 'سگ توی چارچوب در ایستاده است.',
     guardTip: 'نگهبان انتخاب شد: دوباره لمسش کن تا برگردد، خانهٔ ریل را لمس کن تا برود، زندانی را لمس کن تا رها شود.', gotIt: 'فهمیدم', itemsL: 'آیتم‌ها', itemNames: { cam: 'دوربین', guard: 'نگهبان', door: 'در', mirror: 'آینه', dog: 'سگ', light: 'نورافکن', panel: 'تابلو برق', glass: 'دیوار شیشه‌ای' },
     intro: {
@@ -512,7 +583,7 @@ const Sfx = (() => {
   return {
     play(name) {
       if (settings.vibrate && BUZZ[name] && navigator.vibrate) { try { navigator.vibrate(BUZZ[name]); } catch (e) {} }
-      if (!settings.sfx) return; const a = get(); if (!a) return; try { S[name](a, a.currentTime); } catch (e) {}
+      if (!settings.sfx || cgMuted()) return; const a = get(); if (!a) return; try { S[name](a, a.currentTime); } catch (e) {}
     },
     unlock() { get(); },
     context() { return get(); },
@@ -566,7 +637,7 @@ const Music = (() => {
     tick(a, dest, tt, .02, (pos & 1) ? .05 : .025, 6500);                                                      // hat ticks, stronger off the beat
   }
   let ctx_ = null, gain = null, timer = null, nextTime = 0, step = 0, on = false;
-  function want() { return settings.music && settings.musicVol > 0 && !document.hidden; }
+  function want() { return settings.music && settings.musicVol > 0 && !document.hidden && !cgMuted(); }
   function ensure() {
     const a = Sfx.context(); if (!a) return null;
     if (a !== ctx_) { ctx_ = a; gain = a.createGain(); gain.connect(a.destination); }
@@ -819,11 +890,11 @@ function endAlarm() {
   syncUI();
 }
 let strikes = store.get('pb_strikes', 0);                              // times caught since the last ad; at STRIKES_MAX the next retry needs an ad
-const gateOn = () => !PORTAL && strikes >= STRIKES_MAX;
+const gateOn = () => adsOn() && strikes >= STRIKES_MAX;
 function caught() {
   walking = null; caughtOn = true; Sfx.play('caught'); if (lvl) { track('level_caught', { n: lvl.id, ms: lvlMs(), moves }); lvl.done = true; } strikes++; store.set('pb_strikes', strikes);
-  $('caughtTitle').textContent = tr().caught; $('caughtText').textContent = tr().caughtText + ' ' + tr().strikesNote(Math.min(strikes, STRIKES_MAX), STRIKES_MAX);
-  $('caughtRetry').textContent = gateOn() ? tr().retryAd : tr().retry; $('caughtRevive').textContent = tr().revive;
+  $('caughtTitle').textContent = tr().caught; $('caughtText').textContent = tr().caughtText + (adsOn() ? ' ' + tr().strikesNote(Math.min(strikes, STRIKES_MAX), STRIKES_MAX) : '');
+  $('caughtRetry').textContent = gateOn() ? tr().retryAd : tr().retry; $('caughtRevive').textContent = tr().revive; $('caughtRevive').style.display = adsOn() ? '' : 'none';
   $('caughtOv').classList.add('on');
 }
 function refuse() { setTip(tr().refused, 'warn'); flashCell = thief; flash = 1; shake = 1; Sfx.play('refuse'); }
@@ -976,6 +1047,7 @@ cv.addEventListener('pointerdown', e0 => {
 });
 /* Keyboard: arrows walk the prisoner, Space or Enter sends him to the exit, Backspace undoes. (Keys that mean something to the browser, like Escape, are left alone.) */
 window.addEventListener('keydown', e => {
+  if (!inGame && document.body.classList.contains('desk') && e.key === 'Enter' && $('menu').classList.contains('on') && !document.querySelector('.overlay.on') && !(e.target && e.target.tagName === 'BUTTON')) { e.preventDefault(); $('mPlay').click(); return; }
   if (!inGame || e.ctrlKey || e.metaKey || e.altKey || document.querySelector('.overlay.on') || /^(INPUT|TEXTAREA|SELECT)$/.test((e.target && e.target.tagName) || '')) return;
   if (e.key === 'Backspace') { e.preventDefault(); undo(); return; }
   if ((e.key === ' ' || e.key === 'Enter') && !(e.target && e.target.tagName === 'BUTTON')) { e.preventDefault(); if (!walking && !alarm && !caughtOn) { Sfx.play('click'); walkTo(L.E); } return; }
@@ -987,6 +1059,22 @@ window.addEventListener('keydown', e => {
 
 /* ------------------------------------------------------------------- UI */
 function setTip(t, cls) { const el = $('tip'); el.textContent = t; el.className = cls || ''; }
+/* Desktop landscape layout: portal build only, a fine pointer (mouse) and a wide window. */
+const deskMQ = window.matchMedia ? window.matchMedia('(hover: hover) and (pointer: fine)') : { matches: false };
+function updateDesk() { document.body.classList.toggle('desk', PORTAL && deskMQ.matches && innerWidth >= 780 && innerWidth >= innerHeight * 1.25); }
+window.addEventListener('resize', updateDesk); updateDesk();
+const keyListHTML = (title, rows) => `<div class="kt">${title}</div>` + rows.map(r => `<div class="kr"><span>${r[1]}</span><span class="keycap">${r[0]}</span></div>`).join('');
+function totalStars() { let s = 0, d = 0; LEVELS.forEach(l => { const b = best[l.id]; if (b) { s += b.stars; d++; } }); return [s, d]; }
+function syncDesk() {
+  const t = tr(), [st, done] = totalStars();
+  $('menuProg').textContent = t.deskProg(st, LEVELS.length * 3, done, LEVELS.length); $('menuKeys').innerHTML = keyListHTML(t.deskKeysT, t.deskKeys);
+  $('keys').innerHTML = keyListHTML(t.deskKeysT, t.deskKeys);
+  if (L) {
+    const p = LEVELS[li].par, p2 = p + Math.max(2, Math.ceil(p * .3)), cur = moves === 0 && !hist.length ? 3 : starsNow();
+    const row = (n, label) => `<div class="gr${cur === n ? ' cur' : ''}"><span>${starsHTML(n, 3, 2)}</span><b>${label}</b></div>`;
+    $('goal').innerHTML = `<div class="kt">${t.goalT}</div>` + row(3, '≤ ' + p) + row(2, '≤ ' + p2) + row(1, t.goalAny);
+  }
+}
 function applyLang() {
   const t = tr(), fa = settings.lang === 'fa';
   document.documentElement.lang = settings.lang; document.documentElement.dir = fa ? 'rtl' : 'ltr';
@@ -1002,7 +1090,7 @@ function applyLang() {
   set('adTitle', t.adTitle); set('adText', t.adText); set('adCancel', t.adCancel); set('adClaim', t.adClaim);
   $('howList').innerHTML = t.howList.map(s => `<li>${s}</li>`).join('');
   $('mPlay').innerHTML = icon('play', 3, fa ? 'flipx' : '') + ' ' + (best[LEVELS[0].id] ? t.cont(LEVELS[firstOpenLevel()].id) : t.play);
-  syncSettingsUI();
+  syncSettingsUI(); syncDesk();
 }
 function syncSettingsUI() {
   const t = tr(), tog = (id, on) => { $(id).textContent = on ? t.on : t.off; $(id).className = 'tog' + (on ? ' on' : ''); };
@@ -1017,6 +1105,7 @@ function syncUI() {
   $('hearts').innerHTML = Array.from({ length: HEARTS_MAX }, (_, i) => icon('heart', 3, i < hearts ? 'red' : (i === heartPop ? 'dim break' : 'dim'))).join('');
   $('btnMenu').innerHTML = icon('menu', 3);
   $('heartsWrap').style.display = heartsOn() ? 'flex' : 'none';
+  syncDesk();
 }
 function buildBar() {
   const bar = $('bar'), ctxEl = $('ctx'), t = tr(); bar.innerHTML = ''; ctxEl.innerHTML = '';
@@ -1033,7 +1122,7 @@ function buildBar() {
   }
   add(bar, icon('undo', 3) + ' ' + t.undo, undo, '', !hist.length || !!walking);
   add(bar, icon('door', 3) + ' ' + t.toExit, () => { Sfx.play('click'); walkTo(L.E); }, '', !!walking);
-  add(bar, icon('bulb', 3) + ' ' + t.hint + (hintsUsed < FREE_HINTS ? '' : '<span class="adtag">AD</span>'), onHint);     // the label never changes length
+  add(bar, icon('bulb', 3) + ' ' + t.hint + (hintsUsed < freeHints() ? '' : '<span class="adtag">AD</span>'), onHint);     // the label never changes length
 }
 function undo() {
   if (!hist.length || walking || gBusy || alarm) return;
@@ -1042,7 +1131,7 @@ function undo() {
 }
 function onHint() {
   if (walking || caughtOn || alarm) return;
-  if (hintsUsed < FREE_HINTS) { hintsUsed++; doHint(); buildBar(); return; }
+  if (hintsUsed < freeHints()) { hintsUsed++; doHint(); buildBar(); return; }
   Ads.rewarded('hint').then(ok => { if (ok) { hintsUsed++; doHint(); buildBar(); } });
 }
 function doHint() {
@@ -1055,9 +1144,18 @@ function doHint() {
   setTip(t.hintWho + (kind === 'cam' ? t.hintCam : kind === 'guard' ? t.hintGuard : kind === 'dog' ? t.hintDog : kind === 'light' ? t.hintLight : kind === 'panel' ? t.hintPanel : kind === 'door' ? t.hintDoor : t.hintMirror), 'good'); buildBar();
 }
 
-/* Stand-in for a real rewarded-ad SDK. Ads only ever appear after the player asks for a hint or a revive. */
+/* Rewarded ads. Web build: a stand-in (a 3 second wait). Portal build with CG_ADS on (Full Launch only): the CrazyGames SDK. Ads only ever appear after the player
+   asks for a hint or a revive, never during play. The screen is blocked from the request until the SDK answers, the game is muted only while an ad really plays,
+   and an error never rewards (the game just carries on). */
 const Ads = {
   rewarded(why) {
+    if (PORTAL) return new Promise(resolve => {
+      if (!adsOn()) { resolve(false); return; }
+      let settled = false;
+      const done = ok => { if (settled) return; settled = true; cgAdPlaying = false; $('adOv').classList.remove('on'); Music.sync(); resolve(ok); };
+      $('adText').textContent = tr().adLoading || ''; $('adCount').textContent = ''; $('adClaim').style.display = 'none'; $('adCancel').style.display = 'none'; $('adOv').classList.add('on');
+      try { CG.ad.requestAd('rewarded', { adStarted: () => { cgAdPlaying = true; Music.sync(); }, adFinished: () => done(true), adError: () => done(false) }); } catch (e) { done(false); }
+    });
     return new Promise(resolve => {
       let s = 3, timer = null;
       $('adText').textContent = ((tr().adWhy || {})[why] || '') + ' ' + tr().adText;
@@ -1091,13 +1189,13 @@ function openLevels() {
     const locked = chapterLocked(ci), head = document.createElement('div'); head.className = 'chap';
     let got = 0; for (let i = from; i < to; i++) got += (best[LEVELS[i].id] && best[LEVELS[i].id].stars) || 0;
     head.innerHTML = `<b>${ci + 1}. ${ch[settings.lang]}</b><span>${locked ? icon('lock', 2) + ' ' + tr().locked(chapNeed(ci), starsBefore(ci)) : icon('star', 2, 'gold') + ' ' + got + '/' + (to - from) * 3}</span>`;
-    wrap.appendChild(head);
+    const box = document.createElement('div'); box.className = 'chapbox'; box.appendChild(head); wrap.appendChild(box);
     const g = document.createElement('div'); g.className = 'grid';
     for (let i = from; i < to; i++) {
       const b = document.createElement('button'), id = LEVELS[i].id, bs = best[id] ? best[id].stars : 0;
       b.innerHTML = id + '<span class="row2">' + (locked ? icon('lock', 2) : starsHTML(bs, 3, 2)) + '</span>'; b.disabled = locked; b.onclick = () => load(i); g.appendChild(b);
     }
-    wrap.appendChild(g);
+    box.appendChild(g);
   });
   $('lvOv').classList.add('on');
 }
@@ -1609,10 +1707,18 @@ function setFavicon() {                                                         
   pxr(g, '#16101f', 10, 4, 5, 7); pxr(g, '#ff3b52', 11, 5, 3, 5); pxr(g, '#ffffff', 11, 5, 1, 1);
   const link = document.querySelector('link[rel=icon]'); if (link) { link.type = 'image/png'; link.href = c.toDataURL(); }
 }
+/* CrazyGames gameplay events: gameplayStart while a level is being played, gameplayStop on every break (menu, any panel, win, caught). Not on focus loss. */
+let cgPlay = false, cgPoll = 0;
+function cgSync(now) {
+  if (!CG || !CG.game || now - cgPoll < 250) return; cgPoll = now;
+  const want = inGame && !$('menu').classList.contains('on') && !document.querySelector('.overlay.on');
+  if (want !== cgPlay) { cgPlay = want; try { want ? CG.game.gameplayStart() : CG.game.gameplayStop(); } catch (e) {} }
+}
+if (CG && CG.game) { try { CG.game.addSettingsChangeListener(() => Music.sync()); CG.game.loadingStop(); } catch (e) {} }
 let last = performance.now(), frameDt = 16.7;
 const ease = k => 1 - Math.pow(1 - k, frameDt / 16.7);                       // the same speed at 60, 120 or 144 Hz
 function frame(now) {
-  const dt = Math.min(50, now - last); last = now; frameDt = dt; stepWalk(dt);
+  const dt = Math.min(50, now - last); last = now; frameDt = dt; stepWalk(dt); cgSync(now);
   if (alarm) { alarm.t += dt; if (alarm.t >= 1300) endAlarm(); }
   flash = Math.max(0, flash - dt / 500); shake = Math.max(0, shake - dt / 350);
   if (introKind) drawIntro(now);

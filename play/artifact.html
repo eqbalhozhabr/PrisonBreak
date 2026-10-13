@@ -1723,11 +1723,12 @@ function walkTo(c) {
   push(); setTip(''); hintWho = -1;
   walking = { path, t: 0 };
 }
+const WALK_MS = 165;                                                   // time the prisoner takes per tile: two thirds of the former speed (110 ms)
 function stepWalk(dt) {
   if (!walking) return;
   walking.t += dt;
-  while (walking && walking.t >= 110) {
-    walking.t -= 110;
+  while (walking && walking.t >= WALK_MS) {
+    walking.t -= WALK_MS;
     const next = walking.path.shift();
     const dx = next % L.w - thief % L.w, dy = ((next / L.w) | 0) - ((thief / L.w) | 0);
     thiefDir = dy < 0 ? 0 : dx > 0 ? 1 : dy > 0 ? 2 : 3;
@@ -2113,7 +2114,7 @@ $('accLogout').onclick = async () => { try { await api('/api/auth/logout', { met
 /* ------------------------------------------------- statistics and reports */
 /* Anonymous play statistics (random id kept in this browser, never linked to an account) help tune the levels: how many start, win, get caught,
    take hints, leave. Only on the game's own site (and localhost, flagged as test traffic). Players can switch them off in Settings. */
-const BUILD = "2026-10-13-f5fba8d";
+const BUILD = "2026-10-13-7abefbf";
 const TEST_HOST = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
 const STATS_HOST = !PORTAL && (new RegExp('^(www\\.)?luckylion\\.games$').test(location.hostname) || TEST_HOST);
 const rid = n => Array.from(crypto.getRandomValues(new Uint8Array(n)), b => b.toString(16).padStart(2, '0')).join('');
@@ -2612,7 +2613,7 @@ function draw(now) {
     if (a) { const p = Math.min(1, alarm.t / 900) * .78, tx2 = thief % L.w, ty2 = (thief / L.w) | 0; q.x = a.x + (tx2 - a.x) * p; q.y = a.y + (ty2 - a.y) * p; q.f = tx2 < a.x ? 1 : 0; q.moving = 1; }
   });
   let tfx = thief % L.w, tfy = (thief / L.w) | 0, frameIdx = 0;
-  if (walking && walking.path.length) { const nx = walking.path[0], k = Math.min(1, walking.t / 110); tfx += (nx % L.w - tfx) * k; tfy += (((nx / L.w) | 0) - tfy) * k; frameIdx = 1 + (Math.floor(now / 110) % 2); }
+  if (walking && walking.path.length) { const nx = walking.path[0], k = Math.min(1, walking.t / WALK_MS); tfx += (nx % L.w - tfx) * k; tfy += (((nx / L.w) | 0) - tfy) * k; frameIdx = 1 + (Math.floor(now / WALK_MS) % 2); }
   const sc = cs * .047, thiefRow = Math.round(tfy);
   const bangMark = (cx, cy) => { const w = cs * .3; ctx.fillStyle = '#16101f'; ctx.fillRect(cx - w / 2 - 2, cy - w / 2 - 2, w + 4, w + 4); ctx.fillStyle = '#ff3b52'; ctx.fillRect(cx - w / 2, cy - w / 2, w, w);
     ctx.fillStyle = '#fff'; ctx.font = `900 ${w * .85}px system-ui`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('!', cx, cy + 1); };
@@ -2623,7 +2624,7 @@ function draw(now) {
     if (alarm && alarm.who.has(nCam() + j)) bangMark(cx, fy - cs * 1.2);
   };
   const drawThief = ghost => {
-    const cx = FX(tfx + .5), fy = FY(tfy) + cellH * .86, bob = frameIdx ? Math.abs(Math.sin(now / 110 * Math.PI)) * cs * .06 : 0, spr = person('thief', thiefDir === 3 ? 1 : thiefDir, frameIdx);
+    const cx = FX(tfx + .5), fy = FY(tfy) + cellH * .86, bob = frameIdx ? Math.abs(Math.sin(now / WALK_MS * Math.PI)) * cs * .06 : 0, spr = person('thief', thiefDir === 3 ? 1 : thiefDir, frameIdx);
     if (ghost) { ctx.save(); ctx.globalAlpha = .4; drawSprite(spr, cx, fy - bob, sc, thiefDir === 3); ctx.restore(); return; }
     shadow(cx, fy, cs * .26); drawSprite(spr, cx, fy - bob, sc, thiefDir === 3);
     if (alarm) { ctx.fillStyle = '#ff3b52'; ctx.font = `900 ${cs * .38}px system-ui`; ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic'; ctx.fillText('!', cx, fy - cs * 1.18 - bob); }

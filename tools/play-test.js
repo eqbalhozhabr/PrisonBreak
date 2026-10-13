@@ -250,6 +250,15 @@ const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
     return null;
   });
   console.log('refusal check:', JSON.stringify(refused), refused && refused.refused ? 'OK' : 'FAIL'); ok = ok && !!(refused && refused.refused);
+  // the prisoner walks at two thirds of the old speed: about 165 ms per tile (it was 110 ms)
+  const wk = await pg.evaluate(async () => {
+    load(0); const sol = P.solve(L, { maxDepth: 40 }); tryAction(sol.configs[0], 'cam');
+    const n = (pathTo(L.E) || []).length, t0 = performance.now(); walkTo(L.E);
+    await new Promise(res => { const iv = setInterval(() => { if (!walking) { clearInterval(iv); res(); } }, 5); });
+    return { tiles: n, perTile: Math.round((performance.now() - t0) / Math.max(1, n)) };
+  });
+  const wkOk = wk.tiles >= 3 && wk.perTile >= 150 && wk.perTile <= 200;
+  console.log('walking speed: about 165 ms per tile (two thirds of the old speed):', JSON.stringify(wk), wkOk ? 'OK' : 'FAIL'); ok = ok && wkOk;
   // the web build also gets the desktop landscape layout (mouse + wide window); the interface is English only; web-only buttons stay
   const dk = await b.newPage({ viewport: { width: 1280, height: 720 } }); const dkErrs = []; dk.on('pageerror', e => dkErrs.push(String(e)));
   await dk.goto(url); await dk.waitForTimeout(300); await dk.evaluate(() => { localStorage.setItem('pb_settings', JSON.stringify({ lang: 'fa' })); });

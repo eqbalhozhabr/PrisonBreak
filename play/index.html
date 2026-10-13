@@ -940,8 +940,19 @@ function spotters(nd) {
   }
   return { who, dogs };
 }
+/* The way a dog takes to the prisoner is the way its scent spreads: over open floor, round walls, closed doors, guards, glass and other dogs. */
+function scentPath(from, to, e) {
+  const n = L.w * L.h, prev = new Int16Array(n).fill(-2); prev[from] = -1; const q = [from];
+  for (let qi = 0; qi < q.length && prev[to] === -2; qi++) {
+    const c = q[qi], x = c % L.w, y = (c / L.w) | 0;
+    for (let d = 0; d < 4; d++) { const nx = x + DX[d], ny = y + DY[d]; if (nx < 0 || ny < 0 || nx >= L.w || ny >= L.h) continue; const m = ny * L.w + nx; if (prev[m] !== -2 || L.wall[m] || e.occ[m]) continue; prev[m] = c; q.push(m); }
+  }
+  if (prev[to] === -2) return [from, to];
+  const path = []; for (let c = to; c !== -1; c = prev[c]) path.push(c); return path.reverse();
+}
 function startAlarm(nd) {
-  const sp = spotters(nd), from = sp.dogs.map(j => { const c = L.dogs[j].rail[nd[dogBase() + j]]; return { j, x: c % L.w, y: (c / L.w) | 0 }; });
+  const e = P.evalConfig(L, nd, false);
+  const sp = spotters(nd), from = sp.dogs.map(j => { const c = L.dogs[j].rail[nd[dogBase() + j]]; return { j, x: c % L.w, y: (c / L.w) | 0, path: scentPath(c, thief, e) }; });
   alarm = { nd, t: 0, who: sp.who, dogs: from };
   track('mistake', { n: lvlId(), k: sp.dogs.length ? 'dog' : (() => { const w = [...sp.who][0]; return w === undefined ? 'other' : kindOf(w); })() });
   hintWho = -1; flash = 1; flashCell = thief; shake = 1; Sfx.play(settings.alarm === 'soft' ? 'spotted' : 'siren'); if (settings.vibrate && navigator.vibrate) navigator.vibrate([60, 40, 60]);
@@ -1038,15 +1049,18 @@ function tapPoint(k) {
   else if (kind === 'dog') { px = FX(x + .5); py = FY(y) + cellH * .9 - cs * .22; }
   else if (kind === 'cam' || kind === 'light' || kind === 'panel') { px = FX(x + .5); py = FY(y) - wallH + cellH * .4; }
   else if (kind === 'mirror' || dg[k] === 1) { px = FX(x + .5); py = FY(y) - wallH + cellH * .5; }
-  else { px = FX(x) + cs * .2; py = FY(y) + cellH * .25; }
+  else { px = FX(x + .5); py = FY(y) + cellH * .3; }                                  // an open door: its lever, the middle of the tile
   return [r.left + ox + px, r.top + oy + py];
 }
 function thiefPoint() { ensureSize(); const r = cv.getBoundingClientRect(); return [r.left + ox + FX(thief % L.w + .5), r.top + oy + FY((thief / L.w) | 0) + cellH * .9 - cs * .45]; }
-function cellPoint(c) { ensureSize(); const x = c % L.w, y = (c / L.w) | 0, r = cv.getBoundingClientRect(); return [r.left + ox + FX(x + .5), r.top + oy + FY(y) + cellH * .3]; }
+function cellPoint(c) {                                                                  // where a tap walks the prisoner to tile c (beside the lever of an open door: the middle of its tile switches it)
+  ensureSize(); const x = c % L.w, y = (c / L.w) | 0, r = cv.getBoundingClientRect(), door = L.toggles.some((t, j) => t.kind === 'door' && t.c === c && dg[nCam() + nGuard() + j] === 0);
+  return [r.left + ox + FX(x + (door ? .12 : .5)), r.top + oy + FY(y) + cellH * (door ? .5 : .3)];
+}
 
 /* What a tap lands on: a standing guard or a mounted camera (their sprites), a door or mirror, otherwise the floor tile. */
 function hitTest(px, py) {
-  let bestK = -1, bestD = 1e9;
+  let bestK = -1, bestD = 1e9, doorK = -1;                                              // doorK: an open door, the whole tile, but only when nothing else is under the finger
   for (let k = 0; k < nAll(); k++) {
     const c = watcherCell(k), x = c % L.w, y = (c / L.w) | 0, kind = kindOf(k);
     let x0, x1, y0, y1;
@@ -1054,7 +1068,7 @@ function hitTest(px, py) {
     else if (kind === 'guard') { x0 = FX(x + .5) - cs * .34; x1 = FX(x + .5) + cs * .34; y1 = FY(y) + cellH * .9; y0 = y1 - cs * 1.05; }
     else if (kind === 'cam' || kind === 'light' || kind === 'panel') { x0 = FX(x + .5) - cs * .36; x1 = FX(x + .5) + cs * .36; y0 = FY(y) - wallH; y1 = FY(y) - wallH + cellH * .85; }
     else if (kind === 'mirror' || dg[k] === 1) { x0 = FX(x); x1 = FX(x + 1); y0 = FY(y) - wallH; y1 = FY(y) + cellH; }
-    else { x0 = FX(x); x1 = FX(x) + cs * .42; y0 = FY(y); y1 = FY(y) + cellH * .5; }       // open door: only its small switch box
+    else { x0 = FX(x) + cs * .28; x1 = FX(x) + cs * .72; y0 = FY(y); y1 = FY(y) + cellH; if (px >= x0 && px < x1 && py >= y0 && py < y1) doorK = k; continue; }       // open door: its middle (the lever, full height) switches it, after the prisoner, guards and dogs standing in it; the door posts at its sides are floor he can walk to
     if (px >= x0 && px < x1 && py >= y0 && py < y1) {
       const d = Math.hypot(px - (x0 + x1) / 2, py - (y0 + y1) / 2);
       if (d < bestD) { bestD = d; bestK = k; }
@@ -1063,6 +1077,7 @@ function hitTest(px, py) {
   if (bestK >= 0) return { watcher: bestK };
   { const tx = FX(thief % L.w + .5), tyFeet = FY((thief / L.w) | 0) + cellH * .9;
     if (px >= tx - cs * .3 && px < tx + cs * .3 && py >= tyFeet - cs * .95 && py < tyFeet) return { thief: true }; }
+  if (doorK >= 0) return { watcher: doorK };
   const gx = Math.floor(px / cs), gy = Math.floor((py - wallH) / cellH);
   if (gx < 0 || gy < 0 || gx >= L.w || gy >= L.h) return null;
   return { cell: gy * L.w + gx };
@@ -1183,7 +1198,10 @@ function buildBar() {
     const slot = o => step(o) ? (/[◀▲]/.test(o.label) ? 1 : 3) : 2;
     opts.forEach(o => {
       const html = step(o) ? icon(/[◀▲]/.test(o.label) ? 'left' : 'right', 3, /[▲▼]/.test(o.label) ? 'rot90' : '') : o.kind === 'turn' ? icon('turn', 2) : o.kind === 'wait' ? icon('clock', 3) + ' ' + t.wait : kind === 'cam' ? icon('right', 3) + ' ' + t.turn : icon('swap', 3) + ' ' + t.flip;
-      add(ctxEl, html, () => { if (!gBusy) tryAction(o.dg, o.kind); }, 'primary', !o.dg, slot(o));
+      add(ctxEl, html, () => {
+        if (gBusy) return; const before = moves; tryAction(o.dg, o.kind);
+        if (step(o) && moves !== before) { sel = -1; setTip(''); buildBar(); }          // a guard or dog is let go after each step, so the next tap cannot send it on again
+      }, 'primary', !o.dg, slot(o));
     });
   }
   add(bar, icon('undo', 3) + ' ' + t.undo, undo, '', !hist.length || !!walking);
@@ -1659,9 +1677,9 @@ function drawDoorOpen(x, y, k, pulse) {
   const px = FX(x), py = FY(y);
   ctx.fillStyle = '#2a303d'; ctx.fillRect(px + 1, py + cellH * .08, cs * .1, cellH * .84); ctx.fillRect(px + cs * .9 - 1, py + cellH * .08, cs * .1, cellH * .84);
   ctx.fillStyle = 'rgba(255,197,74,.55)'; ctx.fillRect(px + cs * .1, py + cellH * .46, cs * .8, 2);
-  ctx.fillStyle = '#16101f'; ctx.fillRect(px + 3, py + 3, cs * .3, cellH * .36);                      // the switch box (tap target)
-  ctx.fillStyle = '#41d392'; ctx.fillRect(px + 3 + cs * .09, py + 3 + cellH * .1, cs * .12, cellH * .16);
-  if (sel === k) { ctx.strokeStyle = hintWho === k ? `rgba(255,197,74,${.3 + .7 * pulse})` : `rgba(255,255,255,${.3 + .7 * pulse})`; ctx.lineWidth = 2.5; ctx.strokeRect(px + 1, py + 1, cs * .36, cellH * .44); }
+  ctx.fillStyle = '#16101f'; ctx.fillRect(px + cs * .3, py + 3, cs * .4, cellH * .46);                  // the lever box in the middle (tap target: the whole middle of the tile, top to bottom)
+  ctx.fillStyle = '#41d392'; ctx.fillRect(px + cs * .3 + cs * .13, py + 3 + cellH * .12, cs * .14, cellH * .2);
+  if (sel === k) { ctx.strokeStyle = hintWho === k ? `rgba(255,197,74,${.3 + .7 * pulse})` : `rgba(255,255,255,${.3 + .7 * pulse})`; ctx.lineWidth = 2.5; ctx.strokeRect(px + cs * .3 - 2, py + 1, cs * .4 + 4, cellH * .46 + 4); }
 }
 /* A mirror that a beam hits glows red, with a bright flare on the side the light arrives from, so the bounce reads as "light hits the mirror, light leaves it". */
 function mirrorHit(x, y, pulse) {
@@ -1719,18 +1737,30 @@ function floorBeam(r, pulse) {                        // guards (from their own 
   const { end, pt } = beamPts(r), w0 = r.first ? .12 : .5;
   fillBeam([pt(0, -w0), pt(end, -.5), pt(end, .5), pt(0, w0)], pt(0, 0), pt(end, 0), pulse);
 }
+/* The outline of a cone from a lens to `end` (in tiles from the centre of the source tile). Cameras and lamps sit on the wall; the cone widens from the lens to the full tile width
+   and then runs on. A source facing away from us (up the screen) has its lens at the back of its block, so its cone starts there, and widens over the first tile like the others.
+   A source with a door, wall or guard right in front still gets its cone inside its own tile, cut at the blocker (`blocked`). */
+function conePoly(r, lx, ly, end, blocked) {
+  const { pt } = beamPts(r), d = r.d;
+  if (d === 1 || d === 3) return [[lx, ly], pt(end, -.5), pt(end, .5)];
+  if (d === 2) return [[lx, ly], pt(.5, -.5), pt(end, -.5), pt(end, .5), pt(.5, .5)];
+  const top = FY((r.src / L.w) | 0) - wallH, ay = top + cellH * .32;                   // the back edge of the block's top face, and the lens just in front of it
+  if (blocked) return [[lx, ay], [lx - cs * .4, top], [lx + cs * .4, top]];
+  const tw = Math.min(end, 1.5);
+  return [[lx, ay], pt(tw, -.5), pt(end, -.5), pt(end, .5), pt(tw, .5)];
+}
 function ghostBeam(r, lx, ly) {                      // dashed outline of the next position of a searchlight
   if (!r.cells.length) { ctx.strokeStyle = 'rgba(255,225,150,.7)'; ctx.lineWidth = 2; ctx.setLineDash([4, 4]); ctx.beginPath(); ctx.arc(lx, ly, cs * .22, 0, 7); ctx.stroke(); ctx.setLineDash([]); return; }
-  const { n, pt } = beamPts(r), side = r.d === 1 || r.d === 3;
-  const poly = side ? [[lx, ly], pt(n + .5, -.5), pt(n + .5, .5)] : [[lx, ly], pt(.5, -.5), pt(n + .5, -.5), pt(n + .5, .5), pt(.5, .5)];
+  const { n } = beamPts(r), poly = conePoly(r, lx, ly, n + .5, false);
   ctx.strokeStyle = 'rgba(255,225,150,.75)'; ctx.lineWidth = 2; ctx.setLineDash([5, 5]);
   ctx.beginPath(); poly.forEach((q, i) => i ? ctx.lineTo(q[0], q[1]) : ctx.moveTo(q[0], q[1])); ctx.closePath(); ctx.stroke(); ctx.setLineDash([]);
 }
 function cameraBeam(r, lx, ly, pulse) {               // apex = the camera lens, drawn after the wall so it sits on top of it
-  if (!r || (!r.cells.length && r.mirror == null)) return;      // a camera right next to a mirror has no lit tile but its cone still reaches the mirror
-  const { end, pt } = beamPts(r), side = r.d === 1 || r.d === 3;
-  const poly = side ? [[lx, ly], pt(end, -.5), pt(end, .5)] : [[lx, ly], pt(.5, -.5), pt(end, -.5), pt(end, .5), pt(.5, .5)];
-  fillBeam(poly, [lx, ly], pt(end, 0), pulse);
+  if (!r) return;
+  const { end, pt } = beamPts(r), blocked = !r.cells.length && r.mirror == null;       // (a camera right next to a mirror has no lit tile but its cone still reaches the mirror)
+  const poly = conePoly(r, lx, ly, end, blocked);
+  const far = blocked ? [(poly[1][0] + poly[2][0]) / 2, (poly[1][1] + poly[2][1]) / 2] : pt(end, 0);       // (a gradient needs two different points)
+  fillBeam(poly, poly[0], far, pulse);
 }
 /* ------------------------------------------------------- menu scene */
 /* A brick wall, a thief pacing the floor and a camera whose beam sweeps. Everything is drawn at low resolution and scaled up without smoothing. */
@@ -1936,7 +1966,11 @@ function draw(now) {
     if (q.x - ox0 > .001) q.f = 0; else if (q.x - ox0 < -.001) q.f = 1;
     q.moving = (q.x !== tx || q.y !== ty) ? 1 : 0;
     const a = alarm && alarm.dogs.find(z => z.j === j);                                     // a dog that smells him runs straight at him
-    if (a) { const p = Math.min(1, alarm.t / 900) * .78, tx2 = thief % L.w, ty2 = (thief / L.w) | 0; q.x = a.x + (tx2 - a.x) * p; q.y = a.y + (ty2 - a.y) * p; q.f = tx2 < a.x ? 1 : 0; q.moving = 1; }
+    if (a) {                                                                               // it runs along the scent: round every wall and door, stopping a step short of him
+      const pts = a.path.map(c => [c % L.w, (c / L.w) | 0]), total = pts.length - 1, run = Math.min(1, alarm.t / 1000) * Math.max(0, total - .8), i = Math.min(total - 1, Math.floor(run)), f = run - i;
+      if (total > 0) { const p0 = pts[i], p1 = pts[i + 1]; q.x = p0[0] + (p1[0] - p0[0]) * f; q.y = p0[1] + (p1[1] - p0[1]) * f; if (p1[0] !== p0[0]) q.f = p1[0] < p0[0] ? 1 : 0; }
+      q.moving = 1;
+    }
   });
   let tfx = thief % L.w, tfy = (thief / L.w) | 0, frameIdx = 0;
   if (walking && walking.path.length) { const nx = walking.path[0], k = Math.min(1, walking.t / WALK_MS); tfx += (nx % L.w - tfx) * k; tfy += (((nx / L.w) | 0) - tfy) * k; frameIdx = 1 + (Math.floor(now / WALK_MS) % 2); }

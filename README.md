@@ -25,7 +25,7 @@ python3 -m http.server 8123      # from the repo root
 | `tools/build-single.js` | inlines everything into `play/prisonbreak.html` |
 | `tools/package-portal.js` | CrazyGames build + zip (SDK for saves and gameplay events, desktop landscape layout, no ads): `OWNER_NAME="Your Name" node tools/package-portal.js` (see `docs/crazygames-submission.md`) |
 | `tools/portal-test.js`, `tools/media/*` | portal checks at the platform's iframe sizes (desktop + phone layouts, mock SDK); cover and preview-video makers |
-| `tools/guide-test.js`, `tools/hint-test.js`, `tools/parity-check.js` | the guided tutorial and the two-step hint played by clicking the hand; website vs portal builds are the same game |
+| `tools/guide-test.js`, `tools/hint-test.js`, `tools/door-dog-test.js`, `tools/parity-check.js` | the guided tutorial and the two-step hint played by clicking the hand; doors/dogs/cones with real clicks; website vs portal builds are the same game |
 | `tools/play-test.js` | plays levels in a real browser with real clicks and checks par |
 
 ## Rebuild

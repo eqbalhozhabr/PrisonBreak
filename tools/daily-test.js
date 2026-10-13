@@ -46,6 +46,21 @@ const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
     check(`${label}: another day gives other levels (index ${day} -> ${idx2}), the streak counts to 2, and after a skipped day it restarts at 1`, idx2 !== day && s2.streak === 2 && s3.streak === 1, JSON.stringify({ s2, s3 }));
     // the daily levels never reach the statistics or the numbered progress
     check(`${label}: nothing was queued for the statistics, the report flag is hidden`, await pg.evaluate(() => (track('x'), evq.length === 0) && document.getElementById('pReport').offsetParent === null));
+    // a sample of days across the whole bank (SAMPLE_STEP, default every 30th day; 1 = all of them): every level of the day solved with real clicks in exactly par
+    if (!touch) {
+      const step = Number(process.env.SAMPLE_STEP || 30), n = await pg.evaluate(() => DAILY.days.length), bad = []; let played = 0;
+      for (let d = 0; d < n; d += step) {
+        await pg.evaluate(d => { toMenu(); dailyStore = { days: {}, streak: 0, last: '' }; dailyNow = () => Date.parse(DAILY.start + 'T12:00:00Z') + d * 864e5; }, d);
+        await pg.click('#mDaily'); await pg.waitForTimeout(80);
+        for (let tier = 0; tier < 3; tier++) {
+          if (tier === 0) await pg.click('#dailyRows button[data-t="0"]'); else await pg.click('#winNext');
+          await pg.waitForTimeout(150); await solve(); played++;
+          const w = await pg.evaluate(() => ({ win: document.getElementById('winOv').classList.contains('on'), moves, par: curLv().par }));
+          if (!w.win || w.moves !== w.par) bad.push(`day ${d} tier ${tier}: ${JSON.stringify(w)}`);
+        }
+      }
+      check(`${label}: ${played} levels from ${Math.ceil(n / step)} days spread over the bank, each solved with real clicks in exactly par`, bad.length === 0, bad.slice(0, 3).join(' | '));
+    }
     check(`${label}: no page errors`, errs.length === 0, errs.join(' | '));
     await ctx.close();
   }

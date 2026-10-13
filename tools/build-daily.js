@@ -9,9 +9,9 @@ const args = process.argv.slice(2), opt = n => { const i = args.indexOf('--' + n
 const outFile = opt('out') || 'play/daily.js', rejFile = opt('rejects') || null;
 const [start, days, ...parts] = args; const N = Number(days);
 if (!/^\d{4}-\d{2}-\d{2}$/.test(start || '') || !N || !parts.length) { console.error('usage: node tools/build-daily.js <startDate> <days> <part.jsonl>... [--out f] [--rejects f]'); process.exit(2); }
-const MAX_SIM = 0.8;
+const MAX_SIM = Number(process.env.MAX_SIM || 0.8);
 const BLOCKED = new Set([...'#^>v<0123pqrG']);
-const sig = map => ({ w: map[0].length, h: map.length, b: map.map(r => [...r].map(c => BLOCKED.has(c))) });
+const sig = map => ({ w: map[0].length - 2, h: map.length - 2, b: map.slice(1, -1).map(r => [...r.slice(1, -1)].map(c => BLOCKED.has(c))) });   // the inside only: every level has the same wall ring
 function variants(s) {                                                   // the pattern as it looks flipped / turned
   const out = [], rows = s.b, h = rows.length, w = rows[0].length;
   const flipX = g => g.map(r => r.slice().reverse()), flipY = g => g.slice().reverse(), tr = g => g[0].map((_, x) => g.map(r => r[x]));

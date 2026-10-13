@@ -133,6 +133,7 @@
   button.drow { width:100%; min-height:60px; justify-content:space-between; padding:10px 18px; margin:0; }
   button.drow b { font-family:var(--tf); font-weight:400; font-size:13px; letter-spacing:.04em; text-transform:uppercase; }
   button.drow.tier0 b { color:var(--ok); } button.drow.tier1 b { color:var(--gold); } button.drow.tier2 b { color:var(--red-hi); }
+  @media (max-height: 460px) { .drows { flex-direction:row; gap:8px; margin:10px 0 0; } button.drow { flex:1 1 0; flex-direction:column; justify-content:center; gap:6px; min-height:58px; padding:6px 4px; } #dailyOv .irow { margin-top:10px; } #dailyOv .irow button.ib { height:48px; min-height:48px; } }
   body.is-daily .web-only { display:none !important; }
   .irow.eq > button.ib { flex:1 1 0; min-width:0; max-width:170px; }
   button.ib .adtag { top:-8px; right:-8px; }
@@ -169,6 +170,8 @@
   body.desk #menu .col { display:flex; flex-direction:column; gap:12px; max-width:none; margin-top:0; }
   body.desk #menu button.big { min-height:52px; font-size:13px; }
   body.desk .mpanel .keylist { padding-top:6px; border-top:3px solid var(--edge); }
+  @media (max-height: 540px) { body.desk #menu { padding-top:12px; } body.desk .mpanel { gap:8px; padding:12px 16px; } body.desk #menu .col { gap:8px; } body.desk #menu button.big { min-height:40px; font-size:12px; } body.desk .mpanel .keylist .kr { padding:2px 0; } body.desk .mpanel .keylist .kt { margin-bottom:4px; } }
+  @media (max-height: 480px) { body.desk .mpanel { gap:6px; padding:8px 14px; } body.desk #menu .col { gap:6px; } body.desk #menu button.big { min-height:36px; } body.desk .mpanel .keylist .kr { padding:1px 0; font-size:11px; } body.desk .mpanel .keylist .kt { margin-bottom:2px; } }
   /* game: the board on the left, a panel on the right with the star goals and the keys */
   body.desk #app { max-width:none; display:grid; grid-template-columns:minmax(0,1fr) clamp(300px, 24vw, 440px); grid-template-rows:auto auto auto minmax(0,1fr) auto auto auto; grid-template-areas:"stage hud" "stage goal" "stage tip" "stage gap" "stage keys" "stage ctx" "stage bar"; column-gap:14px; }
   body.desk .hud { grid-area:hud; } body.desk #goal { grid-area:goal; } body.desk #tip { grid-area:tip; height:96px; } body.desk #keys { grid-area:keys; }

@@ -348,7 +348,7 @@ if (PORTAL) document.body.classList.add('portal');
 let CG_ADS = false;
 const adsOn = () => !PORTAL || (CG_ADS && !!(CG && CG.ad));
 const freeHints = () => adsOn() ? 0 : 1e9;
-const HEARTS_MAX = 3, STRIKES_MAX = 3, STARS_FRACTION = 0.4;     // hints always cost an ad; being caught 3 times (all hearts lost) costs an ad to retry
+const HEARTS_MAX = 3, STRIKES_MAX = 3;     // hints always cost an ad; being caught 3 times (all hearts lost) costs an ad to retry
 const CHAPTERS = [
   { en: 'Cells', fa: 'سلول‌ها', size: 6 },
   { en: 'Yard I', fa: 'حیاط ۱', size: 10 }, { en: 'Yard II', fa: 'حیاط ۲', size: 10 }, { en: 'Yard III', fa: 'حیاط ۳', size: 10 },
@@ -362,7 +362,12 @@ const CHAPTERS = [
 ];
 const chapStart = CHAPTERS.map((_, i) => CHAPTERS.slice(0, i).reduce((n, c) => n + c.size, 0));
 const chapterOf = i => { let ci = 0; while (ci + 1 < CHAPTERS.length && i >= chapStart[ci + 1]) ci++; return ci; };    // level index -> chapter index
-const chapNeed = ci => Math.round(chapStart[ci] * 3 * STARS_FRACTION);                                                 // stars from earlier chapters needed to enter
+/* Star gate: to enter a chapter the player needs a share of ALL the stars that the earlier levels can give. The share rises from 50 % at the first gate
+   (an average of 1.5 stars per level, gentle while the player is still deciding to stay) to 70 % at the last one (more than 2 stars on average; 2/3 is
+   reached around chapter 14). A star tier is about 2 actions over par for 2 stars, so 2 stars on average is a solid but fair run. */
+const GATE_FROM = 0.5, GATE_TO = 0.7;
+const gateShare = ci => GATE_FROM + (GATE_TO - GATE_FROM) * (ci - 1) / (CHAPTERS.length - 2);
+const chapNeed = ci => Math.round(chapStart[ci] * 3 * gateShare(ci));                                                    // stars from earlier chapters needed to enter
 /* Level numbers changed once (the camera-only block went from 15 levels to 6). Progress saved before that is carried over: the 6 camera levels that were kept
    map to 1..6, every later level moves down by 9, the 9 camera levels that were cut have no place any more. */
 const PROGRESS_V = 2;

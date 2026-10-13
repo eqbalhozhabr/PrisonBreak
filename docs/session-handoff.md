@@ -35,7 +35,7 @@ Gotchas: never `sleep` ≥ a long foreground time (blocked); use an until-loop w
 1. **Owner's personal name** → rebuild the portal zip with `OWNER_NAME`; the zip handed over had `[Owner name]`. (Ask the owner; never invent a name.)
 2. **Real-device test + CrazyGames QA** (phone via their QR code: iOS audio revive, touch, sound). Not done; the QA "results are correct" box must not be ticked before. Verify the tag names (Puzzle, Pixel, Stealth, Escape, Logic) against their list; orientation: the game works in both, pick "both" if offered.
 3. **Ads**: rewarded ads are a stub in the web build (hints, 3-catch revive, optional 1-heart continue). Decide a real provider with the owner.
-4. **Difficulty tuning from real data**: private stats page (see `docs/stats-and-reports-note.md`) shows per-level starts/wins/leaves/mistakes/hints; star-gate thresholds (40 % of the possible stars of earlier blocks) are a guess. Some ~27 hard levels still have fewer "phases" than their block target.
+4. **Difficulty tuning from real data**: private stats page (see `docs/stats-and-reports-note.md`) shows per-level starts/wins/leaves/mistakes/hints; star-gate thresholds (now a ramp from 50 % to 70 % of the possible stars of earlier blocks) are a guess. Some ~27 hard levels still have fewer "phases" than their block target.
 5. **Optional design ideas** listed in GDD §4 "پیشنهاد" (wide spotlight, motion sensor, keycards, cellmate, push-box, clock shift, teleport vents, coin throw) — none started.
 6. Docs to keep current when changing things: `README.md` (file map), `docs/game-design-document.md` (Persian; level table, items, hearts/ads rules), `docs/crazygames-submission.md`.
 

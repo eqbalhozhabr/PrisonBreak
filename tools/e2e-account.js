@@ -151,14 +151,14 @@ class FakeD1 {                                           // just enough of the D
   // 7. anonymous statistics and level reports (this page is on localhost, so its traffic is flagged as test)
   const sp = await ctx.newPage(); sp.on('pageerror', e => errs.push(String(e).slice(0, 200)));
   await sp.goto(base + '/blind-eye/'); await sp.waitForTimeout(400);
-  await sp.evaluate(() => { settings.sfx = false; settings.music = false; introSeen = { cam: 1, guard: 1, door: 1, mirror: 1, all: 1, dog: 1, light: 1, panel: 1, glass: 1 }; });
+  await sp.evaluate(() => { settings.sfx = false; settings.music = false; settings.guide = false; introSeen = { cam: 1, guard: 1, door: 1, mirror: 1, all: 1, dog: 1, light: 1, panel: 1, glass: 1 }; });
   await sp.evaluate(async () => {
     const wait = ms => new Promise(r => setTimeout(r, ms));
     let pick = -1; for (let q = 0; q < 40 && pick < 0; q++) { load(q); for (let k = 0; k < nAll(); k++) for (const o of options(k)) if (o.dg && ev(o.dg).lit[thief] && !ev(o.dg).occ[thief]) pick = q; }
     load(pick);                                                                    // the first level where one action exposes the prisoner: make one exposing action (alarm), take a hint, then win
     for (let k = 0; k < nAll(); k++) for (const o of options(k)) if (o.dg && ev(o.dg).lit[thief] && !ev(o.dg).occ[thief] && !window.__did) { window.__did = 1; tryAction(o.dg, o.kind); }
     while (alarm) await wait(50);
-    doHint(); load(0); undo();
+    onHint(); load(0); undo();
     const r = P.solve(L, { maxDepth: 40 }); for (let i = 0; i < r.par; i++) tryAction(r.configs[i], 'cam');
     walkTo(L.E); while (walking) await wait(20);
     load(1); toMenu(); flushEvents();

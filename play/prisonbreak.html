@@ -104,19 +104,20 @@
   .howl { text-align:start; line-height:1.7; font-size:14px; padding-inline-start:20px; margin:8px 0; }
   .howl li { margin-bottom:8px; }
   /* main menu */
-  #menu { position:fixed; inset:0; z-index:8; display:none; flex-direction:column; align-items:center; justify-content:center; gap:14px; padding:24px 24px calc(34px + env(safe-area-inset-bottom)); overflow:hidden; background:#0d1017; }
+  #menu { position:fixed; inset:0; z-index:8; display:none; flex-direction:column; align-items:center; justify-content:center; gap:clamp(8px, 1.6vh, 14px); padding:max(14px, 3vh) 24px calc(14px + env(safe-area-inset-bottom)); overflow:hidden; background:#0d1017; }
   #menu.on { display:flex; }
   #menuBg { position:absolute; inset:0; width:100%; height:100%; image-rendering:pixelated; z-index:0; }
   #menu::after { content:''; position:absolute; inset:0; z-index:1; pointer-events:none; background:radial-gradient(ellipse at 50% 38%, rgba(13,16,23,0) 0%, rgba(13,16,23,.4) 60%, rgba(6,8,13,.72) 100%); }
   #menu > :not(#menuBg), #menu .mbrand > *, #menu .mpanel > * { position:relative; z-index:2; }
   .mbrand, .mpanel { display:contents; }                      /* on phones the wrappers vanish; the desktop layout below gives them boxes */
   #menu::after { z-index:1; }
-  #logo { width:min(80vw, 330px); aspect-ratio:128/84; image-rendering:pixelated; }
-  #menu h1 { margin:0; font-family:var(--tf); font-weight:400; font-size:min(8.6vw, 34px); line-height:1.25; letter-spacing:.02em; text-transform:uppercase; text-align:center; text-shadow:4px 4px 0 var(--edge); }
+  #logo { width:min(80vw, 330px, 24vh); aspect-ratio:128/84; image-rendering:pixelated; }
+  #menu h1 { margin:0; font-family:var(--tf); font-weight:400; font-size:min(8.6vw, 34px, 4.6vh); line-height:1.25; letter-spacing:.02em; text-transform:uppercase; text-align:center; text-shadow:4px 4px 0 var(--edge); }
   #menu h1 em { font-style:normal; color:var(--red); }
   #menu .tag { color:#a9b2c6; font-size:14px; text-align:center; max-width:310px; line-height:1.6; text-shadow:0 2px 0 #06080d; }
-  #menu .col { width:100%; max-width:320px; margin-top:10px; }
-  #menu .foot { position:absolute; z-index:2; bottom:calc(12px + env(safe-area-inset-bottom)); font-family:var(--pf); font-size:10px; letter-spacing:.1em; text-transform:uppercase; color:#566079; }
+  #menu .col { width:100%; max-width:320px; margin-top:clamp(0px, 1vh, 10px); }
+  #menu .col button.big { min-height:clamp(42px, 6.2vh, 54px); }
+  #menu .foot { position:relative; z-index:2; flex:none; margin-top:2px; font-family:var(--pf); font-size:10px; letter-spacing:.1em; text-transform:uppercase; color:#566079; }
   /* short screens: the main menu shrinks and becomes two columns */
   @media (max-height: 620px) {
     #menu { gap:8px; padding-top:10px; padding-bottom:calc(30px + env(safe-area-inset-bottom)); }
@@ -127,6 +128,9 @@
   /* ---- pixel icon buttons and the cards' tidy rows ---- */
   .card { position:relative; }
   .irow { display:flex; justify-content:center; align-items:stretch; gap:14px; margin-top:18px; }
+  .lvhead { position:sticky; top:-20px; z-index:3; display:flex; align-items:center; gap:10px; margin:-20px -18px 6px; padding:12px 14px; background:var(--panel); }
+  .lvhead h2 { flex:1; margin:0 52px 0 0; }
+  .lvhead button.ib { width:52px; height:52px; min-height:52px; }
   button.ib { position:relative; flex:none; width:64px; height:64px; min-height:64px; padding:0; margin:0; }
   button.ib.wide { width:auto; flex:1 1 auto; min-width:96px; max-width:170px; padding:0 18px; }
   .drows { display:flex; flex-direction:column; gap:12px; margin:14px 0 2px; }
@@ -264,8 +268,7 @@
 </div></div>
 
 <div class="overlay" id="lvOv"><div class="card">
-  <h2 id="lvTitle"></h2><div id="lvChapters"></div>
-  <div class="irow"><button class="ib wide" id="lvClose"></button></div>
+  <div class="lvhead"><button class="ib" id="lvClose"></button><h2 id="lvTitle"></h2></div><div id="lvChapters"></div>
 </div></div>
 
 <div class="overlay" id="introOv"><div class="card">
@@ -1219,7 +1222,7 @@ function firstOpenLevel() { for (let i = 0; i < LEVELS.length; i++) if (!levelLo
 const T = {
   en: {
     tag: 'Move the darkness. Slip the prisoner past cameras and guards.', foot: PORTAL ? '© 2026 ' : 'Playtest build',
-    play: 'Play', cont: lv => 'Continue · Level ' + lv, levels: 'Levels', how: 'How to play', settings: 'Settings', close: 'Close', back: 'Back',
+    back: 'Back', play: 'Play', cont: lv => 'Continue · Level ' + lv, levels: 'Levels', how: 'How to play', settings: 'Settings', close: 'Close', back: 'Back',
     adLoading: 'Loading a short video…', home: 'Home', skipGuide: 'Skip',
     daily: 'Daily', tiers: ['Easy', 'Medium', 'Hard'], days: n => n === 1 ? 'day' : 'days', streakT: 'Days in a row with a daily level solved', nextIn: 'New levels in', dailyDone: 'All three done today',
     hintWalk: 'Try: walk to the ringed tile first.', hintNoneT: 'No hints left', hintNoneS: 'Watch a short video for one more hint, or earn one by playing: every three new 3-star levels give a hint.', hintVideo: 'Watch a short video: +1 hint', hintGained: 'You got one more hint.', hintCap: 'A hint was used: 2 stars at most for this level.',
@@ -1295,7 +1298,7 @@ const T = {
   },
   fa: {
     tag: 'تاریکی را جابه‌جا کن و زندانی را از کنار دوربین‌ها و نگهبان‌ها رد کن.', foot: PORTAL ? '© 2026 ' : 'نسخهٔ آزمایشی',
-    play: 'شروع بازی', cont: lv => 'ادامه · مرحلهٔ ' + lv, levels: 'مرحله‌ها', how: 'راهنمای بازی', settings: 'تنظیمات', close: 'بستن', back: 'بازگشت',
+    back: 'بازگشت', play: 'شروع بازی', cont: lv => 'ادامه · مرحلهٔ ' + lv, levels: 'مرحله‌ها', how: 'راهنمای بازی', settings: 'تنظیمات', close: 'بستن', back: 'بازگشت',
     adLoading: 'در حال بارگیری یک ویدیوی کوتاه…', home: 'خانه', skipGuide: 'رد کردن',
     daily: 'روزانه', tiers: ['آسان', 'متوسط', 'سخت'], days: n => 'روز', streakT: 'روزهای پیاپی با حل یک مرحلهٔ روزانه', nextIn: 'مرحله‌های تازه تا', dailyDone: 'هر سه مرحلهٔ امروز تمام شد',
     hintWalk: 'پیشنهاد: اول به خانهٔ حلقه‌دار برو.', hintNoneT: 'راهنما تمام شد', hintNoneS: 'یک ویدیوی کوتاه ببین تا یک راهنمای دیگر بگیری، یا با بازی به دستش بیاور: با هر سه مرحلهٔ تازه با ۳ ستاره یک راهنما می‌گیری.', hintVideo: 'ویدیوی کوتاه: ۱+ راهنما', hintGained: 'یک راهنمای دیگر گرفتی.', hintCap: 'راهنما استفاده شد: این مرحله حداکثر ۲ ستاره می‌گیرد.',
@@ -1395,6 +1398,7 @@ const ICONS = {
   help: ['.XXXXX.', 'XX...XX', '.....XX', '...XXX.', '..XX...', '.......', '..XX...'],
   home: ['....X....', '...XXX...', '..XXXXX..', '.XXXXXXX.', 'XXXXXXXXX', '.XX...XX.', '.XX...XX.', '.XX...XX.'],
   retry: ['..XXXX.XX', '.XX..XXXX', 'XX....XXX', 'XX....XX.', 'XX.......', '.XX....XX', '..XXXXXX.'],
+  back: ['...X....', '..XX....', '.XXXXXXX', 'XXXXXXXX', '.XXXXXXX', '..XX....', '...X....'],
   next: ['XX....XX', 'XXXX..XX', 'XXXXX.XX', 'XXXXXXXX', 'XXXXX.XX', 'XXXX..XX', 'XX....XX'],
   close: ['XX...XX', 'XXX.XXX', '.XXXXX.', '..XXX..', '.XXXXX.', 'XXX.XXX', 'XX...XX'],
   check: ['......XX', '.....XXX', 'XX..XXX.', 'XXXXXX..', '.XXXX...', '..XX....'],
@@ -2006,7 +2010,7 @@ function applyLang() {
   set('menuTag', t.tag); set('menuFoot', t.foot);
   $('mDaily').innerHTML = icon('calendar', 3) + ' ' + t.daily; $('mDaily').style.display = DAILY ? '' : 'none'; $('mLevels').innerHTML = icon('levels', 3) + ' ' + t.levels; $('mHow').innerHTML = icon('help', 3) + ' ' + t.how; $('mSettings').innerHTML = icon('gear', 3) + ' ' + t.settings; $('mAccount').innerHTML = icon('user', 3) + ' <span>' + esc(acct.loggedIn ? (acct.username || acct.email.split('@')[0]) : t.account) + '</span>'; $('mLeaders').innerHTML = icon('trophy', 3) + ' <span>' + t.leaders + '</span>';
   set('pauseTitle', t.pause); setIcon('pResume', 'play', t.resume, '', 5); setIcon('pRestart', 'retry', t.restart); setIcon('pLevels', 'levels', t.levels); setIcon('pSettings', 'gear', t.settings); setIcon('pMenu', 'home', t.home);
-  setIcon('winRetry', 'retry', t.retry); setIcon('winMenu', 'home', t.home); setIcon('caughtMenu', 'home', t.home); set('lvTitle', t.levels); setIcon('lvClose', 'close', t.close); setIcon('dailyClose', 'close', t.close); set('howTitle', t.howTitle); setIcon('howClose', 'close', t.close);
+  setIcon('winRetry', 'retry', t.retry); setIcon('winMenu', 'home', t.home); setIcon('caughtMenu', 'home', t.home); set('lvTitle', t.levels); setIcon('lvClose', 'back', t.back); setIcon('dailyClose', 'close', t.close); set('howTitle', t.howTitle); setIcon('howClose', 'close', t.close);
   set('setTitle', t.setTitle); setIcon('setClose', 'close', t.close); set('sGuideL', t.sGuide); set('sGuideS', t.sGuideS); $('guideSkip').innerHTML = icon('skip', 2) + ' ' + t.skipGuide; set('sLangL', t.sLang); set('sSfxL', t.sSfx); set('sVolL', t.sVol); set('sMusL', t.sMus); set('sMusVolL', t.sMusVol); set('sVibL', t.sVib);
   set('sStatsL', t.sStats); set('sStatsS', t.sStatsS); setIcon('pReport', 'flag', t.repBtn, '', 3); setIcon('winReport', 'flag', t.repBtn, '', 3); setIcon('caughtReport', 'flag', t.repBtn, '', 3); set('sAlarmL', t.sAlarm); set('sAlarmS', t.sAlarmS); set('alFull', t.alFull); set('alSoft', t.alSoft); set('sMotionL', t.sMotion); set('sMotionS', t.sMotionS); set('sUnlockL', t.sUnlock); set('sUnlockS', t.sUnlockS);
   set('howItemsL', t.itemsL); $('howItems').innerHTML = ''; ['cam', 'guard', 'door', 'mirror', 'dog', 'light', 'panel', 'glass', 'shield'].forEach(k => { const b = document.createElement('button'); b.textContent = t.itemNames[k]; b.onclick = () => showIntro(k, false); $('howItems').appendChild(b); });
@@ -2313,7 +2317,7 @@ $('accLogout').onclick = async () => { try { await api('/api/auth/logout', { met
 /* ------------------------------------------------- statistics and reports */
 /* Anonymous play statistics (random id kept in this browser, never linked to an account) help tune the levels: how many start, win, get caught,
    take hints, leave. Only on the game's own site (and localhost, flagged as test traffic). Players can switch them off in Settings. */
-const BUILD = "2026-10-13-8ef4db7";
+const BUILD = "2026-10-14-3726916";
 const TEST_HOST = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
 const STATS_HOST = !PORTAL && (new RegExp('^(www\\.)?luckylion\\.games$').test(location.hostname) || TEST_HOST);
 const rid = n => Array.from(crypto.getRandomValues(new Uint8Array(n)), b => b.toString(16).padStart(2, '0')).join('');

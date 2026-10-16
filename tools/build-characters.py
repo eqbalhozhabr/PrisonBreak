@@ -62,6 +62,13 @@ def sink_head(name, f, dy=1):
         ny = y + dy; row = f[y]; mask = row[:, 3] > 0; out[ny][mask] = row[mask]
     return out
 
+def sink_upper(name, f, dy=1):
+    """the whole upper body (head, shoulders, arms) sinks `dy` pixels towards the hips while the legs stay: a breath"""
+    top = bbox(f)[0]; belt = belt_row(name, f); out = f.copy(); out[top:belt] = 0
+    for y in range(top, belt):
+        ny = y + dy; row = f[y]; mask = row[:, 3] > 0; out[ny][mask] = row[mask]
+    return out
+
 def belt_row(name, f):
     top, bottom, _, _ = bbox(f); return top + int(round((bottom - top) * .55))                   # about the hips
 
@@ -70,7 +77,7 @@ def make(name):
     A = {}
     # idle: S 00, N 01, E 02
     for v, rc in (('S', '00'), ('N', '01'), ('E', '02')):
-        base = L(rc); bob = sink_head(name, base); A[('idle', v)] = [base, bob, bob, base]
+        base = L(rc); bob = sink_upper(name, base); head = sink_head(name, bob); A[('idle', v)] = [base, bob, head, bob]
     # walk: S from row 1 (front 3/4), N from row 2, E from row 1 + row 3 with the head of frame 12
     s10, s11 = L('10'), L('11'); b = belt_row(name, s11)
     A[('walk', 'S')] = [s11, s10, flip_legs(s11, b), flip_legs(s10, b)]
@@ -80,7 +87,7 @@ def make(name):
     return A
 
 def build(name):
-    A = make(name); VIEWS = ['S', 'N', 'E']; ANIMS = [('idle', 4, 450), ('walk', 4, 130)]
+    A = make(name); VIEWS = ['S', 'N', 'E']; ANIMS = [('idle', 4, 450 if name == 'guard' else 330), ('walk', 4, 130)]
     sheet = Image.new('RGBA', (4 * CW, len(VIEWS) * len(ANIMS) * CH), (0, 0, 0, 0)); rows = []; r = 0
     for v in VIEWS:
         for an, n, ms in ANIMS:

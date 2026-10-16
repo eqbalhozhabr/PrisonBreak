@@ -13,7 +13,7 @@
 <div id="bar">
   <span class="grp"><b>Level</b><button data-lv="8">8</button><button data-lv="9">9</button><button data-lv="10">10</button></span>
   <span class="grp"><b>View</b><button data-view="obl">Oblique 3/4</button><button data-view="iso">Isometric</button></span>
-  <span class="grp" id="rotg"><b>Rotate</b><button id="rl">⟲</button><button id="rr">⟳</button></span>
+  <span class="grp" id="rotg"><b>Rotate</b><button id="rl">⟲</button><button id="rr">⟳</button><button id="aut">auto</button></span>
   <span class="grp"><b>Cut-away of near walls</b><button id="hlp">on</button></span>
   <span class="grp"><button id="play">▶ Play solution</button><button id="step">Step ▸</button><button id="reset">Reset</button></span>
 </div>
@@ -29,11 +29,11 @@
 const P = window.Prison, LV = window.PRISON_LEVELS, SP = window.SPRITES, $ = id => document.getElementById(id);
 const DX = [0, 1, 0, -1], DY = [-1, 0, 1, 0];
 const Q = new URLSearchParams(location.search);
-const st = { view: Q.get('view') || 'iso', level: +(Q.get('level') || 9), rot: +(Q.get('rot') || 0), cut: Q.get('cut') !== '0' };
+const st = { view: Q.get('view') || 'iso', level: +(Q.get('level') || 9), rot: +(Q.get('rot') || 0), auto: !Q.has('rot'), cut: Q.get('cut') !== '0' };
 const isIso = () => st.view === 'iso', R = () => isIso() ? st.rot : 0;
-const OT = 28, OTY = 20, TW = 32, TH = 16;                      // oblique floor cell 28 x 20; isometric diamond 32 x 16 (the 20-px figures stand about one cell tall)
+let TW = +(Q.get('tw') || 32), TH = +(Q.get('th') || 22); const OT = 28, OTY = 20;                      // oblique floor cell 28 x 20; isometric diamond 32 x 16 (the 20-px figures stand about one cell tall)
 const HB = 18, HS = 6, HV = 14, TK = 4, TKY = 3;                  // oblique wall heights: back, near (cut-away), side; thickness across / in depth
-const HI = 17, HIS = 6, TI = .1;                                  // isometric wall heights: full, cut-away; half thickness in cells
+let HI = +(Q.get('hi') || 11), HIS = +(Q.get('his') || 5); const TI = .1;                                  // isometric wall heights: full, cut-away; half thickness in cells
 const M = 6, TOP = 22;
 const cv = $('cv'), ctx = cv.getContext('2d', { willReadFrequently: true });
 const mk = (w, h) => { const c = document.createElement('canvas'); c.width = w; c.height = h; const x = c.getContext('2d'); x.imageSmoothingEnabled = false; return [c, x]; };
@@ -116,14 +116,14 @@ function loadLevel(id) {
   const feasible = !!good[0][L.S]; tasks = []; let pos = L.S; plan = { thiefAt: [pos] };
   const walkTo = (k, goal) => bfs(pos, c => walkable[k][c], c => goal.has(c));
   for (let a = 1; a <= n; a++) { const path = (feasible && walkTo(a - 1, new Set(ok[a]))) || [pos]; if (path.length > 1) tasks.push({ kind: 'walk', path }); pos = path[path.length - 1]; tasks.push({ kind: 'act', k: a }); plan.thiefAt.push(pos); }
-  const fin = (feasible && walkTo(n, new Set([L.E]))) || [pos]; if (fin.length > 1) tasks.push({ kind: 'walk', path: fin }); tasks.push({ kind: 'win' });
+  const fin = (feasible && walkTo(n, new Set([L.E]))) || [pos]; if (fin.length > 1) tasks.push({ kind: 'walk', path: fin }); tasks.push({ kind: 'exit' }); tasks.push({ kind: 'win' });
   jump(0);
 }
 const faceOf = d => screenDir(DX[d], DY[d]);
 function jump(k) {
   dgNow = cfgs[k].slice(); gdraw = L.guards.map((g, j) => { const c = guardCell(j, dgNow); return [c % W, (c / W) | 0]; }); gdist = L.guards.map(() => 0);
   gface = L.guards.map((g, j) => Object.assign(faceOf(P.guardFacingDir(g, dgNow[L.cams.length + j] & 1)), { moving: false }));
-  const c = plan.thiefAt[k]; thief = [c % W, (c / W) | 0]; thiefView = { view: 'S', flip: false }; taskI = 0; run = null; flash = 0; K = k; won = false; thiefDist = 0;
+  const c = plan.thiefAt[k]; thief = [c % W, (c / W) | 0]; thiefView = { view: 'S', flip: false }; taskI = 0; run = null; flash = 0; K = k; won = false; thiefDist = 0; doorOpen = 0; thiefAlpha = 1;
 }
 function startNext() { while (taskI < tasks.length) { const t = tasks[taskI++]; if (t.kind === 'win') { won = true; return; } run = Object.assign({ t0: now }, t); return; } }
 function screenDir(dx, dy) {                                                                  // which sheet view and mirror a step (dx, dy) in the grid gets on the screen
@@ -145,8 +145,31 @@ function advance(dt) {
     const per = 260, p = (now - run.t0) / per, i = Math.min(run.path.length - 1, Math.floor(p)), f = Math.min(1, p - i), a = run.path[i], b = run.path[Math.min(run.path.length - 1, i + 1)];
     const ax = a % W, ay = (a / W) | 0, bx = b % W, by = (b / W) | 0; thief = [ax + (bx - ax) * f, ay + (by - ay) * f]; if (bx !== ax || by !== ay) thiefView = screenDir(bx - ax, by - ay);
     thiefDist = p; thiefMoving = true; if (p >= run.path.length - 1) { thief = [bx, by]; run = null; thiefMoving = false; }
+  } else if (run.kind === 'exit') {                                                           // the door slides open, the prisoner steps through it and fades, the door closes
+    const t = now - run.t0, ex = L.E % W, ey = (L.E / W) | 0;
+    if (!door) { run = null; won = true; return; }
+    const dx = DX[door.d], dy = DY[door.d], p = clamp((t - 380) / 760, 0, 1); thiefView = screenDir(dx, dy);
+    doorOpen = t < 380 ? t / 380 : t < 1250 ? 1 : Math.max(0, 1 - (t - 1250) / 350);
+    thief = [ex + dx * .98 * p, ey + dy * .98 * p]; thiefMoving = p > 0 && p < 1; thiefDist = p * 1.1 + (run.d0 || 0); thiefAlpha = 1 - clamp((p - .5) / .45, 0, 1);
+    if (t > 1650) { run = null; won = true; thiefAlpha = 0; doorOpen = 0; }
   } else if (run.kind === 'act') { if (!run.done) { dgNow = cfgs[run.k].slice(); flash = 1; K = run.k; run.done = true; run.t0 = now; } if (now - run.t0 > 650) run = null; }
 }
+
+/* ------------------------------------------------------------------------------------------------------------------ readability: how much of the floor hides behind walls, per rotation */
+function occlusion(rot) {                                                                    // per rotation: floor cells whose tile is >25% covered by walls, and cells where a standing figure (10 x 20 px) would be covered at the feet / at least a quarter
+  const keep = st.rot; st.rot = rot; layout(); buildEdges(); const sp = edges.map(e => ({ e, s: wallSprite(e), a: alphaOf(wallSprite(e).c) })); let tile = 0, f20 = 0, f50 = 0, total = 0;
+  const covered = (x, y) => sp.some(({ s, a }) => x >= s.x && x < s.x + s.c.width && y >= s.y && y < s.y + s.c.height && a[((y - s.y) * s.c.width + (x - s.x)) * 4 + 3] > 0);
+  for (let cy = 0; cy < H; cy++) for (let cx = 0; cx < W; cx++) { if (L.wall[cy * W + cx]) continue; total++;
+    const [rx, ry] = rotXY(cx + .5, cy + .5), key = rx + ry, [fx, fy] = projR(rx, ry), ax = Math.round(fx) - 5, ay = Math.round(fy) - 20; let cover = 0;
+    for (const { e, s, a } of sp) { if (!(e.key > key)) continue; const x0 = Math.max(ax, s.x), x1 = Math.min(ax + 10, s.x + s.c.width), y0 = Math.max(ay, s.y), y1 = Math.min(ay + 20, s.y + s.c.height); if (x1 <= x0 || y1 <= y0) continue;
+      for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) if (a[((y - s.y) * s.c.width + (x - s.x)) * 4 + 3] > 0) cover++; }
+    if (cover >= 20) f20++; if (cover >= 50) f50++;
+    let inn = 0, cov = 0; const [rcx, rcy] = rotXY(cx, cy); const bx = Math.min(rcx, rotXY(cx + 1, cy + 1)[0]), by = Math.min(rcy, rotXY(cx + 1, cy + 1)[1]);
+    for (let y = Math.floor(fy - TH); y <= Math.ceil(fy + TH); y++) for (let x = Math.floor(fx - TW / 2); x <= Math.ceil(fx + TW / 2); x++) { const [qx, qy] = unprojR(x + .5, y + .5), u = qx - bx, v = qy - by; if (u < .15 || u > .85 || v < .15 || v > .85) continue; inn++; if (covered(x, y)) cov++; }
+    if (inn && cov / inn > .25) tile++; }
+  st.rot = keep; return { hidden: f20, f50, tile, total };
+}
+function pickRotation() { const r = [0, 1, 2, 3].map(q => occlusion(q).hidden), best = Math.min(...r); return [0, 1, 3, 2].find(q => r[q] === best); }       // ties keep the usual orientation
 
 /* ------------------------------------------------------------------------------------------------------------------ the floor (prerendered per pixel through the inverse projection) */
 const C = { void: [20, 16, 42], mass: [38, 34, 66], massLine: [29, 25, 52], f0: [62, 60, 88], grout: [42, 40, 66], bevel: [78, 76, 106], wTop: [156, 154, 180], wFace: [100, 98, 130], wJoint: [82, 80, 110], wLow: [74, 72, 102] };
@@ -183,7 +206,7 @@ function buildFloor() {
   }
   pxc.putImageData(pimg, 0, 0); padC = pc;
 }
-function rebuild() { layout(); buildEdges(); buildFloor(); [...frameCache.keys()].forEach(k => { if (k.startsWith('wall')) frameCache.delete(k); }); syncUI(); }
+function rebuild() { if (isIso() && st.auto && L) st.rot = pickRotation(); layout(); buildEdges(); pickDoor(); buildFloor(); [...frameCache.keys()].forEach(k => { if (k.startsWith('wall')) frameCache.delete(k); }); syncUI(); }
 
 /* ------------------------------------------------------------------------------------------------------------------ thin walls */
 const sc = (col, k) => col.map(q => q * k);
@@ -234,17 +257,60 @@ function wallIso(e) {                                                           
     { const rx = yb + a, z = (rx + yb) * TH / 2 + oy - sy; if (rx >= xa - eps && rx <= xb + eps && z >= -eps && z <= h + eps) {
       const u = rx * 2, n = hh(Math.floor(rx * 20), Math.floor(z), e.seed); let col = low ? C.wLow : sc(C.wFace, 1.08);
       if (!low) { if (Math.abs(u - Math.round(u)) < .045) col = sc(col, .84); if (z > h - 1.2) col = sc(col, 1.2); else if (z < 1.6) col = sc(col, .64); else if (n > .96) col = sc(col, 1.1); else if (n < .04) col = sc(col, .9); } else if (z < 1) col = sc(col, .6);
-      if (win && e.horiz && Math.abs(rx - (e.rx0 + e.rx1) / 2) < .17 && z > h - 11 && z < h - 4) { const i = Math.round((rx - (e.rx0 + e.rx1) / 2 + .17) * 30), j = Math.round(h - 4 - z), edge = Math.abs(rx - (e.rx0 + e.rx1) / 2) > .145 || z > h - 5 || z < h - 10, warm = hh(e.cx, e.cy, 77) > .6; col = edge ? [44, 42, 66] : warm ? [112 + j * 8, 78 + j * 5, 52] : [14, 12, 28]; if (!edge && i % 3 === 1) col = [128, 126, 150]; }
+      if (win && e.horiz && Math.abs(rx - (e.rx0 + e.rx1) / 2) < .17 && z > h - 8.5 && z < h - 1.5) { const i = Math.round((rx - (e.rx0 + e.rx1) / 2 + .17) * 30), j = Math.round(h - 3 - z), edge = Math.abs(rx - (e.rx0 + e.rx1) / 2) > .145 || z > h - 2.7 || z < h - 7.3, warm = hh(e.cx, e.cy, 77) > .6; col = edge ? [44, 42, 66] : warm ? [112 + j * 8, 78 + j * 5, 52] : [14, 12, 28]; if (!edge && i % 3 === 1) col = [128, 126, 150]; }
       put(X, Y, col); continue; } }
     // the face toward +rx (rx = xb): darker
     { const ry = xb - a, z = (xb + ry) * TH / 2 + oy - sy; if (ry >= ya - eps && ry <= yb + eps && z >= -eps && z <= h + eps) {
       const u = ry * 2, n = hh(Math.floor(ry * 20), Math.floor(z), e.seed + 3); let col = low ? sc(C.wLow, .8) : sc(C.wFace, .74);
       if (!low) { if (Math.abs(u - Math.round(u)) < .045) col = sc(col, .84); if (z > h - 1.2) col = sc(col, 1.2); else if (z < 1.6) col = sc(col, .64); else if (n > .96) col = sc(col, 1.1); else if (n < .04) col = sc(col, .9); } else if (z < 1) col = sc(col, .6);
-      if (win && !e.horiz && Math.abs(ry - (e.ry0 + e.ry1) / 2) < .17 && z > h - 11 && z < h - 4) { const i = Math.round((ry - (e.ry0 + e.ry1) / 2 + .17) * 30), j = Math.round(h - 4 - z), edge = Math.abs(ry - (e.ry0 + e.ry1) / 2) > .145 || z > h - 5 || z < h - 10, warm = hh(e.cx, e.cy, 77) > .6; col = edge ? [36, 34, 56] : warm ? [92 + j * 7, 64 + j * 4, 44] : [12, 10, 24]; if (!edge && i % 3 === 1) col = [104, 102, 126]; }
+      if (win && !e.horiz && Math.abs(ry - (e.ry0 + e.ry1) / 2) < .17 && z > h - 8.5 && z < h - 1.5) { const i = Math.round((ry - (e.ry0 + e.ry1) / 2 + .17) * 30), j = Math.round(h - 3 - z), edge = Math.abs(ry - (e.ry0 + e.ry1) / 2) > .145 || z > h - 2.7 || z < h - 7.3, warm = hh(e.cx, e.cy, 77) > .6; col = edge ? [36, 34, 56] : warm ? [92 + j * 7, 64 + j * 4, 44] : [12, 10, 24]; if (!edge && i % 3 === 1) col = [104, 102, 126]; }
       put(X, Y, col); continue; } }
   }
   x.putImageData(img, 0, 0); return { c, x: x0, y: y0 };
 }
+
+/* ------------------------------------------------------------------------------------------------------------------ the exit door: a steel frame standing in the wall next to the exit cell, taller than the wall, with a sliding door and a green light */
+const GH = 22, GOPEN = 17, GHW = .36, GT = .1;                                                 // gate height, opening height, half width (cells), half thickness
+let door = null, doorOpen = 0, thiefAlpha = 1;
+function pickDoor() {                                                                        // the wall edge of the exit cell that faces us if possible (a far wall), else any
+  const cx = L.E % W, cy = (L.E / W) | 0, all = [0, 1, 2, 3].map(d => edgeAt.get(`${cx},${cy},${d}`)).filter(Boolean), free = all.filter(e => !L.cams.some(q => q.c === (cy + DY[e.d]) * W + cx + DX[e.d])), c = free.length ? free : all;      // never on the wall that carries a camera
+  const far = c.filter(e => e.far); door = (far.length ? far : c).sort((a, b) => (b.horiz - a.horiz) || (a.d - b.d))[0] || null;
+}
+function gateSprite(open) {                                                                   // open: 0..1 in steps; the picture of the frame, the door leaf and the green behind it
+  const e = door, q = Math.round(open * 6), key = `gate${e.cx},${e.cy},${e.d},${q},${st.view},${st.rot}`; if (frameCache.has(key)) return frameCache.get(key);
+  const o = q / 6, horiz = e.horiz;
+  if (!isIso()) return gateObl(e, o, key);
+  const xa = horiz ? e.mx - GHW : e.rx0 - GT, xb = horiz ? e.mx + GHW : e.rx0 + GT, ya = horiz ? e.ry0 - GT : e.my - GHW, yb = horiz ? e.ry0 + GT : e.my + GHW, h = GH, eps = 1e-6;
+  const pts = []; for (const [a, b] of [[xa, ya], [xb, ya], [xa, yb], [xb, yb]]) for (const z of [0, h]) pts.push(projR(a, b, z));
+  const x0 = Math.floor(Math.min(...pts.map(p => p[0]))), x1 = Math.ceil(Math.max(...pts.map(p => p[0]))), y0 = Math.floor(Math.min(...pts.map(p => p[1]))), y1 = Math.ceil(Math.max(...pts.map(p => p[1])));
+  const w = x1 - x0, hgt = y1 - y0, [c, x] = mk(w, hgt), img = x.createImageData(w, hgt), dd = img.data, put = (X, Y, col) => { const i = (Y * w + X) * 4; dd[i] = clamp(col[0], 0, 255); dd[i + 1] = clamp(col[1], 0, 255); dd[i + 2] = clamp(col[2], 0, 255); dd[i + 3] = 255; };
+  const FR = [78, 80, 104], FRL = [124, 128, 156], FRD = [48, 50, 70], LEAF = [96, 102, 120];
+  const longFace = (u, z, shade) => {                                                              // u: along the wall in cells from the centre, z: height in px
+    const au = Math.abs(u);
+    if (z >= GOPEN) { if (z < GOPEN + 1) return sc(FRL, shade); if (au < .17 && z > GOPEN + 1.6 && z < GH - 1.4) return z > GOPEN + 2.6 && z < GH - 2.4 && au < .1 ? [210, 255, 226] : [48, 214, 118]; return sc(FR, shade); }   // the lintel, with a green EXIT lamp
+    if (au >= .245) return sc(au < .28 ? FRL : FR, shade);                                          // the posts
+    if (au >= .22) return sc(FRD, shade);                                                          // the reveal
+    const leafBottom = GOPEN * o;                                                                    // the leaf slides up into the lintel
+    if (z >= leafBottom) { let col = LEAF; if (Math.floor(z) % 4 === 0) col = sc(col, .8); if (z - leafBottom < 1.2) col = sc(col, 1.25); if (au > .17) col = sc(col, .85); return sc(col, shade); }
+    const t = z / GOPEN, g = 1.05 - t * .55; return [clamp(34 + 40 * (1 - t), 0, 255) * g, clamp(180 + 60 * (1 - t), 0, 255) * g, clamp(120 + 30 * (1 - t), 0, 255) * g];   // the green light inside
+  };
+  for (let Y = 0; Y < hgt; Y++) for (let X = 0; X < w; X++) {
+    const sx = x0 + X + .5, sy = y0 + Y + .5, a = (sx - ox) / (TW / 2);
+    { const b = (sy + h - oy) / (TH / 2), rx = (a + b) / 2, ry = (b - a) / 2; if (rx >= xa - eps && rx <= xb + eps && ry >= ya - eps && ry <= yb + eps) { put(X, Y, sc(FRL, 1.15)); continue; } }
+    { const rx = yb + a, z = (rx + yb) * TH / 2 + oy - sy; if (rx >= xa - eps && rx <= xb + eps && z >= -eps && z <= h + eps) { put(X, Y, horiz ? longFace(rx - e.mx, z, 1.0) : sc(FR, .95)); continue; } }
+    { const ry = xb - a, z = (xb + ry) * TH / 2 + oy - sy; if (ry >= ya - eps && ry <= yb + eps && z >= -eps && z <= h + eps) { put(X, Y, !horiz ? longFace(ry - e.my, z, .78) : sc(FR, .72)); continue; } }
+  }
+  x.putImageData(img, 0, 0); const out = { c, x: x0, y: y0 }; frameCache.set(key, out); return out;
+}
+function gateObl(e, o, key) {                                                                  // the oblique picture: a frame on the front face (horizontal walls); on a side wall just a slab with the green lamp
+  const w = 22, hgt = GH + 4, [c, x] = mk(w, hgt); const [px, py] = projR(e.mx, e.my, 0);
+  const rect = (X, Y, ww, hh2, col) => { x.fillStyle = `rgb(${col[0]},${col[1]},${col[2]})`; x.fillRect(X, Y, ww, hh2); };
+  if (e.horiz) { rect(0, 4, w, GH, [78, 80, 104]); rect(0, 4, 1, GH, [124, 128, 156]); rect(w - 1, 4, 1, GH, [48, 50, 70]); rect(0, 4, w, 1, [124, 128, 156]);
+    const ow = 12, ox0 = 5, oh = GOPEN, leaf = Math.round(oh * o); rect(ox0, 4 + GH - oh, ow, oh, [40, 190, 125]); rect(ox0, 4 + GH - oh, ow, leaf, [96, 102, 120]); for (let k = 0; k < leaf; k += 4) rect(ox0, 4 + GH - oh + k, ow, 1, [76, 82, 98]);
+    rect(7, 6, 8, 3, [48, 214, 118]); rect(10, 7, 2, 1, [210, 255, 226]); } else { rect(8, 4, 4, GH, [78, 80, 104]); rect(8, 0, 4, 5, [48, 214, 118]); }
+  const out = { c, x: Math.round(px - w / 2), y: Math.round(py - GH - 2 - (e.horiz ? TKY / 2 : 0)) + (e.horiz ? 0 : 0) }; frameCache.set(key, out); return out;
+}
+const idleK = (kind, view) => { const r = SP[kind].man.rows.find(q => q.name === `idle_${view}`); return Math.floor(now / r.ms) % r.frames; };
 const alphaCache = new Map();
 const alphaOf = c => { let a = alphaCache.get(c); if (!a) { a = c.getContext('2d').getImageData(0, 0, c.width, c.height).data; alphaCache.set(c, a); } return a; };
 const outlineOf = c => { const k = alphaCache.get('o' + c.width + ':' + [...frameCache.entries()].find(e => e[1] === c)?.[0]); if (k) return k; const [t, x] = mk(c.width, c.height), a = alphaOf(c), on = (X, Y) => X >= 0 && Y >= 0 && X < c.width && Y < c.height && a[(Y * c.width + X) * 4 + 3] > 0, id = x.createImageData(c.width, c.height);
@@ -269,17 +335,11 @@ function frame(t) {
   now = t; const dt = Math.min(60, t - last); last = t; advance(dt);
   const e = evalAt(dgNow), pulse = .5 + .5 * Math.sin(t / 380);
   ctx.fillStyle = '#14102a'; ctx.fillRect(0, 0, LW, LH); ctx.drawImage(floorC, 0, 0);
-  { ctx.save(); ctx.globalAlpha = .55 + .35 * pulse; ctx.drawImage(padC, 0, 0); ctx.restore();                    // the exit pad, and an arrow on it
-    const pc = proj(L.E % W + .5, ((L.E / W) | 0) + .5), cx = Math.round(pc[0]), cy = Math.round(pc[1]); if (!isIso()) { ctx.fillStyle = 'rgba(210,255,225,.9)'; ctx.fillRect(cx - 4, cy, 9, 1); ctx.fillRect(cx + 1, cy - 2, 1, 5); ctx.fillRect(cx + 2, cy - 1, 1, 3); ctx.fillRect(cx + 3, cy, 1, 1); } }
-  // the red light of the beams, added to the floor (clipped to the floor cells)
-  const rays = e.rays.filter(r => r.cells.length || r.mirror != null).map(rayShape);
-  ctx.save(); ctx.beginPath(); for (let cy = 0; cy < H; cy++) for (let cx = 0; cx < W; cx++) if (!L.wall[cy * W + cx]) cellPoly(cx, cy).forEach((q, i) => i ? ctx.lineTo(q[0], q[1]) : ctx.moveTo(q[0], q[1])), ctx.closePath(); ctx.clip();
-  ctx.globalCompositeOperation = 'lighter';
-  for (const r of rays) {
-    const mid = [(r.poly[1][0] + r.poly[2][0]) / 2, (r.poly[1][1] + r.poly[2][1]) / 2];
-    ctx.fillStyle = 'rgba(150,24,20,.22)'; ctx.beginPath(); r.poly.forEach((q, i) => { const k = (i === 0 || i === 3) ? 1.4 : 1.15, X = mid[0] + (q[0] - mid[0]) * k, Y = mid[1] + (q[1] - mid[1]) * k; i ? ctx.lineTo(X, Y) : ctx.moveTo(X, Y); }); ctx.closePath(); ctx.fill();
-    const g = ctx.createLinearGradient(r.a[0], r.a[1], r.f[0], r.f[1]); g.addColorStop(0, `rgba(255,56,42,${.85 + .05 * pulse})`); g.addColorStop(1, 'rgba(225,40,32,.55)'); ctx.fillStyle = g; path(ctx, r.poly); ctx.fill();
-  }
+  { ctx.save(); ctx.globalAlpha = .16 + .08 * pulse + .5 * doorOpen; ctx.drawImage(padC, 0, 0); ctx.restore();                    // a faint green tint on the exit tile; it brightens when the door opens
+    const pc = proj(L.E % W + .5, ((L.E / W) | 0) + .5), cx = Math.round(pc[0]), cy = Math.round(pc[1]); if (false) { ctx.fillStyle = 'rgba(210,255,225,.9)'; ctx.fillRect(cx - 4, cy, 9, 1); ctx.fillRect(cx + 1, cy - 2, 1, 5); ctx.fillRect(cx + 2, cy - 1, 1, 3); ctx.fillRect(cx + 3, cy, 1, 1); } }
+  // the cells the beams cover: each one tinted red as a whole tile (this is the puzzle's rule: a lit cell cannot be entered); the camera's own light shaft is drawn with the camera
+  ctx.save(); ctx.fillStyle = `rgba(255,44,34,${.46 + .05 * pulse})`;
+  for (let c = 0; c < W * H; c++) if (e.lit[c] && !L.wall[c]) { path(ctx, cellPoly(c % W, (c / W) | 0)); ctx.fill(); }
   ctx.restore();
   { const Gh = P.ghostOf(L); P.prepare(Gh); const eg = P.evalConfig(Gh, dgNow, false); P.prepare(L);
     ctx.fillStyle = 'rgba(0,0,0,.4)'; ctx.strokeStyle = 'rgba(220,60,48,.42)'; ctx.lineWidth = 1;
@@ -288,36 +348,47 @@ function frame(t) {
   const items = [], litCell = (cx, cy) => cx >= 0 && cy >= 0 && cx < W && cy < H && e.lit[cy * W + cx];
   const depthOf = (X, Y) => { const [rx, ry] = rotXY(X, Y); return isIso() ? rx + ry : projR(0, ry)[1]; };
   for (const ed of edges) items.push({ k: 'wall', ed, s: wallSprite(ed), key: ed.key });
-  L.cams.forEach((cam, ci) => { const m = camMount(cam, ci); if (m) items.push({ k: 'cam', ci, m, key: m.key + (isIso() ? .02 : 1.5) }); });
+  if (door) items.push({ k: 'gate', key: door.key + .01 });
+  L.cams.forEach((cam, ci) => { const m = camMount(cam, ci); if (m) { const k0 = m.key + (isIso() ? .02 : 1.5); items.push({ k: 'cam', ci, m, key: k0 }); items.push({ k: 'shaft', ci, m, key: k0 + .005 }); } });
   L.guards.forEach((g, j) => items.push({ k: 'guard', j, key: depthOf(gdraw[j][0] + .5, gdraw[j][1] + .5) + (isIso() ? 0 : .5) }));
   items.push({ k: 'thief', key: depthOf(thief[0] + .5, thief[1] + .5) + (isIso() ? 0 : .5) });
   items.sort((a, b) => a.key - b.key);
   const actors = [], drawn = [];
-  const place = (img, X, Y, flip, ax, ay, key) => {
-    const p = proj(X, Y, 0), x = Math.round(p[0]), y = Math.round(p[1]);
-    ctx.save(); ctx.globalAlpha = .4; ctx.fillStyle = '#05030c'; ctx.beginPath(); ctx.ellipse(x + 1, y, 5, 1.8, 0, 0, 7); ctx.fill(); ctx.restore();
-    ctx.save(); ctx.translate(x, y); if (flip) ctx.scale(-1, 1); ctx.drawImage(img, -ax, -ay); ctx.restore();
-    actors.push({ img, flip, x: flip ? x + ax - img.width : x - ax, y: y - ay, key, drawnAt: drawn.length });
+  const place = (img, X, Y, flip, ax, ay, key, alpha = 1) => {
+    const p = proj(X, Y, 0), x = Math.round(p[0]), y = Math.round(p[1]); if (alpha <= 0) return;
+    ctx.save(); ctx.globalAlpha = .4 * alpha; ctx.fillStyle = '#05030c'; ctx.beginPath(); ctx.ellipse(x + 1, y, 5, 1.8, 0, 0, 7); ctx.fill(); ctx.restore();
+    ctx.save(); ctx.globalAlpha = alpha; ctx.translate(x, y); if (flip) ctx.scale(-1, 1); ctx.drawImage(img, -ax, -ay); ctx.restore();
+    if (alpha > .95) actors.push({ img, flip, x: flip ? x + ax - img.width : x - ax, y: y - ay, key, drawnAt: drawn.length });
   };
   for (const it of items) {
     if (it.k === 'wall') {
       ctx.drawImage(it.s.c, it.s.x, it.s.y); drawn.push({ s: it.s, key: it.key }); const ed = it.ed;
       if (ed.far) { const fc = [ed.cx, ed.cy]; if (litCell(fc[0], fc[1])) { ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = .1; ctx.drawImage(tinted(it.s, `${ed.cx},${ed.cy},${ed.d},${st.view},${st.rot},${ed.h}`), it.s.x, it.s.y); ctx.restore(); } }
-    } else if (it.k === 'cam') {
-      const m = it.m, d = dgNow[it.ci], sd = screenDir(DX[d], DY[d]), view = isIso() ? (sd.view === 'N' ? 'N' : 'E') : sd.view, img = camSprite(view);
-      const top = projR(m.mx, m.my, m.h), cx = Math.round(top[0]), cy = Math.round(top[1]) + (isIso() ? 2 : (m.horiz ? 1 : 3));
-      ctx.save(); ctx.globalAlpha = .35; ctx.fillStyle = '#05030c'; ctx.beginPath(); ctx.ellipse(cx + 1, cy, 5, 1.5, 0, 0, 7); ctx.fill(); ctx.restore();
-      ctx.save(); ctx.translate(cx, cy); if (sd.flip) ctx.scale(-1, 1); ctx.drawImage(img, -5, -img.height + 1); ctx.restore();
-      if (view !== 'N') { const lx = cx + (view === 'S' ? 0 : (sd.flip ? -4 : 4)), ly = cy - 6, gg = ctx.createRadialGradient(lx, ly, 0, lx, ly, 6); gg.addColorStop(0, `rgba(255,70,52,${.55 + .25 * pulse})`); gg.addColorStop(1, 'rgba(255,40,30,0)');
-        ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = gg; ctx.fillRect(lx - 6, ly - 6, 12, 12); ctx.restore(); }
+    } else if (it.k === 'gate') {
+      const g = gateSprite(doorOpen); ctx.drawImage(g.c, g.x, g.y); drawn.push({ s: g, key: it.key });
+      if (doorOpen > 0) { const sp = proj(L.E % W + .5 + DX[door.d] * .3, ((L.E / W) | 0) + .5 + DY[door.d] * .3), gg = ctx.createRadialGradient(sp[0], sp[1], 1, sp[0], sp[1], 26); gg.addColorStop(0, `rgba(70,230,140,${.38 * doorOpen})`); gg.addColorStop(1, 'rgba(70,230,140,0)'); ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = gg; ctx.fillRect(sp[0] - 26, sp[1] - 26, 52, 52); ctx.restore(); }
+    } else if (it.k === 'cam' || it.k === 'shaft') {
+      const m = it.m, d = dgNow[it.ci], sd = screenDir(DX[d], DY[d]), view = isIso() ? (sd.view === 'N' ? 'N' : 'E') : sd.view, img = camSprite(view), cam = L.cams[it.ci];
+      const top = projR(m.mx, m.my, m.h), cx = Math.round(top[0]), cy = Math.round(top[1]) + (isIso() ? 2 : (m.horiz ? 1 : 3)), lx = cx + (view === 'S' ? 0 : (sd.flip ? -3 : 3)), ly = cy - 6;
+      const ray = e.rays.find(q => q.first && q.src === cam.c && q.cells.length), on = !!ray;
+      if (it.k === 'cam') {
+        ctx.save(); ctx.globalAlpha = .35; ctx.fillStyle = '#05030c'; ctx.beginPath(); ctx.ellipse(cx + 1, cy, 5, 1.5, 0, 0, 7); ctx.fill(); ctx.restore();
+        ctx.save(); ctx.translate(cx, cy); if (sd.flip) ctx.scale(-1, 1); ctx.drawImage(img, -5, -img.height + 1); ctx.restore();
+        if (view !== 'N' && on) { const gg = ctx.createRadialGradient(lx, ly, 0, lx, ly, 6); gg.addColorStop(0, `rgba(255,70,52,${.55 + .25 * pulse})`); gg.addColorStop(1, 'rgba(255,40,30,0)'); ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = gg; ctx.fillRect(lx - 6, ly - 6, 12, 12); ctx.restore(); }
+      } else if (on) {                                                                      // a wedge of light from the lens down to the far end of the lit strip, fading with distance
+        const sh = rayShape(ray), far = [(sh.poly[1][0] + sh.poly[2][0]) / 2, (sh.poly[1][1] + sh.poly[2][1]) / 2], g = ctx.createLinearGradient(lx, ly, far[0], far[1]);
+        g.addColorStop(0, `rgba(255,96,70,${.5 + .1 * pulse})`); g.addColorStop(1, 'rgba(255,60,44,.1)');
+        ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = g; ctx.beginPath(); ctx.moveTo(lx, ly); ctx.lineTo(sh.poly[1][0], sh.poly[1][1]); ctx.lineTo(sh.poly[2][0], sh.poly[2][1]); ctx.closePath(); ctx.fill();
+        ctx.strokeStyle = 'rgba(255,170,150,.45)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(lx, ly); ctx.lineTo(far[0], far[1]); ctx.stroke(); ctx.restore();
+      }
     } else if (it.k === 'guard') {
       const j = it.j, gf = gdraw[j], f = gface[j], cell = L.guards[j].rail[dgNow[L.cams.length + j] >> 1];
       const inBeam = e.rays.some(r => r.cells.length && (() => { const lc = r.cells[r.cells.length - 1]; return (lc % W + DX[r.d]) + ((lc / W | 0) + DY[r.d]) * W === cell; })());
-      const anim = f.moving ? 'walk' : 'idle', k = f.moving ? Math.floor(gdist[j] * (isIso() ? 3.6 : 5)) % 4 : Math.floor(now / 450) % 4, [ax, ay] = SP.guard.man.anchor;
+      const anim = f.moving ? 'walk' : 'idle', k = f.moving ? Math.floor(gdist[j] * (isIso() ? 3.6 : 5)) % 4 : idleK('guard', f.view), [ax, ay] = SP.guard.man.anchor;
       place(charFrame('guard', anim, f.view, k, inBeam ? 2 : 0), gf[0] + .5, gf[1] + .5, f.flip, ax, ay, it.key);
     } else {
-      const anim = thiefMoving ? 'walk' : 'idle', k = thiefMoving ? Math.floor(thiefDist * (isIso() ? 3.8 : 5.5)) % 4 : Math.floor(now / 450) % 4, [ax, ay] = SP.thief.man.anchor;
-      place(charFrame('thief', anim, thiefView.view, k, 0), thief[0] + .5, thief[1] + .5, thiefView.flip, ax, ay, it.key);
+      const anim = thiefMoving ? 'walk' : 'idle', k = thiefMoving ? Math.floor(thiefDist * (isIso() ? 3.8 : 5.5)) % 4 : idleK('thief', thiefView.view), [ax, ay] = SP.thief.man.anchor;
+      place(charFrame('thief', anim, thiefView.view, k, 0), thief[0] + .5, thief[1] + .5, thiefView.flip, ax, ay, it.key, thiefAlpha);
     }
   }
   for (const a of actors) {                                                                       // an actor hidden behind a wall is shown by a thin outline (a few pixels of its silhouette under the wall)
@@ -336,16 +407,18 @@ let freeze = Q.has('freeze');
 function syncUI() {
   document.querySelectorAll('[data-lv]').forEach(b => b.classList.toggle('on', +b.dataset.lv === st.level));
   document.querySelectorAll('[data-view]').forEach(b => b.classList.toggle('on', b.dataset.view === st.view)); $('rotg').style.display = isIso() ? '' : 'none';
-  $('hlp').textContent = st.cut ? 'on' : 'off'; $('hlp').classList.toggle('on', st.cut); $('play').textContent = auto ? '❚❚ Pause' : '▶ Play solution';
+  $('aut').classList.toggle('on', st.auto); $('hlp').textContent = st.cut ? 'on' : 'off'; $('hlp').classList.toggle('on', st.cut); $('play').textContent = auto ? '❚❚ Pause' : '▶ Play solution';
 }
 document.querySelectorAll('[data-lv]').forEach(b => b.onclick = () => { st.level = +b.dataset.lv; auto = false; loadLevel(st.level); rebuild(); });
 document.querySelectorAll('[data-view]').forEach(b => b.onclick = () => { st.view = b.dataset.view; rebuild(); });
-$('rl').onclick = () => { st.rot = (st.rot + 3) % 4; rebuild(); }; $('rr').onclick = () => { st.rot = (st.rot + 1) % 4; rebuild(); };
+$('rl').onclick = () => { st.auto = false; st.rot = (st.rot + 3) % 4; rebuild(); }; $('rr').onclick = () => { st.auto = false; st.rot = (st.rot + 1) % 4; rebuild(); };
+$('aut').onclick = () => { st.auto = !st.auto; rebuild(); };
 $('hlp').onclick = () => { st.cut = !st.cut; rebuild(); };
 $('play').onclick = () => { auto = !auto; if (auto && won) jump(0); syncUI(); }; $('reset').onclick = () => { auto = false; jump(0); syncUI(); };
 $('step').onclick = () => { auto = false; if (!run) { if (won) jump(0); else startNext(); } };
 addEventListener('resize', () => { layout(); buildFloor(); });
 function boot() { loadLevel(st.level); rebuild(); if (!freeze) requestAnimationFrame(frame); else frame(1000); }
 Promise.all(Object.values(sheets).map(i => i.complete ? 0 : new Promise(r => i.onload = r))).then(boot);
-window.lab = { st, rebuild, jump: k => jump(k), load: id => { st.level = id; loadLevel(id); rebuild(); }, frame, setAuto: v => { auto = v; if (v && won) jump(0); }, canvas: () => cv.toDataURL(), done: () => won && !run, state: () => ({ K, n: cfgs.length - 1, W, H, LW, LH }), exitPose: () => { thief = [L.E % W, (L.E / W) | 0]; } };
+const alphaCacheClear = () => alphaCache.clear();
+window.lab = { occAll: ids => { const out = {}; for (const id of ids) { const l = LV.find(z => z.id === id); L = P.parseLevel(l.map, l.meta); W = L.w; H = L.h; frameCache.clear(); alphaCacheClear(); out[id] = [0, 1, 2, 3].map(q => occlusion(q)); } return out; }, st, rebuild, jump: k => jump(k), load: id => { st.level = id; loadLevel(id); rebuild(); }, frame, setAuto: v => { auto = v; if (v && won) jump(0); }, canvas: () => cv.toDataURL(), done: () => won && !run, state: () => ({ K, n: cfgs.length - 1, W, H, LW, LH }), exitPose: () => { thief = [L.E % W, (L.E / W) | 0]; }, doorAt: (o, p) => { doorOpen = o; if (p != null && door) { const ex = L.E % W, ey = (L.E / W) | 0; thief = [ex + DX[door.d] * .98 * p, ey + DY[door.d] * .98 * p]; thiefView = screenDir(DX[door.d], DY[door.d]); thiefAlpha = 1 - clamp((p - .5) / .45, 0, 1); thiefMoving = p > 0 && p < 1; thiefDist = p * 1.1; } } };
 </script></body></html>

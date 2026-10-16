@@ -1,0 +1,55 @@
+{
+ "file": "camera.png",
+ "cell": [
+  36,
+  36
+ ],
+ "anchor": [
+  18,
+  24
+ ],
+ "states": [
+  "on",
+  "dim",
+  "off"
+ ],
+ "rows": [
+  {
+   "name": "SE",
+   "row": 0,
+   "frames": 3,
+   "lens": [
+    32.0,
+    28.3
+   ]
+  },
+  {
+   "name": "SW",
+   "row": 1,
+   "frames": 3,
+   "lens": [
+    3.0,
+    27.6
+   ]
+  },
+  {
+   "name": "NW",
+   "row": 2,
+   "frames": 3,
+   "lens": [
+    4.0,
+    7.7
+   ]
+  },
+  {
+   "name": "NE",
+   "row": 3,
+   "frames": 3,
+   "lens": [
+    33.0,
+    8.4
+   ]
+  }
+ ],
+ "note": "anchor = the point on the wall plane (X=Y=0, Z=0) in the cell; put it at the wall top minus 7 px and a little toward the room; lens = pixel of the lens centre in the cell"
+}

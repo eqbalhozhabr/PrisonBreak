@@ -1,0 +1,86 @@
+{
+ "file": "dog_half.png",
+ "cell": [
+  24,
+  21
+ ],
+ "anchor": [
+  12,
+  19
+ ],
+ "diagonal": true,
+ "views": [
+  "SE",
+  "SW",
+  "NE",
+  "NW"
+ ],
+ "source": "art/reference/13.jpg",
+ "note": "ground point (the feet) at the anchor; four diagonal directions, no mirroring needed; pixels are the owner's reference, cut by tools/extract-dog.py",
+ "rows": [
+  {
+   "name": "idle_SE",
+   "view": "SE",
+   "row": 0,
+   "frames": 4,
+   "ms": 420,
+   "loop": true
+  },
+  {
+   "name": "walk_SE",
+   "view": "SE",
+   "row": 1,
+   "frames": 4,
+   "ms": 150,
+   "loop": true
+  },
+  {
+   "name": "idle_SW",
+   "view": "SW",
+   "row": 2,
+   "frames": 4,
+   "ms": 420,
+   "loop": true
+  },
+  {
+   "name": "walk_SW",
+   "view": "SW",
+   "row": 3,
+   "frames": 4,
+   "ms": 150,
+   "loop": true
+  },
+  {
+   "name": "idle_NE",
+   "view": "NE",
+   "row": 4,
+   "frames": 4,
+   "ms": 420,
+   "loop": true
+  },
+  {
+   "name": "walk_NE",
+   "view": "NE",
+   "row": 5,
+   "frames": 4,
+   "ms": 150,
+   "loop": true
+  },
+  {
+   "name": "idle_NW",
+   "view": "NW",
+   "row": 6,
+   "frames": 4,
+   "ms": 420,
+   "loop": true
+  },
+  {
+   "name": "walk_NW",
+   "view": "NW",
+   "row": 7,
+   "frames": 4,
+   "ms": 150,
+   "loop": true
+  }
+ ]
+}

@@ -11,7 +11,7 @@
   canvas { image-rendering:pixelated; image-rendering:crisp-edges; }
 </style></head><body>
 <div id="bar">
-  <span class="grp"><b>Level</b><button data-lv="8">8</button><button data-lv="9">9</button><button data-lv="10">10</button></span>
+  <span class="grp"><b>Level</b><button data-lv="8">8</button><button data-lv="9">9</button><button data-lv="10">10</button><button data-lv="97">97 dog+door</button></span>
   <span class="grp"><b>View</b><button data-view="obl">Oblique 3/4</button><button data-view="iso">Isometric</button></span>
   <span class="grp" id="rotg"><b>Rotate</b><button id="rl">⟲</button><button id="rr">⟳</button><button id="aut">auto</button></span>
   <span class="grp"><b>Cut-away of near walls</b><button id="hlp">on</button></span>
@@ -120,9 +120,19 @@ function loadLevel(id) {
   jump(0);
 }
 const faceOf = d => screenDir(DX[d], DY[d]);
+const diagOf = (dx, dy) => { const a = proj(0, 0), b = proj(dx, dy), vx = b[0] - a[0], vy = b[1] - a[1]; return (vy < 0 ? 'N' : 'S') + (vx < 0 ? 'W' : 'E'); };      // SE / SW / NE / NW: the four isometric directions
+let ddraw = [], dface = [], ddist = [], dmove = [], doorO = [];
+const dogKey = () => Q.get('dog') === 'full' ? 'dogfull' : 'dog';
+const nCam = () => L.cams.length, nGd = () => L.guards.length, nTg = () => (L.toggles || []).length;
+const dogDigit = (j, cfg = dgNow) => cfg[nCam() + nGd() + nTg() + j];
+const doorDigit = (j, cfg = dgNow) => cfg[nCam() + nGd() + j];
+function railXY(d, f) { const a = Math.max(0, Math.min(d.rail.length - 1, Math.floor(f))), b = Math.min(d.rail.length - 1, a + 1), t = f - a, ca = d.rail[a], cb = d.rail[b]; return [ca % W + (cb % W - ca % W) * t, ((ca / W) | 0) + (((cb / W) | 0) - ((ca / W) | 0)) * t]; }
 function jump(k) {
   dgNow = cfgs[k].slice(); gdraw = L.guards.map((g, j) => { const c = guardCell(j, dgNow); return [c % W, (c / W) | 0]; }); gdist = L.guards.map(() => 0);
   gface = L.guards.map((g, j) => Object.assign(faceOf(P.guardFacingDir(g, dgNow[L.cams.length + j] & 1)), { moving: false }));
+  ddraw = (L.dogs || []).map((d, j) => dogDigit(j)); ddist = (L.dogs || []).map(() => 0); dmove = (L.dogs || []).map(() => false);
+  dface = (L.dogs || []).map((d, j) => { const i = dogDigit(j), a = d.rail[Math.min(i + 1, d.rail.length - 1)], b = d.rail[i]; const dx = (a % W) - (b % W) || ((b % W) - (d.rail[Math.max(i - 1, 0)] % W)), dy = ((a / W) | 0) - ((b / W) | 0) || (((b / W) | 0) - ((d.rail[Math.max(i - 1, 0)] / W) | 0)); return diagOf(dx || 1, dy); });
+  doorO = (L.toggles || []).map((t, j) => t.kind === 'door' ? (doorDigit(j) === 1 ? 0 : 1) : 0);
   const c = plan.thiefAt[k]; thief = [c % W, (c / W) | 0]; thiefView = { view: 'S', flip: false }; taskI = 0; run = null; flash = 0; K = k; won = false; thiefDist = 0; doorOpen = 0; thiefAlpha = 1;
 }
 function startNext() { while (taskI < tasks.length) { const t = tasks[taskI++]; if (t.kind === 'win') { won = true; return; } run = Object.assign({ t0: now }, t); return; } }
@@ -138,6 +148,10 @@ function advance(dt) {
     if (Math.hypot(tx - g[0], ty - g[1]) > .06) { gdist[j] += Math.hypot(ddx, ddy); gface[j] = Object.assign(screenDir(tx - g[0], ty - g[1]), { moving: true }); }
     else gface[j] = Object.assign(faceOf(P.guardFacingDir(L.guards[j], dgNow[L.cams.length + j] & 1)), { moving: false });
   }
+  (L.dogs || []).forEach((d, j) => { const t = dogDigit(j), cur = ddraw[j]; dmove[j] = false;
+    if (Math.abs(t - cur) > .01) { const step = Math.min(Math.abs(t - cur), dt / 1000 * 4.5), dir = Math.sign(t - cur), a = railXY(d, cur); ddraw[j] = cur + dir * step; const b = railXY(d, ddraw[j]); ddist[j] += step; dmove[j] = true;
+      if (Math.hypot(b[0] - a[0], b[1] - a[1]) > 1e-4) dface[j] = diagOf(b[0] - a[0], b[1] - a[1]); } });
+  (L.toggles || []).forEach((t, j) => { if (t.kind !== 'door') return; const want = doorDigit(j) === 1 ? 0 : 1; doorO[j] += Math.sign(want - doorO[j]) * Math.min(Math.abs(want - doorO[j]), dt / 320); });
   if (flash > 0) flash = Math.max(0, flash - dt / 260);
   thiefMoving = false;
   if (!run) { if (auto && !won) startNext(); return; }
@@ -206,12 +220,12 @@ function buildFloor() {
   }
   pxc.putImageData(pimg, 0, 0); padC = pc;
 }
-function rebuild() { if (isIso() && st.auto && L) st.rot = pickRotation(); layout(); buildEdges(); pickDoor(); buildFloor(); [...frameCache.keys()].forEach(k => { if (k.startsWith('wall')) frameCache.delete(k); }); syncUI(); }
+function rebuild() { if (isIso() && st.auto && L) st.rot = pickRotation(); layout(); buildEdges(); pickDoor(); buildDoors(); buildFloor(); [...frameCache.keys()].forEach(k => { if (k.startsWith('wall')) frameCache.delete(k); }); syncUI(); }
 
 /* ------------------------------------------------------------------------------------------------------------------ thin walls */
 const sc = (col, k) => col.map(q => q * k);
 function wallSprite(e) {                                                                       // {c, x, y}: the segment's picture and where it goes
-  const key = `wall${e.cx},${e.cy},${e.d},${e.h},${st.view},${st.rot},${st.cut}`; if (frameCache.has(key)) return frameCache.get(key);
+  const key = `wall${e.cx},${e.cy},${e.d},${e.h},${st.view},${st.rot},${st.cut},${e.mat || ''}${e.seg || ''}${e.lamp || ''}`; if (frameCache.has(key)) return frameCache.get(key);
   const out = isIso() ? wallIso(e) : wallObl(e); frameCache.set(key, out); return out;
 }
 function wallObl(e) {
@@ -243,12 +257,23 @@ function windowAt(put, wx, wy, e) {                                             
   const ww = 10, wh = 7, warm = hh(e.cx, e.cy, 77) > .6;
   for (let j = 0; j < wh; j++) for (let i = 0; i < ww; i++) { const edge = i === 0 || j === 0 || i === ww - 1 || j === wh - 1; let col = edge ? [44, 42, 66] : warm ? [112 + j * 8, 78 + j * 5, 52] : [14, 12, 28]; if (!edge && i % 3 === 1) col = [128, 126, 150]; put(wx + i, wy + j, col); }
 }
+
+/* ------------------------------------------------------------------------------------------------------------------ steel doors (the puzzle's doors): a sliding panel between two frame posts */
+function matCol(e, face, z, u) {
+  const f = face === 'Y' ? 1.08 : .74, h = e.h; let col = e.mat === 'door' ? [128, 138, 158] : [96, 104, 126];
+  if (Math.floor(z) % 3 === 0) col = col.map(q => q * .88); if (z > h - 1.2) col = col.map(q => q * 1.2); else if (z < 1.2) col = col.map(q => q * .7);
+  if (e.mat === 'door' && Math.abs(u) < .03) col = col.map(q => q * .8);
+  col = col.map(q => q * f);
+  const lamp = e.mat === 'door' ? (Math.abs(u) < .06 && z > h - 3.2 && z < h - 1.6) : (e.lamp && z > h - 3.4 && z < h - 1.8 && Math.abs(Math.abs(u) - 0) < .5);
+  if (lamp) col = e.lamp === 'open' ? [60, 230, 130] : [255, 70, 56];
+  return col;
+}
 function wallIso(e) {                                                                          // a thin box rasterised through the inverse projection: top, the face toward +ry (left on the screen) and the face toward +rx (right)
   const xa = e.horiz ? e.rx0 - TI : e.rx0 - TI, xb = e.horiz ? e.rx1 + TI : e.rx0 + TI, ya = e.horiz ? e.ry0 - TI : e.ry0 - TI, yb = e.horiz ? e.ry0 + TI : e.ry1 + TI, h = e.h;
   const pts = []; for (const [a, b] of [[xa, ya], [xb, ya], [xa, yb], [xb, yb]]) for (const z of [0, h]) pts.push(projR(a, b, z));
   const x0 = Math.floor(Math.min(...pts.map(p => p[0]))), x1 = Math.ceil(Math.max(...pts.map(p => p[0]))), y0 = Math.floor(Math.min(...pts.map(p => p[1]))), y1 = Math.ceil(Math.max(...pts.map(p => p[1])));
   const w = x1 - x0, hgt = y1 - y0, [c, x] = mk(w, hgt), img = x.createImageData(w, hgt), dd = img.data, put = (X, Y, col) => { const i = (Y * w + X) * 4; dd[i] = clamp(col[0], 0, 255); dd[i + 1] = clamp(col[1], 0, 255); dd[i + 2] = clamp(col[2], 0, 255); dd[i + 3] = 255; };
-  const low = !e.far && h <= HIS, win = !low && e.far && h >= HI - 1 && hh(e.cx, e.cy, e.d + 11) > .45, eps = 1e-6;
+  const low = !e.far && h <= HIS, win = !low && !e.mat && e.far && h >= HI - 1 && hh(e.cx, e.cy, e.d + 11) > .45, eps = 1e-6;
   for (let Y = 0; Y < hgt; Y++) for (let X = 0; X < w; X++) {
     const sx = x0 + X + .5, sy = y0 + Y + .5, a = (sx - ox) / (TW / 2);
     // top face (z = h)
@@ -258,12 +283,14 @@ function wallIso(e) {                                                           
       const u = rx * 2, n = hh(Math.floor(rx * 20), Math.floor(z), e.seed); let col = low ? C.wLow : sc(C.wFace, 1.08);
       if (!low) { if (Math.abs(u - Math.round(u)) < .045) col = sc(col, .84); if (z > h - 1.2) col = sc(col, 1.2); else if (z < 1.6) col = sc(col, .64); else if (n > .96) col = sc(col, 1.1); else if (n < .04) col = sc(col, .9); } else if (z < 1) col = sc(col, .6);
       if (win && e.horiz && Math.abs(rx - (e.rx0 + e.rx1) / 2) < .17 && z > h - 8.5 && z < h - 1.5) { const i = Math.round((rx - (e.rx0 + e.rx1) / 2 + .17) * 30), j = Math.round(h - 3 - z), edge = Math.abs(rx - (e.rx0 + e.rx1) / 2) > .145 || z > h - 2.7 || z < h - 7.3, warm = hh(e.cx, e.cy, 77) > .6; col = edge ? [44, 42, 66] : warm ? [112 + j * 8, 78 + j * 5, 52] : [14, 12, 28]; if (!edge && i % 3 === 1) col = [128, 126, 150]; }
+      if (e.mat) col = matCol(e, 'Y', z, rx - (e.horiz ? (e.rx0 + e.rx1) / 2 : 0));
       put(X, Y, col); continue; } }
     // the face toward +rx (rx = xb): darker
     { const ry = xb - a, z = (xb + ry) * TH / 2 + oy - sy; if (ry >= ya - eps && ry <= yb + eps && z >= -eps && z <= h + eps) {
       const u = ry * 2, n = hh(Math.floor(ry * 20), Math.floor(z), e.seed + 3); let col = low ? sc(C.wLow, .8) : sc(C.wFace, .74);
       if (!low) { if (Math.abs(u - Math.round(u)) < .045) col = sc(col, .84); if (z > h - 1.2) col = sc(col, 1.2); else if (z < 1.6) col = sc(col, .64); else if (n > .96) col = sc(col, 1.1); else if (n < .04) col = sc(col, .9); } else if (z < 1) col = sc(col, .6);
       if (win && !e.horiz && Math.abs(ry - (e.ry0 + e.ry1) / 2) < .17 && z > h - 8.5 && z < h - 1.5) { const i = Math.round((ry - (e.ry0 + e.ry1) / 2 + .17) * 30), j = Math.round(h - 3 - z), edge = Math.abs(ry - (e.ry0 + e.ry1) / 2) > .145 || z > h - 2.7 || z < h - 7.3, warm = hh(e.cx, e.cy, 77) > .6; col = edge ? [36, 34, 56] : warm ? [92 + j * 7, 64 + j * 4, 44] : [12, 10, 24]; if (!edge && i % 3 === 1) col = [104, 102, 126]; }
+      if (e.mat) col = matCol(e, 'X', z, ry - (e.horiz ? 0 : (e.ry0 + e.ry1) / 2));
       put(X, Y, col); continue; } }
   }
   x.putImageData(img, 0, 0); return { c, x: x0, y: y0 };
@@ -271,7 +298,13 @@ function wallIso(e) {                                                           
 
 /* ------------------------------------------------------------------------------------------------------------------ the exit door: a steel frame standing in the wall next to the exit cell, taller than the wall, with a sliding door and a green light */
 const GH = 22, GOPEN = 17, GHW = .36, GT = .1;                                                 // gate height, opening height, half width (cells), half thickness
-let door = null, doorOpen = 0, thiefAlpha = 1;
+let door = null, doorOpen = 0, thiefAlpha = 1, steel = [];
+function buildDoors() {                                                                      // the puzzle's doors: across the passage (the axis with walls on both sides)
+  steel = [];
+  (L.toggles || []).forEach((t, j) => { if (t.kind !== 'door') return; const cx = t.c % W, cy = (t.c / W) | 0, alongX = isWall(cx, cy - 1) && isWall(cx, cy + 1) ? false : isWall(cx - 1, cy) && isWall(cx + 1, cy);
+    const A = alongX ? [[cx + .5, cy], [cx + .5, cy + 1]] : [[cx, cy + .5], [cx + 1, cy + .5]], a = rotXY(...A[0]), b = rotXY(...A[1]), rx0 = Math.min(a[0], b[0]), rx1 = Math.max(a[0], b[0]), ry0 = Math.min(a[1], b[1]), ry1 = Math.max(a[1], b[1]), horiz = ry1 - ry0 < 1e-6;
+    steel.push({ j, cx, cy, rx0, rx1, ry0, ry1, horiz, mx: (rx0 + rx1) / 2, my: (ry0 + ry1) / 2 }); });
+}
 function pickDoor() {                                                                        // the wall edge of the exit cell that faces us if possible (a far wall), else any
   const cx = L.E % W, cy = (L.E / W) | 0, all = [0, 1, 2, 3].map(d => edgeAt.get(`${cx},${cy},${d}`)).filter(Boolean), free = all.filter(e => !L.cams.some(q => q.c === (cy + DY[e.d]) * W + cx + DX[e.d])), c = free.length ? free : all;      // never on the wall that carries a camera
   const far = c.filter(e => e.far); door = (far.length ? far : c).sort((a, b) => (b.horiz - a.horiz) || (a.d - b.d))[0] || null;
@@ -349,8 +382,16 @@ function frame(t) {
   const depthOf = (X, Y) => { const [rx, ry] = rotXY(X, Y); return isIso() ? rx + ry : projR(0, ry)[1]; };
   for (const ed of edges) items.push({ k: 'wall', ed, s: wallSprite(ed), key: ed.key });
   if (door) items.push({ k: 'gate', key: door.key + .01 });
+  for (const sd of steel) { const o = doorO[sd.j], key = sd.mx + sd.my + (sd.horiz ? .06 : .04), hP = Math.round(HI * (1 - o)), lamp = o > .5 ? 'open' : 'shut', mk2 = (extra) => Object.assign({ cx: sd.cx, cy: sd.cy, d: 9, far: true, seed: sd.cx * 7 + sd.cy, mx: sd.mx, my: sd.my, horiz: sd.horiz }, extra);
+    const len = .15, pst = (a0, a1) => sd.horiz ? { rx0: a0, rx1: a1, ry0: sd.ry0, ry1: sd.ry1 } : { rx0: sd.rx0, rx1: sd.rx1, ry0: a0, ry1: a1 };
+    if (isIso()) {
+      if (hP > 0) items.push({ k: 'wall', ed: mk2({ rx0: sd.rx0 + len, rx1: sd.rx1 - len, ry0: sd.ry0 + (sd.horiz ? 0 : len), ry1: sd.ry1 - (sd.horiz ? 0 : len), h: hP, mat: 'door', seg: 'p', lamp: lamp }), key });
+      const lo = sd.horiz ? sd.rx0 : sd.ry0, hi = sd.horiz ? sd.rx1 : sd.ry1;
+      items.push({ k: 'wall', ed: mk2(Object.assign(pst(lo, lo + len), { h: HI + 1, mat: 'frame', seg: 'a', lamp: lamp })), key: key - .01 }); items.push({ k: 'wall', ed: mk2(Object.assign(pst(hi - len, hi), { h: HI + 1, mat: 'frame', seg: 'b' })), key: key + .01 });
+    } } 
   L.cams.forEach((cam, ci) => { const m = camMount(cam, ci); if (m) { const k0 = m.key + (isIso() ? .02 : 1.5); items.push({ k: 'cam', ci, m, key: k0 }); items.push({ k: 'shaft', ci, m, key: k0 + .005 }); } });
   L.guards.forEach((g, j) => items.push({ k: 'guard', j, key: depthOf(gdraw[j][0] + .5, gdraw[j][1] + .5) + (isIso() ? 0 : .5) }));
+  (L.dogs || []).forEach((d, j) => { const p = railXY(d, ddraw[j]); items.push({ k: 'dog', j, p, key: depthOf(p[0] + .5, p[1] + .5) + (isIso() ? 0 : .5) }); });
   items.push({ k: 'thief', key: depthOf(thief[0] + .5, thief[1] + .5) + (isIso() ? 0 : .5) });
   items.sort((a, b) => a.key - b.key);
   const actors = [], drawn = [];
@@ -362,25 +403,35 @@ function frame(t) {
   };
   for (const it of items) {
     if (it.k === 'wall') {
-      ctx.drawImage(it.s.c, it.s.x, it.s.y); drawn.push({ s: it.s, key: it.key }); const ed = it.ed;
-      if (ed.far) { const fc = [ed.cx, ed.cy]; if (litCell(fc[0], fc[1])) { ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = .1; ctx.drawImage(tinted(it.s, `${ed.cx},${ed.cy},${ed.d},${st.view},${st.rot},${ed.h}`), it.s.x, it.s.y); ctx.restore(); } }
+      if (!it.s) it.s = wallSprite(it.ed); ctx.drawImage(it.s.c, it.s.x, it.s.y); drawn.push({ s: it.s, key: it.key }); const ed = it.ed;
+      if (ed.far && !ed.mat) { const fc = [ed.cx, ed.cy]; if (litCell(fc[0], fc[1])) { ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = .1; ctx.drawImage(tinted(it.s, `${ed.cx},${ed.cy},${ed.d},${st.view},${st.rot},${ed.h}`), it.s.x, it.s.y); ctx.restore(); } }
     } else if (it.k === 'gate') {
       const g = gateSprite(doorOpen); ctx.drawImage(g.c, g.x, g.y); drawn.push({ s: g, key: it.key });
       if (doorOpen > 0) { const sp = proj(L.E % W + .5 + DX[door.d] * .3, ((L.E / W) | 0) + .5 + DY[door.d] * .3), gg = ctx.createRadialGradient(sp[0], sp[1], 1, sp[0], sp[1], 26); gg.addColorStop(0, `rgba(70,230,140,${.38 * doorOpen})`); gg.addColorStop(1, 'rgba(70,230,140,0)'); ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = gg; ctx.fillRect(sp[0] - 26, sp[1] - 26, 52, 52); ctx.restore(); }
     } else if (it.k === 'cam' || it.k === 'shaft') {
-      const m = it.m, d = dgNow[it.ci], sd = screenDir(DX[d], DY[d]), view = isIso() ? (sd.view === 'N' ? 'N' : 'E') : sd.view, img = camSprite(view), cam = L.cams[it.ci];
-      const top = projR(m.mx, m.my, m.h), cx = Math.round(top[0]), cy = Math.round(top[1]) + (isIso() ? 2 : (m.horiz ? 1 : 3)), lx = cx + (view === 'S' ? 0 : (sd.flip ? -3 : 3)), ly = cy - 6;
-      const ray = e.rays.find(q => q.first && q.src === cam.c && q.cells.length), on = !!ray;
-      if (it.k === 'cam') {
-        ctx.save(); ctx.globalAlpha = .35; ctx.fillStyle = '#05030c'; ctx.beginPath(); ctx.ellipse(cx + 1, cy, 5, 1.5, 0, 0, 7); ctx.fill(); ctx.restore();
-        ctx.save(); ctx.translate(cx, cy); if (sd.flip) ctx.scale(-1, 1); ctx.drawImage(img, -5, -img.height + 1); ctx.restore();
-        if (view !== 'N' && on) { const gg = ctx.createRadialGradient(lx, ly, 0, lx, ly, 6); gg.addColorStop(0, `rgba(255,70,52,${.55 + .25 * pulse})`); gg.addColorStop(1, 'rgba(255,40,30,0)'); ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = gg; ctx.fillRect(lx - 6, ly - 6, 12, 12); ctx.restore(); }
-      } else if (on) {                                                                      // a wedge of light from the lens down to the far end of the lit strip, fading with distance
+      const m = it.m, d = dgNow[it.ci], cam = L.cams[it.ci], ray = e.rays.find(q => q.first && q.src === cam.c && q.cells.length), on = !!ray;
+      let lx, ly;
+      if (isIso()) {                                                                         // the camera sprite (art/camera): the wall plate on the wall, the lens looking along d
+        const man = SP.camera.man, row = man.rows.find(r => r.name === diagOf(DX[d], DY[d])), [cw, ch] = man.cell, [ax, ay] = man.anchor, ix = m.horiz ? 0 : (m.far ? 1 : -1), iy = m.horiz ? (m.far ? 1 : -1) : 0;
+        const [ox2, oy2] = projR(m.mx + ix * .1, m.my + iy * .1, Math.max(m.h - 8, 0)), x0 = Math.round(ox2) - ax, y0 = Math.round(oy2) - ay, fr = on ? (Math.floor(now / 520) % 2) : 2;
+        lx = x0 + row.lens[0]; ly = y0 + row.lens[1];
+        if (it.k === 'cam') { ctx.drawImage(sheets.camera, fr * cw, row.row * ch, cw, ch, x0, y0, cw, ch);
+          if (on) { const gg = ctx.createRadialGradient(lx, ly, 0, lx, ly, 6); gg.addColorStop(0, `rgba(255,70,52,${.5 + .25 * pulse})`); gg.addColorStop(1, 'rgba(255,40,30,0)'); ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = gg; ctx.fillRect(lx - 6, ly - 6, 12, 12); ctx.restore(); } }
+      } else {
+        const sd = screenDir(DX[d], DY[d]), view = sd.view, img = camSprite(view), top = projR(m.mx, m.my, m.h), cx = Math.round(top[0]), cy = Math.round(top[1]) + (m.horiz ? 1 : 3); lx = cx + (view === 'S' ? 0 : (sd.flip ? -3 : 3)); ly = cy - 6;
+        if (it.k === 'cam') { ctx.save(); ctx.globalAlpha = .35; ctx.fillStyle = '#05030c'; ctx.beginPath(); ctx.ellipse(cx + 1, cy, 5, 1.5, 0, 0, 7); ctx.fill(); ctx.restore();
+          ctx.save(); ctx.translate(cx, cy); if (sd.flip) ctx.scale(-1, 1); ctx.drawImage(img, -5, -img.height + 1); ctx.restore();
+          if (view !== 'N' && on) { const gg = ctx.createRadialGradient(lx, ly, 0, lx, ly, 6); gg.addColorStop(0, `rgba(255,70,52,${.55 + .25 * pulse})`); gg.addColorStop(1, 'rgba(255,40,30,0)'); ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = gg; ctx.fillRect(lx - 6, ly - 6, 12, 12); ctx.restore(); } }
+      }
+      if (it.k === 'shaft' && on) {                                                           // a wedge of light from the lens down to the far end of the lit strip, fading with distance
         const sh = rayShape(ray), far = [(sh.poly[1][0] + sh.poly[2][0]) / 2, (sh.poly[1][1] + sh.poly[2][1]) / 2], g = ctx.createLinearGradient(lx, ly, far[0], far[1]);
         g.addColorStop(0, `rgba(255,96,70,${.5 + .1 * pulse})`); g.addColorStop(1, 'rgba(255,60,44,.1)');
         ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = g; ctx.beginPath(); ctx.moveTo(lx, ly); ctx.lineTo(sh.poly[1][0], sh.poly[1][1]); ctx.lineTo(sh.poly[2][0], sh.poly[2][1]); ctx.closePath(); ctx.fill();
         ctx.strokeStyle = 'rgba(255,170,150,.45)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(lx, ly); ctx.lineTo(far[0], far[1]); ctx.stroke(); ctx.restore();
       }
+    } else if (it.k === 'dog') {
+      const key = dogKey(), v = dface[it.j], anim = dmove[it.j] ? 'walk' : 'idle', k = dmove[it.j] ? Math.floor(ddist[it.j] * 6) % 4 : idleK(key, v), [ax, ay] = SP[key].man.anchor;
+      place(charFrame(key, anim, v, k, 0), it.p[0] + .5, it.p[1] + .5, false, ax, ay, it.key);
     } else if (it.k === 'guard') {
       const j = it.j, gf = gdraw[j], f = gface[j], cell = L.guards[j].rail[dgNow[L.cams.length + j] >> 1];
       const inBeam = e.rays.some(r => r.cells.length && (() => { const lc = r.cells[r.cells.length - 1]; return (lc % W + DX[r.d]) + ((lc / W | 0) + DY[r.d]) * W === cell; })());

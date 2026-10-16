@@ -1,0 +1,916 @@
+{
+ "version": 1,
+ "notes": "Sheets are PNG with transparent background, frames left to right, rows top to bottom in the order listed. cell = [w,h] px at 1x; anchor = [x,y] inside a cell (feet / base). The game scales with nearest neighbour, mirrors \"right\" for \"left\" when mirror_left is true, and draws shadows, glows and beams itself.",
+ "tile": {
+  "floor": [
+   48,
+   37
+  ],
+  "wall_front": [
+   48,
+   16
+  ],
+  "wall_block": [
+   48,
+   53
+  ]
+ },
+ "sheets": [
+  {
+   "file": "thief.png",
+   "name": "thief",
+   "title": "Prisoner (the player)",
+   "cell": [
+    32,
+    48
+   ],
+   "anchor": [
+    16,
+    47
+   ],
+   "kind": "mover",
+   "mirror_left": true,
+   "size": [
+    128,
+    384
+   ],
+   "optional": false,
+   "rows": [
+    {
+     "name": "idle_down",
+     "frames": 2,
+     "ms": 600,
+     "loop": true,
+     "priority": 1,
+     "note": "breathing / blink, front view"
+    },
+    {
+     "name": "idle_up",
+     "frames": 2,
+     "ms": 600,
+     "loop": true,
+     "priority": 1,
+     "note": "back view"
+    },
+    {
+     "name": "idle_right",
+     "frames": 2,
+     "ms": 600,
+     "loop": true,
+     "priority": 1,
+     "note": "side view facing right (the game mirrors it for left)"
+    },
+    {
+     "name": "walk_down",
+     "frames": 4,
+     "ms": null,
+     "loop": true,
+     "priority": 1,
+     "note": "one walk cycle = 2 steps = 2 tiles; contact poses (feet apart) on frames 0 and 2"
+    },
+    {
+     "name": "walk_up",
+     "frames": 4,
+     "ms": null,
+     "loop": true,
+     "priority": 1,
+     "note": "one walk cycle = 2 steps = 2 tiles; contact poses (feet apart) on frames 0 and 2"
+    },
+    {
+     "name": "walk_right",
+     "frames": 4,
+     "ms": null,
+     "loop": true,
+     "priority": 1,
+     "note": "one walk cycle = 2 steps = 2 tiles; contact poses (feet apart) on frames 0 and 2"
+    },
+    {
+     "name": "caught",
+     "frames": 2,
+     "ms": 300,
+     "loop": true,
+     "priority": 2,
+     "note": "front, hands up; frame 0 -> 1 -> repeat"
+    },
+    {
+     "name": "escape_up",
+     "frames": 4,
+     "ms": 110,
+     "loop": false,
+     "priority": 3,
+     "note": "runs into the exit (walks away from us, shrinks into the door)"
+    }
+   ]
+  },
+  {
+   "file": "guard_a.png",
+   "name": "guard_a",
+   "title": "Guard, type A (slim, cap)",
+   "cell": [
+    32,
+    48
+   ],
+   "anchor": [
+    16,
+    47
+   ],
+   "kind": "mover",
+   "mirror_left": true,
+   "size": [
+    128,
+    432
+   ],
+   "optional": false,
+   "rows": [
+    {
+     "name": "idle_down",
+     "frames": 2,
+     "ms": 600,
+     "loop": true,
+     "priority": 1,
+     "note": ""
+    },
+    {
+     "name": "idle_up",
+     "frames": 2,
+     "ms": 600,
+     "loop": true,
+     "priority": 1,
+     "note": ""
+    },
+    {
+     "name": "idle_right",
+     "frames": 2,
+     "ms": 600,
+     "loop": true,
+     "priority": 1,
+     "note": ""
+    },
+    {
+     "name": "walk_down",
+     "frames": 4,
+     "ms": null,
+     "loop": true,
+     "priority": 1,
+     "note": "one walk cycle = 2 steps = 2 tiles; contact poses (feet apart) on frames 0 and 2"
+    },
+    {
+     "name": "walk_up",
+     "frames": 4,
+     "ms": null,
+     "loop": true,
+     "priority": 1,
+     "note": "one walk cycle = 2 steps = 2 tiles; contact poses (feet apart) on frames 0 and 2"
+    },
+    {
+     "name": "walk_right",
+     "frames": 4,
+     "ms": null,
+     "loop": true,
+     "priority": 1,
+     "note": "one walk cycle = 2 steps = 2 tiles; contact poses (feet apart) on frames 0 and 2"
+    },
+    {
+     "name": "alert_down",
+     "frames": 2,
+     "ms": 200,
+     "loop": true,
+     "priority": 3,
+     "note": "surprised pose when he sees the prisoner (the game adds the \"!\" itself)"
+    },
+    {
+     "name": "alert_up",
+     "frames": 2,
+     "ms": 200,
+     "loop": true,
+     "priority": 3,
+     "note": ""
+    },
+    {
+     "name": "alert_right",
+     "frames": 2,
+     "ms": 200,
+     "loop": true,
+     "priority": 3,
+     "note": ""
+    }
+   ]
+  },
+  {
+   "file": "guard_b.png",
+   "name": "guard_b",
+   "title": "Guard, type B (another build, optional second guard in a level)",
+   "cell": [
+    32,
+    48
+   ],
+   "anchor": [
+    16,
+    47
+   ],
+   "kind": "mover",
+   "mirror_left": true,
+   "size": [
+    128,
+    288
+   ],
+   "optional": true,
+   "rows": [
+    {
+     "name": "idle_down",
+     "frames": 2,
+     "ms": 600,
+     "loop": true,
+     "priority": 3,
+     "note": ""
+    },
+    {
+     "name": "idle_up",
+     "frames": 2,
+     "ms": 600,
+     "loop": true,
+     "priority": 3,
+     "note": ""
+    },
+    {
+     "name": "idle_right",
+     "frames": 2,
+     "ms": 600,
+     "loop": true,
+     "priority": 3,
+     "note": ""
+    },
+    {
+     "name": "walk_down",
+     "frames": 4,
+     "ms": null,
+     "loop": true,
+     "priority": 3,
+     "note": "one walk cycle = 2 steps = 2 tiles; contact poses (feet apart) on frames 0 and 2"
+    },
+    {
+     "name": "walk_up",
+     "frames": 4,
+     "ms": null,
+     "loop": true,
+     "priority": 3,
+     "note": "one walk cycle = 2 steps = 2 tiles; contact poses (feet apart) on frames 0 and 2"
+    },
+    {
+     "name": "walk_right",
+     "frames": 4,
+     "ms": null,
+     "loop": true,
+     "priority": 3,
+     "note": "one walk cycle = 2 steps = 2 tiles; contact poses (feet apart) on frames 0 and 2"
+    }
+   ]
+  },
+  {
+   "file": "dog.png",
+   "name": "dog",
+   "title": "Guard dog (side view; left = mirrored right)",
+   "cell": [
+    48,
+    32
+   ],
+   "anchor": [
+    24,
+    31
+   ],
+   "kind": "mover",
+   "mirror_left": true,
+   "size": [
+    192,
+    288
+   ],
+   "optional": false,
+   "rows": [
+    {
+     "name": "idle_right",
+     "frames": 2,
+     "ms": 500,
+     "loop": true,
+     "priority": 1,
+     "note": "standing, tail / ear twitch"
+    },
+    {
+     "name": "walk_right",
+     "frames": 4,
+     "ms": null,
+     "loop": true,
+     "priority": 1,
+     "note": "one cycle = 2 tiles"
+    },
+    {
+     "name": "run_right",
+     "frames": 4,
+     "ms": null,
+     "loop": true,
+     "priority": 1,
+     "note": "the alarm run: stretched gallop, one cycle = 3 tiles"
+    },
+    {
+     "name": "sniff_right",
+     "frames": 2,
+     "ms": 300,
+     "loop": true,
+     "priority": 2,
+     "note": "nose down"
+    },
+    {
+     "name": "bark_right",
+     "frames": 2,
+     "ms": 150,
+     "loop": true,
+     "priority": 3,
+     "note": "head up, mouth open"
+    },
+    {
+     "name": "idle_down",
+     "frames": 2,
+     "ms": 500,
+     "loop": true,
+     "priority": 2,
+     "note": "front view (the dog also moves up and down rails)"
+    },
+    {
+     "name": "idle_up",
+     "frames": 2,
+     "ms": 500,
+     "loop": true,
+     "priority": 2,
+     "note": "back view"
+    },
+    {
+     "name": "walk_down",
+     "frames": 4,
+     "ms": null,
+     "loop": true,
+     "priority": 2,
+     "note": ""
+    },
+    {
+     "name": "walk_up",
+     "frames": 4,
+     "ms": null,
+     "loop": true,
+     "priority": 2,
+     "note": ""
+    }
+   ]
+  },
+  {
+   "file": "camera.png",
+   "name": "camera",
+   "title": "Wall camera (sits on the top face of a wall block)",
+   "cell": [
+    40,
+    32
+   ],
+   "anchor": [
+    20,
+    31
+   ],
+   "kind": "wall_thing",
+   "mirror_left": true,
+   "size": [
+    120,
+    256
+   ],
+   "optional": false,
+   "rows": [
+    {
+     "name": "idle_up",
+     "frames": 2,
+     "ms": 500,
+     "loop": true,
+     "priority": 1,
+     "note": "back view (it looks away from us); frame 1 = the LED on"
+    },
+    {
+     "name": "idle_right",
+     "frames": 2,
+     "ms": 500,
+     "loop": true,
+     "priority": 1,
+     "note": "side view facing right; the lens is on the right"
+    },
+    {
+     "name": "idle_down",
+     "frames": 2,
+     "ms": 500,
+     "loop": true,
+     "priority": 1,
+     "note": "front view; the lens faces us"
+    },
+    {
+     "name": "turn_up_to_right",
+     "frames": 3,
+     "ms": 90,
+     "loop": false,
+     "priority": 2,
+     "note": "quarter turn clockwise. The other turns are derived: right->down needs its own row below; down->left and left->up are mirrored/reversed"
+    },
+    {
+     "name": "turn_right_to_down",
+     "frames": 3,
+     "ms": 90,
+     "loop": false,
+     "priority": 2,
+     "note": ""
+    },
+    {
+     "name": "alarm_up",
+     "frames": 2,
+     "ms": 150,
+     "loop": true,
+     "priority": 3,
+     "note": "LED lit, body shaking by 1 px"
+    },
+    {
+     "name": "alarm_right",
+     "frames": 2,
+     "ms": 150,
+     "loop": true,
+     "priority": 3,
+     "note": ""
+    },
+    {
+     "name": "alarm_down",
+     "frames": 2,
+     "ms": 150,
+     "loop": true,
+     "priority": 3,
+     "note": ""
+    }
+   ]
+  },
+  {
+   "file": "lamp.png",
+   "name": "lamp",
+   "title": "Searchlight on a wall block",
+   "cell": [
+    40,
+    32
+   ],
+   "anchor": [
+    20,
+    31
+   ],
+   "kind": "wall_thing",
+   "mirror_left": true,
+   "size": [
+    120,
+    160
+   ],
+   "optional": false,
+   "rows": [
+    {
+     "name": "idle_up",
+     "frames": 2,
+     "ms": 500,
+     "loop": true,
+     "priority": 1,
+     "note": "back view"
+    },
+    {
+     "name": "idle_right",
+     "frames": 2,
+     "ms": 500,
+     "loop": true,
+     "priority": 1,
+     "note": "side, lens on the right"
+    },
+    {
+     "name": "idle_down",
+     "frames": 2,
+     "ms": 500,
+     "loop": true,
+     "priority": 1,
+     "note": "front, big lens facing us"
+    },
+    {
+     "name": "turn_up_to_right",
+     "frames": 3,
+     "ms": 90,
+     "loop": false,
+     "priority": 2,
+     "note": ""
+    },
+    {
+     "name": "turn_right_to_down",
+     "frames": 3,
+     "ms": 90,
+     "loop": false,
+     "priority": 2,
+     "note": ""
+    }
+   ]
+  },
+  {
+   "file": "panel.png",
+   "name": "panel",
+   "title": "Power panel (fixed on a wall block; its wires are drawn by the game)",
+   "cell": [
+    40,
+    32
+   ],
+   "anchor": [
+    20,
+    31
+   ],
+   "kind": "wall_thing",
+   "mirror_left": false,
+   "size": [
+    120,
+    128
+   ],
+   "optional": false,
+   "rows": [
+    {
+     "name": "type1_idle",
+     "frames": 2,
+     "ms": 600,
+     "loop": true,
+     "priority": 1,
+     "note": "lamp symbol: circle (the game links a circle wire to it)"
+    },
+    {
+     "name": "type2_idle",
+     "frames": 2,
+     "ms": 600,
+     "loop": true,
+     "priority": 1,
+     "note": "lamp symbol: triangle"
+    },
+    {
+     "name": "type3_idle",
+     "frames": 2,
+     "ms": 600,
+     "loop": true,
+     "priority": 1,
+     "note": "lamp symbol: square. Use different SHAPES, not only colours: the game can be played without colour"
+    },
+    {
+     "name": "pulse",
+     "frames": 3,
+     "ms": 80,
+     "loop": false,
+     "priority": 2,
+     "note": "when it is pressed: lights flash"
+    }
+   ]
+  },
+  {
+   "file": "wall.png",
+   "name": "wall",
+   "title": "Wall blocks: top face 48x37 on top of front face 48x16 (one cell 48x53)",
+   "cell": [
+    48,
+    53
+   ],
+   "anchor": [
+    0,
+    0
+   ],
+   "kind": "block",
+   "mirror_left": false,
+   "size": [
+    144,
+    159
+   ],
+   "optional": false,
+   "rows": [
+    {
+     "name": "concrete",
+     "frames": 3,
+     "ms": null,
+     "loop": true,
+     "priority": 1,
+     "note": "3 variations (the game picks one per cell, like a hash)"
+    },
+    {
+     "name": "brick",
+     "frames": 3,
+     "ms": null,
+     "loop": true,
+     "priority": 1,
+     "note": "3 variations"
+    },
+    {
+     "name": "special",
+     "frames": 3,
+     "ms": null,
+     "loop": true,
+     "priority": 3,
+     "note": "optional: cracked, with bars, pillar"
+    }
+   ]
+  },
+  {
+   "file": "floor.png",
+   "name": "floor",
+   "title": "Floor tiles 48x37 (top view with a little tilt)",
+   "cell": [
+    48,
+    37
+   ],
+   "anchor": [
+    0,
+    0
+   ],
+   "kind": "tile",
+   "mirror_left": false,
+   "size": [
+    192,
+    74
+   ],
+   "optional": false,
+   "rows": [
+    {
+     "name": "base",
+     "frames": 4,
+     "ms": null,
+     "loop": true,
+     "priority": 1,
+     "note": "4 plain variations, almost the same tone so the floor stays calm"
+    },
+    {
+     "name": "extra",
+     "frames": 4,
+     "ms": null,
+     "loop": true,
+     "priority": 3,
+     "note": "warning stripes, drain, cracked, puddle"
+    }
+   ]
+  },
+  {
+   "file": "door.png",
+   "name": "door",
+   "title": "Door (a block 48x53 when closed; when open only the posts stand on the floor tile)",
+   "cell": [
+    48,
+    53
+   ],
+   "anchor": [
+    0,
+    0
+   ],
+   "kind": "block",
+   "mirror_left": false,
+   "size": [
+    288,
+    53
+   ],
+   "optional": false,
+   "rows": [
+    {
+     "name": "states",
+     "frames": 6,
+     "ms": 80,
+     "loop": false,
+     "priority": 1,
+     "note": "frame 0 = closed, frames 1-4 = opening, frame 5 = open (posts and lever box on the lower 37 px, upper 16 px empty). The game plays it backwards for closing. The lever box is in the middle of the tile: that is where a tap lands."
+    }
+   ]
+  },
+  {
+   "file": "mirror.png",
+   "name": "mirror",
+   "title": "Mirror block 48x53",
+   "cell": [
+    48,
+    53
+   ],
+   "anchor": [
+    0,
+    0
+   ],
+   "kind": "block",
+   "mirror_left": false,
+   "size": [
+    240,
+    53
+   ],
+   "optional": false,
+   "rows": [
+    {
+     "name": "states",
+     "frames": 5,
+     "ms": 70,
+     "loop": false,
+     "priority": 1,
+     "note": "frame 0 = \"/\" , frame 1 = \"\\\" , frames 2-4 = turning from \"/\" to \"\\\" (played backwards for the other way)"
+    }
+   ]
+  },
+  {
+   "file": "glass.png",
+   "name": "glass",
+   "title": "Glass block 48x53 (see-through)",
+   "cell": [
+    48,
+    53
+   ],
+   "anchor": [
+    0,
+    0
+   ],
+   "kind": "block",
+   "mirror_left": false,
+   "size": [
+    96,
+    106
+   ],
+   "optional": false,
+   "rows": [
+    {
+     "name": "variants",
+     "frames": 2,
+     "ms": null,
+     "loop": true,
+     "priority": 1,
+     "note": "keep it light: the cameras see through it"
+    },
+    {
+     "name": "cracked",
+     "frames": 1,
+     "ms": null,
+     "loop": true,
+     "priority": 3,
+     "note": ""
+    }
+   ]
+  },
+  {
+   "file": "exit.png",
+   "name": "exit",
+   "title": "Exit door on a floor tile 48x37",
+   "cell": [
+    48,
+    37
+   ],
+   "anchor": [
+    0,
+    0
+   ],
+   "kind": "tile",
+   "mirror_left": false,
+   "size": [
+    144,
+    74
+   ],
+   "optional": false,
+   "rows": [
+    {
+     "name": "idle",
+     "frames": 2,
+     "ms": 500,
+     "loop": true,
+     "priority": 1,
+     "note": "sign light blinking"
+    },
+    {
+     "name": "reached",
+     "frames": 3,
+     "ms": 100,
+     "loop": false,
+     "priority": 3,
+     "note": "opens when the prisoner arrives"
+    }
+   ]
+  },
+  {
+   "file": "fx.png",
+   "name": "fx",
+   "title": "Effects",
+   "cell": [
+    32,
+    32
+   ],
+   "anchor": [
+    16,
+    31
+   ],
+   "kind": "fx",
+   "mirror_left": false,
+   "size": [
+    192,
+    96
+   ],
+   "optional": false,
+   "rows": [
+    {
+     "name": "dust",
+     "frames": 4,
+     "ms": 80,
+     "loop": false,
+     "priority": 2,
+     "note": "puff at the feet when walking starts"
+    },
+    {
+     "name": "alarm_mark",
+     "frames": 2,
+     "ms": 150,
+     "loop": true,
+     "priority": 2,
+     "note": "the \"!\" over a head (the game now draws it with a font)"
+    },
+    {
+     "name": "star_burst",
+     "frames": 6,
+     "ms": 70,
+     "loop": false,
+     "priority": 3,
+     "note": "win: 3 stars pop"
+    }
+   ]
+  },
+  {
+   "file": "ui_icons.png",
+   "name": "ui_icons",
+   "title": "Interface (phase 2)",
+   "cell": [
+    24,
+    24
+   ],
+   "anchor": [
+    12,
+    23
+   ],
+   "kind": "ui",
+   "mirror_left": false,
+   "size": [
+    144,
+    72
+   ],
+   "optional": false,
+   "rows": [
+    {
+     "name": "heart",
+     "frames": 3,
+     "ms": 90,
+     "loop": false,
+     "priority": 2,
+     "note": "frame 0 full (black), frame 1 empty (outline), frame 2 breaking"
+    },
+    {
+     "name": "star",
+     "frames": 2,
+     "ms": null,
+     "loop": true,
+     "priority": 2,
+     "note": "frame 0 full, frame 1 empty"
+    },
+    {
+     "name": "misc",
+     "frames": 6,
+     "ms": null,
+     "loop": true,
+     "priority": 3,
+     "note": "lock, hint lamp, undo, restart, home, play (the game already has pixel icons made from text; replace when ready)"
+    }
+   ]
+  },
+  {
+   "file": "frame9.png",
+   "name": "frame9",
+   "title": "Screen frame, 9-slice (phase 2)",
+   "cell": [
+    48,
+    48
+   ],
+   "anchor": [
+    0,
+    0
+   ],
+   "kind": "ui",
+   "mirror_left": false,
+   "size": [
+    48,
+    96
+   ],
+   "optional": false,
+   "rows": [
+    {
+     "name": "stage_frame",
+     "frames": 1,
+     "ms": null,
+     "loop": true,
+     "priority": 3,
+     "note": "the bezel around the board; the corners are 12x12, the edges stretch"
+    },
+    {
+     "name": "button_frame",
+     "frames": 1,
+     "ms": null,
+     "loop": true,
+     "priority": 3,
+     "note": "a button; corners 6x6"
+    }
+   ]
+  }
+ ]
+}

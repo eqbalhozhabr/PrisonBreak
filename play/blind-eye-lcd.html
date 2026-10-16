@@ -199,8 +199,9 @@
   body.desk #pauseOv .card, body.desk #winOv .card, body.desk #caughtOv .card { max-width:480px; }
 
   /* ---- the optional "lcd" look (see the theme layer in the script): steel frame, olive screen, pink for danger ---- */
-  body.lcd { --bg:#4b5f6b; --panel:#9fb2bd; --panel2:#b6c6cf; --edge:#1a2229; --hi:#dbe6eb; --lo:#6c8290; --ink:#141a20; --mute:#2b3b48; --red:#e8547c; --red-hi:#f7a0b7; --red-lo:#a22a4f; --gold:#8a5f0a; --ok:#1d7a60; --line:#7f95a2; }
+  body.lcd { --bg:#4b5f6b; --panel:#9fb2bd; --panel2:#b6c6cf; --edge:#1a2229; --hi:#dbe6eb; --lo:#6c8290; --ink:#141a20; --mute:#2b3b48; --red:#cf3a42; --red-hi:#ea7d80; --red-lo:#8c1f27; --gold:#8a5f0a; --ok:#1d7a60; --line:#7f95a2; }
   body.lcd button.primary { color:#fff; }
+  body.lcd #hearts .ic.red { color:#141614; } body.lcd #hearts .ic.dim { color:rgba(20,22,20,.28); }
   body.lcd canvas#cv { background:#979d86; }
   body.lcd #menu .tag, body.lcd .keylist .kr, body.lcd #keys .kr { color:#1a2229; text-shadow:none; }
   body.desk.lcd .mpanel { background:rgba(150,170,181,.97); }
@@ -1172,7 +1173,7 @@ const LCD = /[?&]style=lcd/.test(location.search) || STYLE_DEFAULT === 'lcd';
 let spriteInk = false, spriteFlat = false;                                       // true while a sprite is being painted (it uses the sprite mapping, not the world mapping)
 if (LCD) {
   const RAMP = [[20, 22, 20], [92, 100, 90], [118, 128, 110], [134, 145, 124], [151, 157, 134], [172, 178, 152]];     // ink, line, three greys of green, paper (the reference screens' background is 151,157,134)
-  const PINK = [214, 92, 112], AMBER = [208, 166, 84], TEAL = [110, 170, 140];
+  const PINK = [208, 48, 56], AMBER = [208, 166, 84], TEAL = [110, 170, 140];
   const lerp = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
   const cache = new Map();
   const parse = c => {
@@ -2382,7 +2383,7 @@ $('accLogout').onclick = async () => { try { await api('/api/auth/logout', { met
 /* ------------------------------------------------- statistics and reports */
 /* Anonymous play statistics (random id kept in this browser, never linked to an account) help tune the levels: how many start, win, get caught,
    take hints, leave. Only on the game's own site (and localhost, flagged as test traffic). Players can switch them off in Settings. */
-const BUILD = "2026-10-16-097633e";
+const BUILD = "2026-10-16-54a9dff";
 const TEST_HOST = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
 const STATS_HOST = !PORTAL && (new RegExp('^(www\\.)?luckylion\\.games$').test(location.hostname) || TEST_HOST);
 const rid = n => Array.from(crypto.getRandomValues(new Uint8Array(n)), b => b.toString(16).padStart(2, '0')).join('');

@@ -1,0 +1,1223 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Blind Eye — scene lab (style study, not shipped)</title>
+<style>
+  html,body { margin:0; height:100%; background:#050605; color:#9aa59f; font:13px system-ui,sans-serif; overflow:hidden; }
+  #bar { position:fixed; top:0; left:0; right:0; z-index:2; display:flex; flex-wrap:wrap; gap:6px 14px; align-items:center; padding:8px 12px; background:rgba(5,6,5,.85); border-bottom:1px solid #1b221f; }
+  #bar .grp { display:flex; gap:4px; align-items:center; } #bar b { color:#69756f; font-weight:600; margin-right:4px; }
+  button { background:#141a17; color:#b6c2bb; border:1px solid #2a3530; padding:5px 10px; font:inherit; cursor:pointer; border-radius:3px; }
+  button.on { background:#3a2a22; border-color:#a5502f; color:#ffd9c9; } button:hover { background:#1c2521; }
+  #wrap { position:absolute; inset:46px 0 0 0; display:flex; align-items:center; justify-content:center; }
+  canvas { image-rendering:pixelated; image-rendering:crisp-edges; }
+</style></head><body>
+<div id="bar">
+  <span class="grp"><b>Level</b><button data-lv="8">8</button><button data-lv="9">9</button><button data-lv="10">10</button></span>
+  <span class="grp"><b>Rotate</b><button id="rl">⟲</button><button id="rr">⟳</button></span>
+  <span class="grp"><b>Readability tricks</b><button id="hlp">on</button></span>
+  <span class="grp"><b>Colour grade</b><button id="grd">on</button></span>
+  <span class="grp"><b>Dither</b><button id="dth">on</button></span>
+  <span class="grp"><button id="play">▶ Play solution</button><button id="step">Step ▸</button><button id="reset">Reset</button></span>
+</div>
+<div id="wrap"><canvas id="cv"></canvas></div>
+<script>/* Blind Eye: rules, exact solver, and the level generator.
+ *
+ * Rules
+ *  - Grid with walls. The thief starts on S and must reach E.
+ *  - Cameras sit in wall cells and face N/E/S/W. One action turns a camera 90 degrees either way.
+ *  - Guards stand on a straight rail of floor cells. One action steps a guard one cell along its rail (it turns
+ *    to face the way it walks) or flips it around. A guard sees `range` cells ahead.
+ *  - Doors (floor cells) open or close with one action. A closed door blocks movement and sight.
+ *  - Mirrors (floor cells, pillars) flip between "/" and "\" with one action and bend any sight line
+ *    that reaches them by 90 degrees.
+ *  - Dogs (optional) stand on a rail like guards, but they do not look along a line: they smell the whole room they stand in,
+ *    that is every tile they can reach without crossing a wall, a closed door, a mirror pillar or another watcher. Close a
+ *    door behind a dog to trap its scent in the room it is in. One action steps a dog one tile along its rail.
+ *  - Searchlights (optional) sit in wall cells like cameras but nobody turns them: after EVERY action they swing a quarter turn
+ *    clockwise by themselves. "Wait" is an action that changes nothing else, so only the searchlights swing.
+ *  - Power panels (optional) sit in wall cells. A panel is wired to two or three cameras, doors or mirrors; those can then only be
+ *    operated through the panel, and one tap on it advances all of them at once (cameras a quarter turn, doors and mirrors flip).
+ *  - Glass walls (optional, a static feature of the map): light passes straight through them, but nobody can walk through,
+ *    and a dog's scent stops at them too. They are the opposite of a door: sight without a way through.
+ *  - Walls, guards and closed doors stop sight. Guards, closed doors and mirrors block movement.
+ *  - The thief may stand only on dark cells. Walking is free; only actions on watchers/objects count.
+ *    An action is illegal if it lights the thief's cell (he picks the best cell in his dark region
+ *    before each action).
+ *  - Par = the fewest actions, by exact search.
+ *
+ * Cameras only turn clockwise (a 270 degree turn costs 3). Doors, mirrors and guard turns undo themselves in one action;
+ * a guard step is undone by the opposite step.
+ * The generator searches backwards from "the exit is reachable" over the whole state graph, which gives the
+ * par of every possible starting state at once.
+ */
+(function () {
+'use strict';
+const DX = [0, 1, 0, -1], DY = [-1, 0, 1, 0];
+const MIRROR = [[1, 0, 3, 2], [3, 2, 1, 0]];       // state 0 = "/", state 1 = "\"; indexed by travel direction
+
+function mulberry32(a) {
+  return function () {
+    a |= 0; a = a + 0x6D2B79F5 | 0;
+    let t = Math.imul(a ^ a >>> 15, 1 | a);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+function hash2(a, b) { let h = Math.imul(a ^ 0x9E3779B9, 0x85EBCA6B) ^ Math.imul(b + 0x7F4A7C15, 0xC2B2AE35); h ^= h >>> 15; h = Math.imul(h, 0x2C1B3C6D); h ^= h >>> 12; return h >>> 0; }
+
+/* level = { w,h, wall:Uint8Array, S, E, cams:[{c,d}], guards:[{rail:[cells], i, f, range}], toggles:[{c, kind:'door'|'mirror', s}] }
+   digits: cameras (facing 0..3), guards (i*2+f), toggles (0/1: door 1 = closed, mirror 0 = "/" 1 = "\"). */
+let L_W = 0;
+function prepare(L) { L_W = L.w; }
+const counts = L => [L.cams.length, L.guards.length, (L.toggles || []).length, (L.dogs || []).length, (L.lights || []).length];
+function radices(L) {
+  return L.cams.map(() => 4).concat(L.guards.map(g => g.rail.length * 2), (L.toggles || []).map(() => 2), (L.dogs || []).map(d => d.rail.length), (L.lights || []).map(() => 4));
+}
+function initialDigits(L) {
+  return L.cams.map(c => c.d).concat(L.guards.map(g => g.i * 2 + g.f), (L.toggles || []).map(t => t.s), (L.dogs || []).map(d => d.i), (L.lights || []).map(l => l.d));
+}
+/* Panels: L.panels = [{c, links:[digit index, ...]}]; a linked camera / door / mirror has no action of its own. */
+function wiredOf(L) {
+  if (!L._wired) L._wired = new Set((L.panels || []).flatMap(p => p.links));
+  return L._wired;
+}
+/* The digits after tapping panel j, or null when a door would close on a dog standing in it. */
+function panelApply(L, dg, j) {
+  const [nc, ng] = counts(L), p = L.panels[j], d2 = dg.slice();
+  for (const i of p.links) {
+    if (i < nc) { d2[i] = (dg[i] + 1) % 4; continue; }
+    const t = L.toggles[i - nc - ng];
+    if (t.kind === 'door' && dg[i] === 0 && (L.dogs || []).some((d, q) => d.rail[dg[nc + ng + L.toggles.length + q]] === t.c)) return null;
+    d2[i] = 1 - dg[i];
+  }
+  return d2;
+}
+/* After every action each searchlight swings a quarter turn clockwise (digits are copied). */
+function sweep(L, dg) {
+  const ls = L.lights || [];
+  if (!ls.length) return dg;
+  const d2 = dg.slice(), b = dg.length - ls.length;
+  for (let j = 0; j < ls.length; j++) d2[b + j] = (dg[b + j] + 1) % 4;
+  return d2;
+}
+function guardFacingDir(g, f) {            // direction index the guard looks (f=0 toward the last rail cell)
+  const w = L_W, a = g.rail[0], b = g.rail[g.rail.length - 1];
+  const ax = a % w, ay = (a / w) | 0, bx = b % w, by = (b / w) | 0;
+  const d = ax === bx ? (by > ay ? 2 : 0) : (bx > ax ? 1 : 3);
+  return f === 0 ? d : (d + 2) % 4;
+}
+
+/* Lit cells + blocked cells for one configuration. With wantRays it also returns the sight-line
+   segments (a mirror starts a new segment) so the renderer can draw cones. */
+function evalConfig(L, digits, wantRays) {
+  const { w, h, wall } = L, n = w * h, [nc, ng, nt, nd] = counts(L), tog = L.toggles || [], dogs = L.dogs || [];
+  const lit = new Uint8Array(n), occ = new Uint8Array(n), opq = new Uint8Array(n), mir = new Int8Array(n).fill(-1), scent = new Uint8Array(n);
+  if (L.glass) for (let c = 0; c < n; c++) if (L.glass[c]) occ[c] = 1;                 // sight passes, bodies and scent do not
+  const gpos = L.guards.map((g, k) => g.rail[digits[nc + k] >> 1]);
+  for (const c of gpos) { occ[c] = 1; if (!L.ghostGuards) opq[c] = 1; }               // (ghostGuards is a test variant: guards would not block sight; see shieldOnly)
+  tog.forEach((t, j) => {
+    const v = digits[nc + ng + j];
+    if (t.kind === 'door') { if (v === 1) { occ[t.c] = 1; opq[t.c] = 1; } }
+    else { occ[t.c] = 1; mir[t.c] = v; }
+  });
+  const dpos = dogs.map((d, j) => d.rail[digits[nc + ng + nt + j]]);
+  for (const c of dpos) occ[c] = 1;
+  for (const c of dpos) {                                  // a dog smells every tile it can walk to
+    const st = [];
+    for (let d = 0; d < 4; d++) { const x = c % w + DX[d], y = ((c / w) | 0) + DY[d]; if (x >= 0 && y >= 0 && x < w && y < h) { const q = y * w + x; if (!wall[q] && !occ[q] && !scent[q]) { scent[q] = 1; st.push(q); } } }
+    while (st.length) {
+      const q = st.pop(), qx = q % w, qy = (q / w) | 0;
+      for (let d = 0; d < 4; d++) { const x = qx + DX[d], y = qy + DY[d]; if (x < 0 || y < 0 || x >= w || y >= h) continue; const r = y * w + x; if (!wall[r] && !occ[r] && !scent[r]) { scent[r] = 1; st.push(r); } }
+    }
+  }
+  for (let c = 0; c < n; c++) if (scent[c]) lit[c] = 1;
+  const rays = wantRays ? [] : null;
+  const cast = (start, d0, range, who) => {
+    let d = d0, x = start % w, y = (start / w) | 0, cur = { src: start, d, cells: [], who, first: true };
+    const segs = [];
+    for (let s = 0; s < range; s++) {
+      x += DX[d]; y += DY[d];
+      if (x < 0 || y < 0 || x >= w || y >= h) break;
+      const c = y * w + x;
+      if (wall[c]) break;
+      if (mir[c] >= 0) { cur.mirror = c; segs.push(cur); d = MIRROR[mir[c]][d]; cur = { src: c, d, cells: [], who, first: false }; continue; }
+      if (opq[c]) break;
+      lit[c] = 1; cur.cells.push(c);
+    }
+    segs.push(cur);
+    if (rays) for (const sg of segs) rays.push(sg);
+  };
+  L.cams.forEach((cm, k) => cast(cm.c, digits[k], 99, k));
+  L.guards.forEach((g, k) => cast(gpos[k], guardFacingDir(g, digits[nc + k] & 1), g.range, nc + k));
+  (L.lights || []).forEach((l, j) => cast(l.c, digits[nc + ng + nt + nd + j], 99, nc + ng + nt + nd + j));
+  return { lit, occ, rays, scent };
+}
+
+/* dark, free regions of one configuration */
+function labelConfig(L, dg) {
+  const { w, h, wall } = L, n = w * h, { lit, occ } = evalConfig(L, dg, false), lab = new Int8Array(n).fill(-1);
+  let k = 0;
+  const st = [];
+  for (let s = 0; s < n; s++) {
+    if (wall[s] || lit[s] || occ[s] || lab[s] >= 0) continue;
+    st.push(s); lab[s] = k;
+    while (st.length) {
+      const c0 = st.pop(), x = c0 % w, y = (c0 / w) | 0;
+      for (let d = 0; d < 4; d++) {
+        const nx = x + DX[d], ny = y + DY[d];
+        if (nx < 0 || ny < 0 || nx >= w || ny >= h) continue;
+        const q = ny * w + nx;
+        if (wall[q] || lit[q] || occ[q] || lab[q] >= 0) continue;
+        lab[q] = k; st.push(q);
+      }
+    }
+    k++;
+  }
+  return { lab, k };
+}
+
+/* every single action from a configuration: [newDigits, which watcher] */
+function actions(L, dg) {
+  const out = actions0(L, dg), ls = L.lights || [];
+  if (!ls.length) return out;
+  for (const o of out) o[0] = sweep(L, o[0]);                       // the lights swing after whatever the player did
+  out.push([sweep(L, dg), dg.length - ls.length]);                    // Wait: only the lights swing (attributed to the first light)
+  return out;
+}
+function actions0(L, dg) {
+  const [nc, ng] = counts(L), out = [];
+  const wired = wiredOf(L);
+  L.cams.forEach((cm, k) => { if (wired.has(k)) return; const d2 = dg.slice(); d2[k] = (dg[k] + 1) % 4; out.push([d2, k]); });   // clockwise only
+  L.guards.forEach((g, j) => {
+    const k = nc + j, v = dg[k], i = v >> 1, f = v & 1;
+    const taken = ni => L.guards.some((o, q) => q !== j && o.rail[dg[nc + q] >> 1] === g.rail[ni]);
+    for (const s of [1, -1]) {                       // a step also turns the guard to face the way it walks
+      const ni = i + s;
+      if (ni < 0 || ni >= g.rail.length || taken(ni)) continue;
+      const d2 = dg.slice(); d2[k] = ni * 2 + (s === 1 ? 0 : 1); out.push([d2, k]);
+    }
+    const d2 = dg.slice(); d2[k] = i * 2 + (1 - f); out.push([d2, k]);
+  });
+  const nt = (L.toggles || []).length;
+  (L.toggles || []).forEach((t, j) => {
+    const k = nc + ng + j;
+    if (wired.has(k)) return;
+    // a door cannot close on a dog standing in the doorway
+    if (t.kind === 'door' && dg[k] === 0 && (L.dogs || []).some((d, q) => d.rail[dg[nc + ng + nt + q]] === t.c)) return;
+    const d2 = dg.slice(); d2[k] = 1 - dg[k]; out.push([d2, k]);
+  });
+  (L.dogs || []).forEach((d, j) => {
+    const k = nc + ng + nt + j, i = dg[k];
+    const taken = cell => L.guards.some((g, q) => g.rail[dg[nc + q] >> 1] === cell) || (L.dogs || []).some((o, q) => q !== j && o.rail[dg[nc + ng + nt + q]] === cell) ||
+      (L.toggles || []).some((t, q) => t.c === cell && (t.kind === 'mirror' || dg[nc + ng + q] === 1));
+    for (const s of [1, -1]) { const ni = i + s; if (ni < 0 || ni >= d.rail.length || taken(d.rail[ni])) continue; const d2 = dg.slice(); d2[k] = ni; out.push([d2, k]); }
+  });
+  (L.panels || []).forEach((p, j) => { const d2 = panelApply(L, dg, j); if (d2) out.push([d2, dg.length + j]); });     // a panel's 'who' follows the digit indices
+  return out;
+}
+
+/* Exact BFS over (configuration, dark region the thief is in). opts: digits/thief to start elsewhere. */
+function solve(L, opts) {
+  prepare(L);
+  const n = L.w * L.h, rad = radices(L);
+  let total = 1; for (const r of rad) total *= r;
+  if (total > 2.5e6) return null;
+  const mul = new Array(rad.length); { let m = 1; for (let i = rad.length - 1; i >= 0; i--) { mul[i] = m; m *= rad[i]; } }
+  const encode = d => d.reduce((s, v, i) => s + v * mul[i], 0);
+  const decode = id => rad.map((r, i) => ((id / mul[i]) | 0) % r);
+  const cache = new Map();
+  const comps = id => { let c = cache.get(id); if (!c) { c = labelConfig(L, decode(id)); cache.set(id, c); } return c; };
+
+  const start = encode((opts && opts.digits) || initialDigits(L));
+  const S0 = opts && opts.thief != null ? opts.thief : L.S;
+  const c0 = comps(start);
+  if (S0 < 0 || c0.lab[S0] < 0) return { solvable: false, reason: 'start lit' };
+  if (L.E < 0) return { solvable: false, reason: 'no exit' };
+  const frozen = opts && opts.frozen;
+  const key = (id, k) => id * 16 + k;
+  const dist = new Map(), par = new Map();
+  let frontier = [[start, c0.lab[S0]]], goal = null, depth = 0;
+  dist.set(key(start, c0.lab[S0]), 0);
+  if (c0.lab[L.E] === c0.lab[S0]) goal = key(start, c0.lab[S0]);
+  while (frontier.length && goal === null) {
+    const next = [];
+    depth++;
+    for (const [id, k] of frontier) {
+      const cur = comps(id);
+      for (const [d2, who] of actions(L, decode(id))) {
+        if (frozen && frozen.has(who)) continue;
+        const id2 = encode(d2), nc2 = comps(id2), seen = new Set();
+        for (let x = 0; x < n; x++) {
+          if (cur.lab[x] !== k) continue;
+          const k2 = nc2.lab[x];
+          if (k2 < 0 || seen.has(k2)) continue;
+          seen.add(k2);
+          const kk = key(id2, k2);
+          if (dist.has(kk)) continue;
+          dist.set(kk, depth); par.set(kk, [key(id, k), who]);
+          next.push([id2, k2]);
+          if (nc2.lab[L.E] === k2) goal = kk;
+        }
+      }
+      if (goal !== null) break;
+    }
+    frontier = next;
+    if (depth > (opts && opts.maxDepth || 60)) break;
+  }
+  if (goal === null) return { solvable: false, explored: dist.size };
+  const who = [], ids = [];
+  let kk = goal;
+  while (par.has(kk)) { const [p, wh] = par.get(kk); ids.push(Math.floor(kk / 16)); who.push(wh); kk = p; }
+  ids.reverse(); who.reverse();
+  return { solvable: true, par: depth, explored: dist.size, configs: ids.map(decode), who, rad };
+}
+
+/* ASCII of a configuration: # wall . dark ~ lit, S/E, arrows = cameras, a-d guards, X/x doors, / \ mirrors */
+function draw(L, digits) {
+  prepare(L);
+  const { lit } = evalConfig(L, digits, false), [nc, ng, nt, nd] = counts(L), ar = ['^', '>', 'v', '<'];
+  let s = '';
+  for (let y = 0; y < L.h; y++) {
+    for (let x = 0; x < L.w; x++) {
+      const c = y * L.w + x;
+      let ch = L.wall[c] ? '#' : lit[c] ? '~' : '.';
+      if (L.glass && L.glass[c]) ch = 'G';
+      if (c === L.S) ch = lit[c] ? '!' : 'S';
+      if (c === L.E) ch = lit[c] ? 'e' : 'E';
+      const cam = L.cams.findIndex(q => q.c === c);
+      if (cam >= 0) ch = ar[digits[cam]];
+      L.guards.forEach((g, k) => { if (g.rail[digits[nc + k] >> 1] === c) ch = 'abcd'[k]; });
+      (L.toggles || []).forEach((t, j) => { if (t.c === c) ch = t.kind === 'door' ? (digits[nc + ng + j] ? 'X' : 'x') : (digits[nc + ng + j] ? '\\' : '/'); });
+      (L.dogs || []).forEach((d, j) => { if (d.rail[digits[nc + ng + nt + j]] === c) ch = 'efgh'[j]; });
+      (L.lights || []).forEach((l, j) => { if (l.c === c) ch = String(digits[nc + ng + nt + nd + j]); });
+      (L.panels || []).forEach((p, j) => { if (p.c === c) ch = 'pqr'[j]; });
+      s += ch;
+    }
+    s += '\n';
+  }
+  return s;
+}
+
+/* ASCII level format: # wall, . floor, S start, E exit, ^ > v < camera (on a wall cell), a..d guard rail cells,
+   X closed door, x open door, / \ mirror. meta.guards: {a:{i,f,range}} start index on the rail, facing, range. */
+function parseLevel(map, meta) {
+  const h = map.length, w = map[0].length, wall = new Uint8Array(w * h);
+  const L = { w, h, wall, S: -1, E: -1, cams: [], guards: [], toggles: [], dogs: [], lights: [], panels: [], glass: new Uint8Array(w * h) };
+  const rails = {}, pcells = {};
+  map.forEach((row, y) => {
+    if (row.length !== w) throw new Error('ragged map row ' + y);
+    [...row].forEach((ch, x) => {
+      const c = y * w + x;
+      if (ch === '#') wall[c] = 1;
+      else if (ch === 'G') L.glass[c] = 1;                                                         // a glass wall: see-through, not walkable
+      else if (ch === 'S') L.S = c;
+      else if (ch === 'E') L.E = c;
+      else if ('^>v<'.includes(ch)) { wall[c] = 1; L.cams.push({ c, d: '^>v<'.indexOf(ch) }); }
+      else if (/[p-r]/.test(ch)) { wall[c] = 1; pcells[ch] = c; }                                  // a power panel on a wall cell
+      else if ('0123'.includes(ch)) { wall[c] = 1; L.lights.push({ c, d: Number(ch) }); }       // a searchlight; the digit is the way it faces now
+      else if (/[a-d]/.test(ch)) (rails[ch] = rails[ch] || []).push(c);
+      else if (/[e-h]/.test(ch)) (rails[ch] = rails[ch] || []).push(c);
+      else if (ch === 'X' || ch === 'x') L.toggles.push({ c, kind: 'door', s: ch === 'X' ? 1 : 0 });
+      else if (ch === '/' || ch === '\\') L.toggles.push({ c, kind: 'mirror', s: ch === '/' ? 0 : 1 });
+    });
+  });
+  Object.keys(rails).sort().filter(k => k <= 'd').forEach(k => {
+    const g = Object.assign({ i: 0, f: 0, range: 3 }, (meta && meta.guards || {})[k]);
+    g.rail = rails[k].sort((a, b) => a - b);
+    L.guards.push(g);
+  });
+  // a dog's rail may run through a door tile, which the picture cannot show twice, so meta carries the rail itself
+  const dm = (meta && meta.dogs) || {};
+  Object.keys(dm).sort().forEach(k => L.dogs.push({ rail: dm[k].rail.slice(), i: dm[k].i || 0 }));
+  // panels: meta.panels {p:{links:[cell,...]}} names the wired cameras / doors / mirrors by their cells
+  const pm = (meta && meta.panels) || {};
+  Object.keys(pcells).sort().forEach(k => {
+    const links = ((pm[k] && pm[k].links) || []).map(cell => {
+      const ci = L.cams.findIndex(q => q.c === cell); if (ci >= 0) return ci;
+      return L.cams.length + L.guards.length + L.toggles.findIndex(q => q.c === cell);
+    });
+    L.panels.push({ c: pcells[k], links });
+  });
+  return L;
+}
+function toMap(L) {
+  const rows = [], ar = ['^', '>', 'v', '<'];
+  for (let y = 0; y < L.h; y++) {
+    let r = '';
+    for (let x = 0; x < L.w; x++) {
+      const c = y * L.w + x;
+      let ch = L.wall[c] ? '#' : (L.glass && L.glass[c]) ? 'G' : '.';
+      if (c === L.S) ch = 'S';
+      if (c === L.E) ch = 'E';
+      const cam = L.cams.find(q => q.c === c);
+      if (cam) ch = ar[cam.d];
+      const lt = (L.lights || []).find(q => q.c === c); if (lt) ch = String(lt.d);
+      (L.panels || []).forEach((p, k) => { if (p.c === c) ch = 'pqr'[k]; });
+      L.guards.forEach((g, k) => { if (g.rail.includes(c)) ch = 'abcd'[k]; });
+      (L.dogs || []).forEach((d, k) => { if (d.rail.includes(c)) ch = 'efgh'[k]; });
+      (L.toggles || []).forEach(t => { if (t.c === c) ch = t.kind === 'door' ? (t.s ? 'X' : 'x') : (t.s ? '\\' : '/'); });
+      r += ch;
+    }
+    rows.push(r);
+  }
+  const guards = {}, dogs = {}, panels = {};
+  const [nc0, ng0] = counts(L);
+  (L.panels || []).forEach((p, k) => { panels['pqr'[k]] = { links: p.links.map(i => i < nc0 ? L.cams[i].c : L.toggles[i - nc0 - ng0].c) }; });
+  L.guards.forEach((g, k) => { guards['abcd'[k]] = { i: g.i, f: g.f, range: g.range }; });
+  (L.dogs || []).forEach((d, k) => { dogs['efgh'[k]] = { rail: d.rail.slice(), i: d.i }; });
+  return { map: rows, meta: Object.assign({ guards }, (L.dogs || []).length ? { dogs } : {}, (L.panels || []).length ? { panels } : {}) };
+}
+
+/* ------------------------------------------------------------- generator */
+/* Whole state graph of a layout: every configuration, its dark regions, and the distance (in actions) from
+   every (configuration, region) to "the exit is reachable". Returns null if the layout has too many states. */
+function buildGraph(L, cap) {
+  prepare(L);
+  const n = L.w * L.h, rad = radices(L);
+  let total = 1; for (const r of rad) total *= r;
+  if (total > cap) return null;
+  const mul = new Array(rad.length); { let m = 1; for (let i = rad.length - 1; i >= 0; i--) { mul[i] = m; m *= rad[i]; } }
+  const encode = d => d.reduce((s, v, i) => s + v * mul[i], 0);
+  const decode = id => rad.map((r, i) => ((id / mul[i]) | 0) % r);
+  const labs = new Int8Array(total * n), kc = new Uint8Array(total), base = new Int32Array(total + 1);
+  for (let id = 0; id < total; id++) {
+    const { lab, k } = labelConfig(L, decode(id));
+    labs.set(lab, id * n); kc[id] = k; base[id + 1] = base[id] + k;
+  }
+  const nodes = base[total];
+  const dist = new Int16Array(nodes).fill(-1), parent = new Int32Array(nodes).fill(-1), via = new Int16Array(nodes).fill(-1);
+  const cfgOf = new Int32Array(nodes);
+  for (let id = 0; id < total; id++) for (let k = 0; k < kc[id]; k++) cfgOf[base[id] + k] = id;
+  const queue = new Int32Array(nodes); let qh = 0, qt = 0;
+  for (let id = 0; id < total; id++) { const k = labs[id * n + L.E]; if (k >= 0) { const nd = base[id] + k; dist[nd] = 0; queue[qt++] = nd; } }
+  const rev = Array.from({ length: total }, () => []);              // rev[c2] = [[c, who]] for every action c -> c2
+  for (let id = 0; id < total; id++) for (const [d2, who] of actions(L, decode(id))) rev[encode(d2)].push([id, who]);
+  while (qh < qt) {
+    const nd = queue[qh++], id = cfgOf[nd], k = nd - base[id], d0 = dist[nd];
+    for (const [id2, who] of rev[id]) {
+      let seen = 0;
+      for (let x = 0; x < n; x++) {
+        if (labs[id * n + x] !== k) continue;
+        const k2 = labs[id2 * n + x];
+        if (k2 < 0 || (seen >> k2 & 1)) continue;
+        seen |= 1 << k2;
+        const nd2 = base[id2] + k2;
+        if (dist[nd2] >= 0) continue;
+        dist[nd2] = d0 + 1; parent[nd2] = nd; via[nd2] = who; queue[qt++] = nd2;
+      }
+    }
+  }
+  return { n, total, rad, labs, kc, base, dist, parent, via, cfgOf, decode, encode };
+}
+
+function floorConnected(L, extraBlock) {
+  const { w, h, wall } = L, n = w * h, seen = new Uint8Array(n), glass = L.glass;
+  const blocked = c => wall[c] || (glass && glass[c]) || (extraBlock && extraBlock[c]);
+  let s = -1, count = 0;
+  for (let c = 0; c < n; c++) if (!blocked(c)) { count++; if (s < 0) s = c; }
+  if (s < 0) return false;
+  const st = [s]; seen[s] = 1; let got = 1;
+  while (st.length) {
+    const c = st.pop(), x = c % w, y = (c / w) | 0;
+    for (let d = 0; d < 4; d++) {
+      const nx = x + DX[d], ny = y + DY[d]; if (nx < 0 || ny < 0 || nx >= w || ny >= h) continue;
+      const q = ny * w + nx;
+      if (blocked(q) || seen[q]) continue;
+      seen[q] = 1; got++; st.push(q);
+    }
+  }
+  return got === count;
+}
+
+/* spec: { w,h, blocks, cams, guards, doors, mirrors, cap, minUnused } */
+function randomLayout(rnd, spec) {
+  const { w, h } = spec, n = w * h, wall = new Uint8Array(n);
+  for (let x = 0; x < w; x++) { wall[x] = 1; wall[(h - 1) * w + x] = 1; }
+  for (let y = 0; y < h; y++) { wall[y * w] = 1; wall[y * w + w - 1] = 1; }
+  const pick = a => a[(rnd() * a.length) | 0];
+  const shapes = [[[0, 0]], [[0, 0], [1, 0]], [[0, 0], [0, 1]], [[0, 0], [1, 0], [2, 0]], [[0, 0], [0, 1], [0, 2]], [[0, 0], [1, 0], [0, 1]]];
+  const L = { w, h, wall, S: -1, E: -1, cams: [], guards: [], toggles: [], dogs: [], lights: [], panels: [], glass: new Uint8Array(n) };
+  for (let b = 0, tries = 0; b < spec.blocks && tries < 60; tries++) {
+    const sh = pick(shapes), x0 = 1 + ((rnd() * (w - 2)) | 0), y0 = 1 + ((rnd() * (h - 2)) | 0), cells = sh.map(([dx, dy]) => (y0 + dy) * w + x0 + dx);
+    if (sh.some(([dx, dy]) => x0 + dx >= w - 1 || y0 + dy >= h - 1) || cells.some(c => wall[c])) continue;
+    cells.forEach(c => { wall[c] = 1; });
+    if (!floorConnected(L)) { cells.forEach(c => { wall[c] = 0; }); continue; }
+    b++;
+  }
+  const floor = []; for (let c = 0; c < n; c++) if (!wall[c]) floor.push(c);
+  if (floor.length < 6) return null;
+  L.E = pick(floor);
+  const used = new Set([L.E]);
+  // guards: straight rails of 3-4 floor cells
+  for (let g = 0; g < spec.guards; g++) {
+    let placed = false;
+    for (let tries = 0; tries < 60 && !placed; tries++) {
+      const len = 3 + ((rnd() * 2) | 0), horiz = rnd() < .5, x0 = (rnd() * w) | 0, y0 = (rnd() * h) | 0, rail = [];
+      for (let k = 0; k < len; k++) {
+        const x = x0 + (horiz ? k : 0), y = y0 + (horiz ? 0 : k);
+        if (x >= w || y >= h) break;
+        const c = y * w + x; if (wall[c] || used.has(c)) break; rail.push(c);
+      }
+      if (rail.length < 3) continue;
+      rail.forEach(c => used.add(c));
+      L.guards.push({ rail, i: 0, f: 0, range: spec.range || 3 }); placed = true;
+    }
+    if (!placed) return null;
+  }
+  for (let g = 0; g < (spec.dogs || 0); g++) {                       // dogs: rails of 3 to 4 tiles
+    let placed = false;
+    for (let tries = 0; tries < 60 && !placed; tries++) {
+      const len = 3 + ((rnd() * 2) | 0), horiz = rnd() < .5, x0 = (rnd() * w) | 0, y0 = (rnd() * h) | 0, rail = [];
+      for (let k = 0; k < len; k++) {
+        const x = x0 + (horiz ? k : 0), y = y0 + (horiz ? 0 : k);
+        if (x >= w || y >= h) break;
+        const c = y * w + x; if (wall[c] || used.has(c)) break; rail.push(c);
+      }
+      if (rail.length < 3) continue;
+      rail.forEach(c => used.add(c));
+      L.dogs.push({ rail, i: 0 }); placed = true;
+    }
+    if (!placed) return null;
+  }
+  const dogDoors = L.dogs.flatMap(d => d.rail.slice(1, -1));         // a door in the middle of a dog's rail can shut the dog in
+  const free = () => floor.filter(c => !used.has(c));
+  // doors prefer corridor cells (walls on two opposite sides)
+  for (let d = 0; d < spec.doors; d++) {
+    const cand = free(), corr = cand.filter(c => { const x = c % w, y = (c / w) | 0; return (wall[c - 1] && wall[c + 1] && !wall[c - w] && !wall[c + w]) || (wall[c - w] && wall[c + w] && !wall[c - 1] && !wall[c + 1]); });
+    let c;
+    if (dogDoors.length && rnd() < .8) c = dogDoors.splice((rnd() * dogDoors.length) | 0, 1)[0];
+    else { const pool = corr.length && rnd() < .8 ? corr : cand; if (!pool.length) return null; c = pick(pool); }
+    used.add(c); L.toggles.push({ c, kind: 'door', s: 0 });
+  }
+  const pillars = new Uint8Array(n);
+  for (let m = 0; m < spec.mirrors; m++) {
+    const cand = free(); if (!cand.length) return null;
+    const c = pick(cand); used.add(c); pillars[c] = 1; L.toggles.push({ c, kind: 'mirror', s: 0 });
+  }
+  if (!floorConnected(L, pillars)) return null;
+  // cameras on wall cells that touch the floor
+  const mounts = [];
+  for (let c = 0; c < n; c++) {
+    if (!wall[c]) continue;
+    const x = c % w, y = (c / w) | 0;
+    if (x > 0 && !wall[c - 1] || x < w - 1 && !wall[c + 1] || y > 0 && !wall[c - w] || y < h - 1 && !wall[c + w]) mounts.push(c);
+  }
+  for (let k = 0; k < spec.cams; k++) {
+    if (!mounts.length) return null;
+    const c = mounts.splice((rnd() * mounts.length) | 0, 1)[0];
+    L.cams.push({ c, d: 0 });
+  }
+  for (let k = 0; k < (spec.lights || 0); k++) {
+    if (!mounts.length) return null;
+    const c = mounts.splice((rnd() * mounts.length) | 0, 1)[0];
+    L.lights.push({ c, d: (rnd() * 4) | 0 });
+  }
+  // panels: each is wired to spec.wire (default 2) cameras / doors / mirrors that no other panel owns
+  const nc = L.cams.length, ng = L.guards.length, wirable = [];
+  for (let i = 0; i < nc; i++) wirable.push(i);
+  for (let j = 0; j < L.toggles.length; j++) wirable.push(nc + ng + j);
+  for (let k = 0; k < (spec.panels || 0); k++) {
+    const wire = spec.wire || 2;
+    if (!mounts.length || wirable.length < wire) return null;
+    const c = mounts.splice((rnd() * mounts.length) | 0, 1)[0], links = [];
+    for (let q = 0; q < wire; q++) links.push(wirable.splice((rnd() * wirable.length) | 0, 1)[0]);
+    L.panels.push({ c, links: links.sort((a, b) => a - b) });
+  }
+  // glass: turn single interior wall cells between two floor cells into panes
+  const used2 = new Set([...L.cams, ...L.lights, ...L.panels].map(q => q.c));
+  const panes = [];
+  for (let c = 0; c < n; c++) {
+    const x = c % w, y = (c / w) | 0;
+    if (!wall[c] || x < 1 || y < 1 || x > w - 2 || y > h - 2 || used2.has(c)) continue;
+    if ((!wall[c - 1] && !wall[c + 1]) || (!wall[c - w] && !wall[c + w])) panes.push(c);                // floor on two opposite sides
+  }
+  for (let g = 0; g < (spec.glass || 0); g++) {
+    if (!panes.length) return null;
+    const c = panes.splice((rnd() * panes.length) | 0, 1)[0];
+    wall[c] = 0; L.glass[c] = 1;
+  }
+  return L;
+}
+
+function mounts(L) {
+  const { w, h, wall } = L, out = [];
+  for (let c = 0; c < w * h; c++) {
+    if (!wall[c]) continue;
+    const x = c % w, y = (c / w) | 0;
+    if (x > 0 && !wall[c - 1] || x < w - 1 && !wall[c + 1] || y > 0 && !wall[c - w] || y < h - 1 && !wall[c + w]) out.push(c);
+  }
+  return out;
+}
+function cloneLevel(L) {
+  return { ghostGuards: !!L.ghostGuards, w: L.w, h: L.h, wall: L.wall.slice(), S: L.S, E: L.E, cams: L.cams.map(c => ({ ...c })),
+    guards: L.guards.map(g => ({ ...g, rail: g.rail.slice() })), toggles: L.toggles.map(t => ({ ...t })), dogs: (L.dogs || []).map(d => ({ ...d, rail: d.rail.slice() })), lights: (L.lights || []).map(l => ({ ...l })), panels: (L.panels || []).map(p => ({ c: p.c, links: p.links.slice() })), glass: L.glass ? L.glass.slice() : new Uint8Array(L.w * L.h) };
+}
+/* One random change to a layout (walls, exit, a camera mount, a guard rail, a door or a mirror). null if it breaks the layout. */
+function mutateLayout(L, rnd) {
+  const M = cloneLevel(L), { w, h } = M, n = w * h, pick = a => a[(rnd() * a.length) | 0];
+  const busy = new Set([M.E]);
+  M.guards.forEach(g => g.rail.forEach(c => busy.add(c))); M.dogs.forEach(d => d.rail.forEach(c => busy.add(c))); M.toggles.forEach(t => busy.add(t.c)); M.cams.forEach(c => busy.add(c.c)); M.lights.forEach(c => busy.add(c.c)); M.panels.forEach(c => busy.add(c.c));
+  for (let c = 0; c < n; c++) if (M.glass[c]) busy.add(c);
+  const k = rnd();
+  if (k < .35 && M.glass.some(v => v) && rnd() < .3) {              // move a glass pane to another one-cell wall
+    const old = pick([...M.glass.keys()].filter(c => M.glass[c])), cand = [];
+    for (let c = 0; c < n; c++) {
+      const x = c % w, y = (c / w) | 0;
+      if (!M.wall[c] || x < 1 || y < 1 || x > w - 2 || y > h - 2 || busy.has(c)) continue;
+      if ((!M.wall[c - 1] && !M.wall[c + 1]) || (!M.wall[c - w] && !M.wall[c + w])) cand.push(c);
+    }
+    if (!cand.length) return null;
+    M.glass[old] = 0; M.wall[old] = 1; const nw = pick(cand); M.wall[nw] = 0; M.glass[nw] = 1;
+  } else if (k < .35) {                                            // flip an interior wall cell
+    const c = (1 + ((rnd() * (h - 2)) | 0)) * w + 1 + ((rnd() * (w - 2)) | 0);
+    if (busy.has(c)) return null;
+    M.wall[c] ^= 1;
+  } else if (k < .5) {                                             // move the exit
+    const fl = []; for (let c = 0; c < n; c++) if (!M.wall[c] && !busy.has(c)) fl.push(c);
+    if (!fl.length) return null; M.E = pick(fl);
+  } else if (k < .72 && M.cams.length + M.lights.length + M.panels.length) {   // move a camera, searchlight or panel to another mount
+    const ms = mounts(M).filter(c => !busy.has(c)); if (!ms.length) return null;
+    pick(M.cams.concat(M.lights, M.panels)).c = pick(ms);
+  } else if (k < .84 && M.guards.length + M.dogs.length) {         // slide or re-draw a guard or dog rail
+    const g = pick(M.guards.concat(M.dogs)), len = g.rail.length, horiz = (g.rail[0] % w) !== (g.rail[len - 1] % w);
+    const x0 = (g.rail[0] % w) + (rnd() < .5 ? 0 : (horiz ? (rnd() < .5 ? -1 : 1) : 0)), y0 = ((g.rail[0] / w) | 0) + (rnd() < .5 ? 0 : (horiz ? 0 : (rnd() < .5 ? -1 : 1)));
+    const nr = []; for (let q = 0; q < len; q++) { const x = x0 + (horiz ? q : 0), y = y0 + (horiz ? 0 : q); if (x < 0 || y < 0 || x >= w || y >= h) return null; nr.push(y * w + x); }
+    if (nr.some(c => M.wall[c] || c === M.E || (busy.has(c) && !g.rail.includes(c)))) return null;
+    g.rail = nr; g.i = Math.min(g.i, len - 1);
+  } else if (M.toggles.length) {                                   // move a door or mirror
+    const t = pick(M.toggles), fl = []; for (let c = 0; c < n; c++) if (!M.wall[c] && !busy.has(c)) fl.push(c);
+    if (!fl.length) return null; t.c = pick(fl);
+  } else return null;
+  for (const c of M.cams.concat(M.lights, M.panels)) if (!M.wall[c.c]) return null;
+  if (!mounts(M).length || M.wall[M.E]) return null;
+  for (const g of M.guards.concat(M.dogs)) if (g.rail.some(c => M.wall[c])) return null;
+  for (const t of M.toggles) if (M.wall[t.c]) return null;
+  const pillars = new Uint8Array(n); M.toggles.forEach(t => { if (t.kind === 'mirror') pillars[t.c] = 1; });
+  if (!floorConnected(M, pillars)) return null;
+  // a camera whose neighbours became all wall can light nothing
+  for (const c of M.cams.concat(M.lights, M.panels)) {
+    const x = c.c % w, y = (c.c / w) | 0;
+    if (!(x > 0 && !M.wall[c.c - 1] || x < w - 1 && !M.wall[c.c + 1] || y > 0 && !M.wall[c.c - w] || y < h - 1 && !M.wall[c.c + w])) return null;
+  }
+  return M;
+}
+
+/* How many watchers/objects the level cannot be solved without: freeze each one and see whether par gets worse. */
+/* Units the player works with: every item that has an action of its own (wired ones do not), every panel and every searchlight. */
+function unitCount(L) {
+  const wired = wiredOf(L);
+  return L.cams.length + L.guards.length + L.toggles.length + (L.dogs || []).length - wired.size + (L.panels || []).length + (L.lights || []).length + (L.glass ? L.glass.reduce((a, b) => a + b, 0) : 0);
+}
+function necessary(L, par) {
+  const D = L.cams.length + L.guards.length + L.toggles.length + (L.dogs || []).length + (L.lights || []).length, nl = (L.lights || []).length, wired = wiredOf(L);
+  const nItems = D - nl;
+  let cnt = 0;
+  // a searchlight cannot be frozen (it swings anyway); it counts when taking it away changes the par
+  for (let j = 0; j < nl; j++) {
+    const M = cloneLevel(L); M.lights.splice(j, 1);
+    const r = solve(M, { maxDepth: par + 2 });
+    if (!r || !r.solvable || r.par !== par) cnt++;
+  }
+  for (let c = 0; c < L.w * L.h; c++) if (L.glass && L.glass[c]) {            // a pane counts when making it a plain wall changes the par
+    const M = cloneLevel(L); M.glass[c] = 0; M.wall[c] = 1;
+    const r = solve(M, { maxDepth: par + 2 });
+    if (!r || !r.solvable || r.par !== par) cnt++;
+  }
+  const check = k => { const r = solve(L, { frozen: new Set([k]), maxDepth: par }); if (!r || !r.solvable || r.par > par) cnt++; };
+  for (let k = 0; k < nItems; k++) if (!wired.has(k)) check(k);
+  for (let j = 0; j < (L.panels || []).length; j++) check(D + j);
+  return cnt;
+}
+
+/* How many times the prisoner has to WALK in the best solutions: the fewest walk segments among solutions with the fewest
+   actions. A walk between two actions counts one however long it is; the final walk to the exit counts one too. So 1 means
+   "stand still, change the cameras, walk out"; 3 means he has to be moved on twice before the way is open. Exact, by dynamic
+   programming over the layers of the solution, using the distances of the whole-graph search. */
+function phasesDP(L, g, id0, S) {
+  const n = g.n, t = g.dist[g.base[id0] + g.labs[id0 * n + S]];
+  if (t < 0) return Infinity;
+  let layer = new Map([[id0 * n + S, 0]]);
+  const actCache = new Map();
+  const acts = c => { let a = actCache.get(c); if (!a) { a = actions(L, g.decode(c)).map(([d2]) => g.encode(d2)); actCache.set(c, a); } return a; };
+  for (let k = 0; k < t; k++) {
+    const next = new Map(), rem = t - k;
+    for (const [key, w] of layer) {
+      const c = (key / n) | 0, x = key % n, comp = g.labs[c * n + x], cells = [];
+      for (let y = 0; y < n; y++) if (g.labs[c * n + y] === comp) cells.push(y);
+      for (const c2 of acts(c)) for (const y of cells) {
+        const k2 = g.labs[c2 * n + y];
+        if (k2 < 0 || g.dist[g.base[c2] + k2] !== rem - 1) continue;
+        const nw = w + (y === x ? 0 : 1), kk = c2 * n + y, old = next.get(kk);
+        if (old === undefined || old > nw) next.set(kk, nw);
+      }
+    }
+    layer = next;
+  }
+  let best = Infinity;
+  for (const [key, w] of layer) best = Math.min(best, w + ((key % n) === L.E ? 0 : 1));
+  return best;
+}
+/* Phases of a finished level, found from scratch (used to check shipped levels). */
+function analyze(L, cap) {
+  prepare(L);
+  const g = buildGraph(L, cap || 400000); if (!g) return null;
+  const id0 = g.encode(initialDigits(L)), k = g.labs[id0 * g.n + L.S];
+  if (k < 0) return null;
+  return { par: g.dist[g.base[id0] + k], phases: phasesDP(L, g, id0, L.S) };
+}
+
+/* Chooses a starting state at exactly `t` actions from the exit in which enough of the watchers matter. */
+function pickStart(L, g, rnd, t, minUsed) {
+  const cands = [];
+  for (let nd = 0; nd < g.dist.length; nd++) if (g.dist[nd] === t) cands.push(nd);
+  if (!cands.length) return null;
+  let best = -1, bestScore = -1;
+  for (let s = 0; s < Math.min(120, cands.length); s++) {
+    const nd = cands[(rnd() * cands.length) | 0], users = new Set();
+    for (let q = nd; g.parent[q] >= 0; q = g.parent[q]) users.add(g.via[q]);
+    const sc = users.size + rnd() * .5;
+    if (users.size >= minUsed && sc > bestScore) { best = nd; bestScore = sc; }
+  }
+  return best < 0 ? null : best;
+}
+/* Like pickStart, but also chooses the prisoner's start tile so that the walk count falls in [wLo, wHi]. */
+function pickStartPhased(L, g, rnd, t, minUsed, wLo, wHi, gN, minGap) {
+  const cands = [];
+  for (let nd = 0; nd < g.dist.length; nd++) if (g.dist[nd] === t) cands.push(nd);
+  if (!cands.length) return null;
+  const marked = new Set(L.toggles.map(q => q.c)); L.guards.forEach(gd => gd.rail.forEach(c => marked.add(c))); (L.dogs || []).forEach(d => d.rail.forEach(c => marked.add(c)));
+  let best = null, bestScore = -1;
+  for (let s = 0; s < Math.min(90, cands.length); s++) {
+    const nd = cands[(rnd() * cands.length) | 0], users = new Set();
+    for (let q = nd; g.parent[q] >= 0; q = g.parent[q]) users.add(g.via[q]);
+    if (users.size < minUsed) continue;
+    const id = g.cfgOf[nd], k = nd - g.base[id]; let cells = [];
+    if (gN) cells = shieldOnlyCells(g, gN, nd, 64, minGap).filter(x => x !== L.E && !marked.has(x));          // only tiles from which just the shield solves it
+    else for (let x = 0; x < g.n; x++) if (g.labs[id * g.n + x] === k && x !== L.E && !marked.has(x)) cells.push(x);
+    for (let q = 0; q < Math.min(5, cells.length); q++) {
+      const S = cells[(rnd() * cells.length) | 0], w = phasesDP(L, g, id, S);
+      if (w < wLo || w > wHi) continue;
+      const sc = users.size + w * .3 + rnd() * .5;
+      if (sc > bestScore) { bestScore = sc; best = { nd, S, w }; }
+    }
+  }
+  return best;
+}
+/* The most walk segments any sampled start at distance t can force (a guide for the hill-climb). */
+function sampleMaxPhases(L, g, rnd, t) {
+  const cands = [];
+  for (let nd = 0; nd < g.dist.length; nd++) if (g.dist[nd] === t) cands.push(nd);
+  let best = 0;
+  for (let s = 0; s < Math.min(14, cands.length); s++) {
+    const nd = cands[(rnd() * cands.length) | 0], id = g.cfgOf[nd], k = nd - g.base[id], cells = [];
+    for (let x = 0; x < g.n; x++) if (g.labs[id * g.n + x] === k && x !== L.E) cells.push(x);
+    for (let q = 0; q < Math.min(3, cells.length); q++) best = Math.max(best, phasesDP(L, g, id, cells[(rnd() * cells.length) | 0]));
+  }
+  return best;
+}
+function applyStart(L, g, nd, rnd, forceS) {
+  const id = g.cfgOf[nd], k = nd - g.base[id], dg = g.decode(id), nc = L.cams.length, ng = L.guards.length, nt = L.toggles.length, nd0 = (L.dogs || []).length;
+  const marked = new Set(L.toggles.map(t => t.c)); L.guards.forEach(gd => gd.rail.forEach(c => marked.add(c))); (L.dogs || []).forEach(d => d.rail.forEach(c => marked.add(c)));      // the ASCII form cannot show S on these
+  const cells = []; for (let x = 0; x < g.n; x++) if (g.labs[id * g.n + x] === k && x !== L.E && !marked.has(x)) cells.push(x);
+  if (!cells.length) return false;
+  L.S = forceS != null ? forceS : cells[(rnd() * cells.length) | 0];
+  L.cams.forEach((c, i) => { c.d = dg[i]; });
+  L.guards.forEach((gd, i) => { gd.i = dg[nc + i] >> 1; gd.f = dg[nc + i] & 1; });
+  L.toggles.forEach((tg, i) => { tg.s = dg[nc + ng + i]; });
+  (L.dogs || []).forEach((d, i) => { d.i = dg[nc + ng + nt + i]; });
+  (L.lights || []).forEach((l, i) => { l.d = dg[nc + ng + nt + nd0 + i]; });
+  return true;
+}
+
+/* Builds one level whose par is `target` (or one less). A random layout is grown by hill-climbing on the largest
+   par its whole state graph contains, then a starting state at the wanted par is chosen. null when attempts run out. */
+/* Guards also stop cameras' sight: a guard standing in a camera's beam is a moving shield. A start is "shield-only" when it is solvable but would NOT be if guards were
+   transparent to sight (the variant graph `gN`, built with L.ghostGuards): the prisoner can only get out by putting a guard in a camera's way somewhere along the route. */
+function ghostOf(L) { const c = cloneLevel(L); c.ghostGuards = true; return c; }
+function shieldOnlyCells(g, gN, nd, cap, minGap) {          // the tiles of start node nd from which only the shield solves it (or the shield-free way is at least minGap actions longer)
+  const id = g.cfgOf[nd], k = nd - g.base[id], out = [];
+  for (let x = 0; x < g.n && out.length < cap; x++) {
+    if (g.labs[id * g.n + x] !== k) continue;
+    const kN = gN.labs[id * g.n + x];
+    if (kN < 0) continue; const gd = gN.dist[gN.base[id] + kN];
+    if (gd === -1 || (minGap > 0 && gd - g.dist[nd] >= minGap)) out.push(x);
+  }
+  return out;
+}
+function shieldCount(g, gN, rnd, t) {                      // how many sampled starts at distance t need the shield (a guide for the hill-climb)
+  const cands = []; for (let nd = 0; nd < g.dist.length; nd++) if (g.dist[nd] === t) cands.push(nd);
+  let c = 0; for (let s = 0; s < Math.min(60, cands.length); s++) if (shieldOnlyCells(g, gN, cands[(rnd() * cands.length) | 0], 1).length) c++;
+  return c;
+}
+/* A smooth guide for the hill-climb: over sampled starts at distance t (a tile that is dark in both worlds), how much longer the best shield-free solution is
+   (6 = none at all). Layouts where the guards matter more score higher, until some starts need the shield outright. */
+function shieldGap(g, gN, rnd, t) {
+  const cands = []; for (let nd = 0; nd < g.dist.length; nd++) if (g.dist[nd] === t) cands.push(nd);
+  let sum = 0, cnt = 0;
+  for (let s = 0; s < Math.min(40, cands.length); s++) {
+    const nd = cands[(rnd() * cands.length) | 0], id = g.cfgOf[nd], k = nd - g.base[id];
+    for (let x = 0, seen = 0; x < g.n && seen < 2; x++) {
+      if (g.labs[id * g.n + x] !== k) continue;
+      const kN = gN.labs[id * g.n + x]; if (kN < 0) continue; seen++;
+      const gd = gN.dist[gN.base[id] + kN]; sum += gd < 0 ? 6 : Math.max(0, Math.min(6, gd - t)); cnt++;
+    }
+  }
+  return cnt ? sum / cnt : 0;
+}
+function genLevel(spec, seed, target, iters) {
+  const rnd = mulberry32(seed);
+  let L = null;
+  for (let t = 0; t < 40 && !L; t++) L = randomLayout(rnd, spec);
+  if (!L) return null;
+  const total = unitCount(L), minUsed = total - (total <= 3 ? 0 : (spec.minUnused == null ? 1 : spec.minUnused));
+  const wLo = spec.phasesLo || 1, wHi = spec.phasesHi || 99;
+  let cur = buildGraph(L, spec.cap || 20000), curScore = -1;
+  const maxOf = g => { let m = 0; for (let i = 0; i < g.dist.length; i++) if (g.dist[i] > m) m = g.dist[i]; return m; };
+  const score = (g) => { const m = maxOf(g); return Math.min(m, target + 1) * 100 + (m >= target ? Math.min(sampleMaxPhases(L2, g, rnd, Math.min(m, target)), wLo) * 10 : 0); };
+  let L2 = L, curN = null;
+  const needS = !!spec.needShield && L.guards.length > 0 && L.cams.length > 0, shieldMin = spec.shieldMin == null ? 2 : spec.shieldMin;
+  if (cur) curScore = score(cur);
+  const t0 = Date.now(), budget = spec.timeMs || 25000;
+  if (spec.needShield && !needS) return null;                                                // a shield needs a guard and a camera
+  for (let it = 0; it < (iters || 400); it++) {
+    if (Date.now() - t0 > budget) return null;
+    if (cur && curScore >= (target - 1) * 100) {
+      if (needS && !curN) curN = buildGraph(ghostOf(L), spec.cap || 20000);
+      for (let tryNo = 0; tryNo < 6 && (!needS || curN); tryNo++) {
+        const t = tryNo % 2 ? Math.max(1, target - 1) : target;
+        const pick = pickStartPhased(L, cur, rnd, t, Math.max(1, minUsed - 1), wLo, wHi, needS ? curN : null, shieldMin);
+        if (!pick) continue;
+        if (!applyStart(L, cur, pick.nd, rnd, pick.S)) continue;
+        const r = solve(L, { maxDepth: 40 });
+        if (!r || !r.solvable || r.par !== t) continue;
+        if (needS) {                                                                                  // double check, from the real start: dark in the ghost world too, and without the shield there is no way out (or one at least shieldMin actions longer)
+          const G = ghostOf(L); prepare(G); const e = evalConfig(G, initialDigits(G), false); if (e.lit[L.S] || e.occ[L.S]) continue;
+          const rg = solve(G, { maxDepth: 40 }); if (rg && rg.solvable && rg.par < t + shieldMin) continue;
+        }
+        const need = necessary(L, t);
+        if (need >= minUsed) return { level: L, par: t, phases: pick.w, used: need, total, states: r.explored, iters: it };
+      }
+    }
+    const M = mutateLayout(L, rnd); if (!M) continue;
+    const g = buildGraph(M, spec.cap || 20000); if (!g) continue;
+    L2 = M; let sc = score(g), gNM = null;
+    if (needS && sc >= (target - 1) * 100) { gNM = buildGraph(ghostOf(M), spec.cap || 20000); if (gNM) sc += Math.round(shieldGap(g, gNM, rnd, target) * 12); }       // layouts where starts need the shield are preferred
+    if (!cur || sc >= curScore) { L = M; cur = g; curScore = sc; curN = gNM; }
+  }
+  return null;
+}
+
+const api = { ghostOf, shieldOnlyCells, shieldCount, shieldGap, cloneLevel, analyze, _layout: randomLayout, solve, draw, mulberry32, hash2, initialDigits, evalConfig, prepare, parseLevel, toMap, guardFacingDir, radices, actions, genLevel, buildGraph, sweep, panelApply };
+if (typeof module !== 'undefined' && module.exports) module.exports = api;
+if (typeof window !== 'undefined') window.Prison = api;
+})();
+</script>
+<script>/* generated by tools/gen-levels.js + tools/build-levels.js; every level re-solved exactly (par = fewest actions) */
+window.PRISON_LEVELS = [{"id":1,"map":["#####","##.E#","#S#.#",">...#","#####"],"meta":{"guards":{}},"par":1,"walks":1},{"id":2,"map":["#####","##.S#","#>..#","#.#.#","#E..#","#####"],"meta":{"guards":{}},"par":2,"walks":1},{"id":3,"map":["######","###..#","#>.E.#","#..<##","#S####","######"],"meta":{"guards":{}},"par":3,"walks":2},{"id":4,"map":["#######","###S..#","###...#","#E.>..#",">....##","###^###"],"meta":{"guards":{}},"par":5,"walks":2},{"id":5,"map":["#######","###>.E#","#....<#","#...vS#","##>...#","#####.#","#######"],"meta":{"guards":{}},"par":7,"walks":3},{"id":6,"map":["########","###S...#","#..#.#.#","#...^..#","#.>...##","#.E<..##","##^#^###"],"meta":{"guards":{}},"par":9,"walks":4},{"id":7,"map":["######",">.E..#","##...#","#.aaa#","####S#","######"],"meta":{"guards":{"a":{"i":0,"f":0,"range":3}}},"par":2,"walks":1},{"id":8,"map":["######","#Saaa#","##..##","##...#","##.E##","###^##"],"meta":{"guards":{"a":{"i":0,"f":0,"range":3}}},"par":2,"walks":1},{"id":9,"map":["######","#E<.##","#..a.#","###a.#","##Sa##","######"],"meta":{"guards":{"a":{"i":2,"f":1,"range":3}}},"par":4,"walks":2},{"id":10,"map":["#######","#..S.##","#.#.###","#.#.v.#","##aaaE#","#####^#"],"meta":{"guards":{"a":{"i":2,"f":1,"range":3}}},"par":4,"walks":2},{"id":11,"map":["#######","##...S#","##.>.<#","#.#..##","#Eaaa##","#######"],"meta":{"guards":{"a":{"i":0,"f":1,"range":3}}},"par":5,"walks":2},{"id":12,"map":["####v##","##...E#","##.#.##","###v..#","#Saaa##","#.#...#","#######"],"meta":{"guards":{"a":{"i":0,"f":0,"range":3}}},"par":5,"walks":2},{"id":13,"map":["#######","#.E####","#.>.###","#.aaa.#","#####.#","#####S#","#######"],"meta":{"guards":{"a":{"i":0,"f":1,"range":3}}},"par":6,"walks":3},{"id":14,"map":["#######","#E..#a#","#^.#Sa#","#...>a#","##...a#","#..#..#","#######"],"meta":{"guards":{"a":{"i":3,"f":1,"range":3}}},"par":7,"walks":3},{"id":15,"map":["#######","#.S##.#","##a#E.#","#.a.<.#","##a#..#","##....#","#####^#"],"meta":{"guards":{"a":{"i":0,"f":0,"range":3}}},"par":7,"walks":3},{"id":16,"map":["#######","#######","##....#","#..a^E#","#.#a.##","##Sa<##","#######"],"meta":{"guards":{"a":{"i":2,"f":0,"range":3}}},"par":8,"walks":3},{"id":17,"map":["#######","#...###","#...S##","#.#..##","#.>.<E#","##aaa.#","#######"],"meta":{"guards":{"a":{"i":2,"f":1,"range":3}}},"par":4,"walks":2},{"id":18,"map":["####v##","#SaaaE#","###.^##","#....##","##....#","##...##","#######"],"meta":{"guards":{"a":{"i":0,"f":0,"range":3}}},"par":6,"walks":2},{"id":19,"map":["#######","##.E..#","###.###","#Sv..##","#aaaa##","#^#..##","#######"],"meta":{"guards":{"a":{"i":0,"f":0,"range":3}}},"par":5,"walks":2},{"id":20,"map":["#####v#","###Sa.#","####a.#","###ba<#","###b.##","#.Eb###","#######"],"meta":{"guards":{"a":{"i":2,"f":1,"range":3},"b":{"i":2,"f":0,"range":3}}},"par":7,"walks":3},{"id":21,"map":["#v#####","#..#.##","##.#a##","#bbba.#",">E<.aS#","#.#..##","#######"],"meta":{"guards":{"a":{"i":2,"f":1,"range":3},"b":{"i":2,"f":0,"range":3}}},"par":7,"walks":3},{"id":22,"map":["#######","#bbbE##","##>.a.#","###>a##","##..a<#","#..#aS#","#######"],"meta":{"guards":{"a":{"i":3,"f":0,"range":3},"b":{"i":2,"f":0,"range":3}}},"par":8,"walks":3},{"id":23,"map":["########","#.####S#","#E.#.>.#","#^.aaaa#","##.bbb.#","##.##..#","##^#####"],"meta":{"guards":{"a":{"i":3,"f":1,"range":3},"b":{"i":2,"f":1,"range":3}}},"par":7,"walks":3},{"id":24,"map":["########","#S#..###","#aaav..#","#.bbbb.#","#..#^.E#","##...###","##^#####"],"meta":{"guards":{"a":{"i":1,"f":1,"range":3},"b":{"i":3,"f":0,"range":3}}},"par":9,"walks":4},{"id":25,"map":["###v####","#..bbbb#","##.#^S##","##.v##.#","#.aaaaE#","####...#","########"],"meta":{"guards":{"a":{"i":1,"f":1,"range":3},"b":{"i":0,"f":1,"range":3}}},"par":9,"walks":4},{"id":26,"map":["####v###","##abbbS#","#.a^.###","#.a##.E#","#...#.##","#.^....#","########"],"meta":{"guards":{"a":{"i":0,"f":1,"range":3},"b":{"i":1,"f":1,"range":3}}},"par":10,"walks":4},{"id":27,"map":["#v#####","#...#E#","#..bbb#","#a<..##","#aS#.##","#a##..#","#######"],"meta":{"guards":{"a":{"i":1,"f":0,"range":3},"b":{"i":2,"f":0,"range":3}}},"par":7,"walks":3},{"id":28,"map":["#######","#...v##","#bbbaS#","#.v#a##","#...a##","#....E#","#######"],"meta":{"guards":{"a":{"i":0,"f":1,"range":3},"b":{"i":2,"f":1,"range":3}}},"par":7,"walks":3},{"id":29,"map":["#######","###bbb#","###Sa.#","###>a.#","##>.a<#","##E...#","#######"],"meta":{"guards":{"a":{"i":2,"f":1,"range":3},"b":{"i":1,"f":0,"range":3}}},"par":8,"walks":3},{"id":30,"map":["########","###vS..#","#.#.>.##","#Ebbb.<#","##.#..##","##.#aaa#","########"],"meta":{"guards":{"a":{"i":1,"f":1,"range":3},"b":{"i":2,"f":1,"range":3}}},"par":9,"walks":3},{"id":31,"map":["########","##.v..##","##a....#","#.a<b^S#","##a#b.##","##E#b.##","########"],"meta":{"guards":{"a":{"i":0,"f":0,"range":3},"b":{"i":0,"f":1,"range":3}}},"par":8,"walks":4},{"id":32,"map":["########","#.Sa.#E#","##>a.#b#","#.#a#.b<","#...v#b#","#......#","########"],"meta":{"guards":{"a":{"i":2,"f":1,"range":3},"b":{"i":2,"f":1,"range":3}}},"par":10,"walks":4},{"id":33,"map":["########","#a#.#S.#","#a...>b#","#a^...b#","#a.<..b#","#E.#...#","#...##.#","########"],"meta":{"guards":{"a":{"i":3,"f":1,"range":3},"b":{"i":0,"f":1,"range":3}}},"par":10,"walks":4},{"id":34,"map":["########","##.v####","#S.av#.#","##^ab..#","#..ab###","##.#b#E#","###.b..#","########"],"meta":{"guards":{"a":{"i":0,"f":1,"range":3},"b":{"i":3,"f":1,"range":3}}},"par":11,"walks":4},{"id":35,"map":["########","#a####S#","#a.bbbb#","#a#..###",">a##^E.#","#.v#..##","#.....##","########"],"meta":{"guards":{"a":{"i":3,"f":0,"range":3},"b":{"i":3,"f":1,"range":3}}},"par":11,"walks":4},{"id":36,"map":["#####v##","#S.....#","##.#>b.#","##^..b##","#..#ab##","##E#ab.#","##..a#.#","########"],"meta":{"guards":{"a":{"i":2,"f":1,"range":3},"b":{"i":0,"f":1,"range":3}}},"par":12,"walks":3},{"id":37,"map":["######","#SX..#","###..<","#...E#","#....#","######"],"meta":{"guards":{}},"par":2,"walks":1},{"id":38,"map":["######","#S..##","##^.##","#E#..#","#..X##","######"],"meta":{"guards":{}},"par":3,"walks":1},{"id":39,"map":["######","#E..##","#^^X##","#...##","#S..##","######"],"meta":{"guards":{}},"par":3,"walks":2},{"id":40,"map":["######","#....#","#S.v.#","##...#","#.^..#","#E.X##","######"],"meta":{"guards":{}},"par":5,"walks":2},{"id":41,"map":["#######","####..#","#S#...#","#X>.E.<","#.X..##","#######"],"meta":{"guards":{}},"par":4,"walks":2},{"id":42,"map":["#######","#>..X.#","#..^.##","#S#.X.#","##.E.##","#######"],"meta":{"guards":{}},"par":6,"walks":3},{"id":43,"map":["#######","##.####","##..###","##>..X#","#S..^.#","#.##EX#","#######"],"meta":{"guards":{}},"par":6,"walks":3},{"id":44,"map":["#######","##.#.##","#.X>aE#","##.Xa<#","##.#a.#","#####S#","#######"],"meta":{"guards":{"a":{"i":0,"f":0,"range":3}}},"par":7,"walks":3},{"id":45,"map":["#######","#Xaaa.#","#.<X#.#","#.S##E#","####..#","#####.#","#######"],"meta":{"guards":{"a":{"i":1,"f":0,"range":3}}},"par":8,"walks":3},{"id":46,"map":["#######","#..X#S#","#.>E#a#","#..#.a#","#...^a#","#.#..X#","#######"],"meta":{"guards":{"a":{"i":2,"f":0,"range":3}}},"par":9,"walks":4},{"id":47,"map":["#######","##S..##","#E<>.##","#X..X##","#.#...#","#.###.#","#######"],"meta":{"guards":{}},"par":5,"walks":2},{"id":48,"map":["###v###","#.XE###","#..##.#","#.vS#.#","#...#x#","#.....#","#######"],"meta":{"guards":{}},"par":5,"walks":2},{"id":49,"map":["#######","#.....#","#X.##E#","#Xv.S##","#...<##","#.....#","#######"],"meta":{"guards":{}},"par":6,"walks":3},{"id":50,"map":["#######","#..#..#","#.#Sa##","#E.va##","#^X.a.#","##x#a.#","#######"],"meta":{"guards":{"a":{"i":0,"f":1,"range":3}}},"par":7,"walks":3},{"id":51,"map":["#######","#.....#","#vX.#.#","#aaaaS#","#.v####","#.X.XE#","#######"],"meta":{"guards":{"a":{"i":0,"f":0,"range":3}}},"par":7,"walks":3},{"id":52,"map":["########","#EaaaX.#","##.X##X#","#.#.#>.#","#...#S.#","##...#^#","########"],"meta":{"guards":{"a":{"i":2,"f":0,"range":3}}},"par":8,"walks":3},{"id":53,"map":["########","##E....#","####^.X#","#S#.#.##","#Xv.#.##","#aaaaX.#","########"],"meta":{"guards":{"a":{"i":1,"f":1,"range":3}}},"par":8,"walks":4},{"id":54,"map":["########","#.#Sa###","#.##av.#","#.X#aX.#","#.EXa<##","####...#","########"],"meta":{"guards":{"a":{"i":0,"f":1,"range":3}}},"par":9,"walks":4},{"id":55,"map":["########","##..#..#","##..X.##","#E.##a##","##^..a.#","#S##>a##","#X..Xa##","########"],"meta":{"guards":{"a":{"i":3,"f":0,"range":3}}},"par":10,"walks":4},{"id":56,"map":["########","#x..#..#","##..aX.#","####avE#","####a.##","###.a<S#","#.....X#","########"],"meta":{"guards":{"a":{"i":2,"f":0,"range":3}}},"par":11,"walks":4},{"id":57,"map":["######","#.S.\\#","##..<#","#E..##","###.##","######"],"meta":{"guards":{}},"par":2,"walks":1},{"id":58,"map":["######","##...#","##E..#","##.>.#","#..\\S#","######"],"meta":{"guards":{}},"par":2,"walks":1},{"id":59,"map":["######","#....#","#S^\\.#","##...#","#E.#.#","######"],"meta":{"guards":{}},"par":2,"walks":2},{"id":60,"map":["######","##.###","#S...#","#.^\\.#","#.\\E.#","##...#","####^#"],"meta":{"guards":{}},"par":3,"walks":2},{"id":61,"map":["###v##","#...##","#S...#","#.^\\.#","#.\\..#","#.#E##","######"],"meta":{"guards":{}},"par":3,"walks":2},{"id":62,"map":["#######","#/v##.#","#.....#","#.<.#.#","#S/E.##","#######"],"meta":{"guards":{}},"par":5,"walks":2},{"id":63,"map":["#######","#>....#","#..<\\.#","#S#...#","#\\.E###","##...##","#######"],"meta":{"guards":{}},"par":5,"walks":3},{"id":64,"map":["#######","#....##","#.#...#","#.//..#","#.<E^.#","#S#...#","#######"],"meta":{"guards":{}},"par":6,"walks":3},{"id":65,"map":["#######","##...##","#S./..#","##^/>.#","#E....#","##....#","#######"],"meta":{"guards":{}},"par":5,"walks":3},{"id":66,"map":["#######","##...##","#S./..#","##^/^.#","#.E...#","#...#.#","#######"],"meta":{"guards":{}},"par":6,"walks":3},{"id":67,"map":["#######","#\\/..##","#...#E#","#.<.>.#","#.#...#","#S##..#","#######"],"meta":{"guards":{}},"par":4,"walks":2},{"id":68,"map":["#######","##\\..##","#.....#","#\\.#.E#","#...v##","##^..S#","#######"],"meta":{"guards":{}},"par":4,"walks":2},{"id":69,"map":["#######","###...#","#\\#./E#","##..</#","##.v.S#","#....##","#######"],"meta":{"guards":{}},"par":5,"walks":3},{"id":70,"map":["#######","#..\\v##","##....#","#..<\\.#","#X#...#","#S\\E###","#######"],"meta":{"guards":{}},"par":5,"walks":2},{"id":71,"map":["#######","#.E.\\.#","#../S.#","#../v.#","#.v.X.#","#...#.#","#######"],"meta":{"guards":{}},"par":6,"walks":3},{"id":72,"map":["#######","#>E\\###","#...###","#X</v##","#....##","#.#\\.S#","#######"],"meta":{"guards":{}},"par":7,"walks":3},{"id":73,"map":["########","###\\#.##","#...#Sv#","#.>./..#","#./..>.#","#E.#..X#","########"],"meta":{"guards":{}},"par":7,"walks":4},{"id":74,"map":["########","#....S##","#\\..^/<#","#.>...##","#...../#","#.#.#XE#","########"],"meta":{"guards":{}},"par":6,"walks":2},{"id":75,"map":["########","#S#..#.#","#X.....#","#^\\.^.##",">E./#./#","##.....#","#..#.#.#","########"],"meta":{"guards":{}},"par":6,"walks":2},{"id":76,"map":["########","#.....##","#.#.^..#","#.S#...#","#^/>...#","##\\.X#.#","###E../#","########"],"meta":{"guards":{}},"par":9,"walks":2},{"id":77,"map":["#v#####","#.S.###","#a#..##","#a.##.#","#a#>XE#","#....##","#######"],"meta":{"guards":{"a":{"i":0,"f":1,"range":3}}},"par":7,"walks":3},{"id":78,"map":["#######","##.E#.#","##.v#S#","##Xaaa#","###^..#","##....#","#######"],"meta":{"guards":{"a":{"i":0,"f":0,"range":3}}},"par":8,"walks":3},{"id":79,"map":["#######","#.#..X#","#.#a<E#","#..a.##","##>a\\##","#.Sa.##","#######"],"meta":{"guards":{"a":{"i":2,"f":1,"range":3}}},"par":9,"walks":3},{"id":80,"map":["#######","#...#.#","#E<.#S#","#^X.#.#","##.>..#","#..aaa#","#######"],"meta":{"guards":{"a":{"i":0,"f":0,"range":3}}},"par":9,"walks":4},{"id":81,"map":["########","#.X..a##","##.#^a.#","##..#a##","#E^.#S##","#.X.#.##","########"],"meta":{"guards":{"a":{"i":1,"f":1,"range":3}}},"par":10,"walks":4},{"id":82,"map":["########","###.XX.#","#E./S>a#","#.###.a#","#....>a#","#......#","########"],"meta":{"guards":{"a":{"i":1,"f":1,"range":3}}},"par":10,"walks":4},{"id":83,"map":["########","#>....##","#..#...#","#X<S#..#","#X#aaa.#",">E##.###","########"],"meta":{"guards":{"a":{"i":0,"f":0,"range":3}}},"par":10,"walks":3},{"id":84,"map":["########","########","#.##.E.#","#./##^.#","#.#aS#.#",">..a##.#","#.^aXX.#","########"],"meta":{"guards":{"a":{"i":0,"f":1,"range":3}}},"par":10,"walks":3},{"id":85,"map":["########","#..###S#","#.E#.aX#","#..##a/#","#..v#a.#","#.#.Xa##","#...<###","#^######"],"meta":{"guards":{"a":{"i":0,"f":1,"range":3}}},"par":11,"walks":3},{"id":86,"map":["########","##.E.a##","#..^/a.<","#...#a##","#..#..##","#.##XvS#","##.X...#","########"],"meta":{"guards":{"a":{"i":2,"f":1,"range":3}}},"par":11,"walks":3},{"id":87,"map":["########","#../.v##","##.aaa.#","#...#..#","#..vS#.#","##X..#E#","########"],"meta":{"guards":{"a":{"i":0,"f":1,"range":3}}},"par":9,"walks":4},{"id":88,"map":["########","#.X..###","#a<..v##","#a.\\.E.#","#a#..#.#","#S#.####","########"],"meta":{"guards":{"a":{"i":2,"f":1,"range":3}}},"par":9,"walks":4},{"id":89,"map":["########","##...X.#","#v.<#a##","#E.#Xa##","#.\\#^a##","#...#aS#","########"],"meta":{"guards":{"a":{"i":3,"f":0,"range":3}}},"par":10,"walks":4},{"id":90,"map":["########","#.S\\.###","#X<#.#.#","#av#...#","#a.##E.#","#a#.X.##","#...<..#","########"],"meta":{"guards":{"a":{"i":0,"f":0,"range":3}}},"par":10,"walks":4},{"id":91,"map":["########","#..###E#","#..##.X#","##...>.#","###.aaa#","##/.<.##","#.x.S^##","########"],"meta":{"guards":{"a":{"i":0,"f":0,"range":3}}},"par":10,"walks":4},{"id":92,"map":["########","#..#####","##...X\\#","#...#Xv#","#..v#.E#","#.#..###","#..aaaS#","###^####"],"meta":{"guards":{"a":{"i":2,"f":1,"range":3}}},"par":10,"walks":3},{"id":93,"map":["###v####","#/..##.#","#.#.#..#","#E#.#X.#",">bXaaaa#","#b#.#^S#","#b..####","########"],"meta":{"guards":{"a":{"i":0,"f":0,"range":3},"b":{"i":0,"f":0,"range":3}}},"par":10,"walks":2},{"id":94,"map":["#v######","#...X.\\#","#...#..#","#a###.b#","#a.##.b#","#a#.##b#","#S#.EX.#","####^^##"],"meta":{"guards":{"a":{"i":2,"f":1,"range":3},"b":{"i":2,"f":0,"range":3}}},"par":11,"walks":3},{"id":95,"map":["######v#","#.bS##E#","#/b#.#X<","#Xb#aaa#","##b....<","#....\\.#","###.#..#","########"],"meta":{"guards":{"a":{"i":1,"f":0,"range":3},"b":{"i":1,"f":0,"range":3}}},"par":10,"walks":2},{"id":96,"map":["###vv###","#.XX.###","#S##a/.#","##>.a..#","#E##a/##","#bbbb.##","#..#..##","########"],"meta":{"guards":{"a":{"i":1,"f":0,"range":3},"b":{"i":3,"f":0,"range":3}}},"par":12,"walks":3},{"id":97,"map":["######","####S#","#e##X#","#x#.E#","#e...#","######"],"meta":{"guards":{},"dogs":{"e":{"rail":[13,19,25],"i":1}}},"par":3,"walks":1},{"id":98,"map":["######","#exe.#","#.####","#E#.##","#.X.S#","######"],"meta":{"guards":{},"dogs":{"e":{"rail":[7,8,9],"i":1}}},"par":3,"walks":1},{"id":99,"map":["######","#e...#","#x...#","#e####","#EXS##","######"],"meta":{"guards":{},"dogs":{"e":{"rail":[7,13,19],"i":2}}},"par":4,"walks":1},{"id":100,"map":["#######","##..e.#","#.E.X.#","#X##e##","#S#..##","#######"],"meta":{"guards":{},"dogs":{"e":{"rail":[11,18,25],"i":0}}},"par":5,"walks":1},{"id":101,"map":["#######","#...#.#","#e..XS#","#X..E##","#e##.##","#######"],"meta":{"guards":{},"dogs":{"e":{"rail":[15,22,29],"i":0}}},"par":5,"walks":1},{"id":102,"map":["#######","#e....#","#e###E#","#X.#..#","#e##.X#","#..##S#","#######"],"meta":{"guards":{},"dogs":{"e":{"rail":[8,15,22,29],"i":0}}},"par":6,"walks":1},{"id":103,"map":["#######","#.eeXe#","##.#..#","#..E#S#","#.X#X.#","##...##","#######"],"meta":{"guards":{},"dogs":{"e":{"rail":[9,10,11,12],"i":0}}},"par":8,"walks":2},{"id":104,"map":["#######","#Ex...#","#..#..#","#e#.#.#","#X...X#","#eS..##","#######"],"meta":{"guards":{},"dogs":{"e":{"rail":[22,29,36],"i":0}}},"par":8,"walks":2},{"id":105,"map":["########","##.##..#","##.##.##","##X##..#","##SXE#.#","#eXee..#","########"],"meta":{"guards":{},"dogs":{"e":{"rail":[41,42,43,44],"i":3}}},"par":9,"walks":2},{"id":106,"map":["########","##..exe#","#SX##E.#","##.###x#","#....#.#","#.##...#","########"],"meta":{"guards":{},"dogs":{"e":{"rail":[12,13,14],"i":1}}},"par":10,"walks":2},{"id":107,"map":["#######","#eXe..#","#.#.###","#E##S.#","#...v.#","#.#..X#","#######"],"meta":{"guards":{},"dogs":{"e":{"rail":[8,9,10],"i":0}}},"par":7,"walks":2},{"id":108,"map":["#######","#.....#","#.<E..#","#XS#.e#","#..#.X#","#####e#","#######"],"meta":{"guards":{},"dogs":{"e":{"rail":[26,33,40],"i":0}}},"par":8,"walks":2},{"id":109,"map":["#######","##e.#S#","##X#.X#","#.e#.<#","##e..##","###E.##","#######"],"meta":{"guards":{},"dogs":{"e":{"rail":[9,16,23,30],"i":3}}},"par":7,"walks":2},{"id":110,"map":["########","#...X..#","#..#S^.#","#e#.#..#","#X..#E<#","#e..#.##","########"],"meta":{"guards":{},"dogs":{"e":{"rail":[25,33,41],"i":0}}},"par":9,"walks":3},{"id":111,"map":["########","#.XS.#.#","##.<eXe#","#...#^.#","#.x#.#.#","##....E#","########"],"meta":{"guards":{},"dogs":{"e":{"rail":[20,21,22],"i":2}}},"par":9,"walks":3},{"id":112,"map":["########","######.#","#.#..XE#","#...##e#","#>.##.x#","#SX.##e#","#.#....<","########"],"meta":{"guards":{},"dogs":{"e":{"rail":[30,38,46],"i":1}}},"par":10,"walks":3},{"id":113,"map":["########","#.S#>..#","#X<#aaa#","#..e.#.#","#..x#X.#","###e.E##","##..#.##","########"],"meta":{"guards":{"a":{"i":1,"f":1,"range":3}},"dogs":{"e":{"rail":[27,35,43],"i":2}}},"par":11,"walks":4},{"id":114,"map":["########","##.....#","##.xe###","###.X###","###.e.##","#.#>e.v#","#SXaaaE#","########"],"meta":{"guards":{"a":{"i":1,"f":0,"range":3}},"dogs":{"e":{"rail":[20,28,36,44],"i":3}}},"par":11,"walks":4},{"id":115,"map":["########","#..x...#","#>..v###","#eXxe.##","#Saaaa.#","##..#/.#","#..##.E#","########"],"meta":{"guards":{"a":{"i":1,"f":0,"range":3}},"dogs":{"e":{"rail":[25,26,27,28],"i":3}}},"par":12,"walks":4},{"id":116,"map":["####v###","###Sx..#","##f##..<","##x.aaa#","#.f.eXe#","##...E<#","#####./#","########"],"meta":{"guards":{"a":{"i":1,"f":0,"range":3}},"dogs":{"e":{"rail":[36,37,38],"i":0},"f":{"rail":[18,26,34],"i":1}}},"par":12,"walks":1},{"id":117,"map":["#####","#...#","###.#","#.SE#","###0#"],"meta":{"guards":{}},"par":1,"walks":1},{"id":118,"map":["######","#.####","#E.2.#","#...S#","######"],"meta":{"guards":{}},"par":2,"walks":1},{"id":119,"map":["######","##..E#","##...#","##..3#","#S.###","######"],"meta":{"guards":{}},"par":2,"walks":1},{"id":120,"map":["######","#S.#.#","#X2#.#","#E...#","####.#","######"],"meta":{"guards":{}},"par":2,"walks":1},{"id":121,"map":["###0##","#..S.#","##>..#","##...#","#E...#","######"],"meta":{"guards":{}},"par":3,"walks":2},{"id":122,"map":["#######","#..#.##","#....##","#.<E.##","#S.1..#","#######"],"meta":{"guards":{}},"par":4,"walks":2},{"id":123,"map":["####2##","#.X..##","#.#..##","#S.^.##","###E..#","#######"],"meta":{"guards":{}},"par":5,"walks":2},{"id":124,"map":["#######","##..###","#..E#S#","#..0.X#","##.#>.#","#.....#","#######"],"meta":{"guards":{}},"par":5,"walks":2},{"id":125,"map":["#######","####..#","###.#.#","#.#X..#","#S..1.#","###^E.#","#######"],"meta":{"guards":{}},"par":6,"walks":3},{"id":126,"map":["#######","#.....#","#.2E###","#.X#S.#","##..>.#","#.....#","#######"],"meta":{"guards":{}},"par":8,"walks":3},{"id":127,"map":["#######","#..E###","#...#S#","#..>..#","##.X..#","##.##.#","##3####"],"meta":{"guards":{}},"par":6,"walks":2},{"id":128,"map":["#######","###S.X#","#E#.^.#","#..1..#","#....##","#..#.##","#######"],"meta":{"guards":{}},"par":7,"walks":2},{"id":129,"map":["#######","#.X..##","#.>..##","#..#S##","#...#E#","#13...#","#######"],"meta":{"guards":{}},"par":7,"walks":3},{"id":130,"map":["########","#1..X..#","#S.2E#.#","#x.#..##","#.^...##","#.##...#","########"],"meta":{"guards":{}},"par":9,"walks":3},{"id":131,"map":["########","#..#.###","##.....#","#..v.0.#","##.X<E.#","###Sx0##","########"],"meta":{"guards":{}},"par":9,"walks":3},{"id":132,"map":["########","#..##S.#","#EX..3a#","#0....a#","###X<#a#","##....##","####v###"],"meta":{"guards":{"a":{"i":0,"f":0,"range":3}}},"par":10,"walks":3},{"id":133,"map":["########","#.X....#","#a^#.0E#","#a..2###","#a#x####","#S#eee##","########"],"meta":{"guards":{"a":{"i":2,"f":1,"range":3}},"dogs":{"e":{"rail":[43,44,45],"i":0}}},"par":10,"walks":4},{"id":134,"map":["########","#S1.#..#","3.X.eEv#","#.##X###","#a#.e###","#a..####","#a....##","########"],"meta":{"guards":{"a":{"i":2,"f":0,"range":3}},"dogs":{"e":{"rail":[20,28,36],"i":0}}},"par":11,"walks":4},{"id":135,"map":["########","#.####.#","#.#e...#","#E1x<#.#","#.#e#a##","#X..#aS#","#....a2#","###^####"],"meta":{"guards":{"a":{"i":1,"f":0,"range":3}},"dogs":{"e":{"rail":[19,27,35],"i":2}}},"par":11,"walks":4},{"id":136,"map":["###3####","##eE...#","##X...##","##e^#.##","#Sev#x##","##aaaa##","#..#...#","#####0##"],"meta":{"guards":{"a":{"i":1,"f":0,"range":3}},"dogs":{"e":{"rail":[10,18,26,34],"i":0}}},"par":12,"walks":4},{"id":137,"map":["####p#","#.X.S#","#E####","#...>#","#...##","######"],"meta":{"guards":{},"panels":{"p":{"links":[22,8]}}},"par":1,"walks":1},{"id":138,"map":["######","#...S#","####.<","#.#..#","#E.x.p","######"],"meta":{"guards":{},"panels":{"p":{"links":[17,27]}}},"par":2,"walks":1},{"id":139,"map":["####>#","#..XE#","#.#S##","#.#.##","p....#","######"],"meta":{"guards":{},"panels":{"p":{"links":[4,9]}}},"par":3,"walks":1},{"id":140,"map":["##>####","#...E##","p.....#",">X#...#","#S#.#.#","#######"],"meta":{"guards":{},"panels":{"p":{"links":[2,22]}}},"par":3,"walks":2},{"id":141,"map":["###>###","#.#S..#","#E#..##","#.#.p.#","#..X..#","#^#####"],"meta":{"guards":{},"panels":{"p":{"links":[3,31]}}},"par":4,"walks":2},{"id":142,"map":["####p##","##.#.##","#.EX.##","#.#.X.#","###v..#","#.S...#","###<###"],"meta":{"guards":{},"panels":{"p":{"links":[31,45]}}},"par":5,"walks":2},{"id":143,"map":["###>###","#SXX..#","###...#","v...###","#...E##","####..#","#####p#"],"meta":{"guards":{},"panels":{"p":{"links":[21,3,10]}}},"par":5,"walks":2},{"id":144,"map":["###p###","#...###","#...###","#.#..##","v.E.#S#","##^.XX#","#######"],"meta":{"guards":{},"panels":{"p":{"links":[28,37,39]}}},"par":6,"walks":3},{"id":145,"map":["#######","#....##","#.#...#","##x.>.#","#..##S#","p.xE###","##^####"],"meta":{"guards":{},"panels":{"p":{"links":[44,25,23]}}},"par":7,"walks":3},{"id":146,"map":["####p##","#E>.X.#","#..x<S#","##.#.##","#....##","####.##","#######"],"meta":{"guards":{},"panels":{"p":{"links":[18,17,11]}}},"par":9,"walks":3},{"id":147,"map":["#######","#.....#","#...E##","#x.v..#","#.#.p##","#...XS#","####<##"],"meta":{"guards":{},"panels":{"p":{"links":[46,39,22]}}},"par":7,"walks":2},{"id":148,"map":["#######","#E.#>##","#..#.##","#.vx.X#","#...#S#","#..##.p","#######"],"meta":{"guards":{},"panels":{"p":{"links":[11,23,26]}}},"par":8,"walks":3},{"id":149,"map":["#p#####","#.###.#","#.X..E#","#Sv#.##","#..<#.#","#....x#","#<##q##"],"meta":{"guards":{},"panels":{"p":{"links":[43,16]},"q":{"links":[31,40]}}},"par":7,"walks":3},{"id":150,"map":["########","##...x.#","#E>.>..v","#...##X#","#.q#.S.#","#..##p##","########"],"meta":{"guards":{},"panels":{"p":{"links":[13,30]},"q":{"links":[20,23]}}},"par":8,"walks":3},{"id":151,"map":["###q####","#...####","#pE#...#","#.X###S#","<..v..X#","#..aaa.#","######<#"],"meta":{"guards":{"a":{"i":0,"f":1,"range":3}},"panels":{"p":{"links":[32,35]},"q":{"links":[54,38]}}},"par":9,"walks":3},{"id":152,"map":["########","##<p...#","##.#.###","#aaa.###","#S^x...q","##EX<###","########"],"meta":{"guards":{"a":{"i":0,"f":1,"range":3}},"panels":{"p":{"links":[44,35]},"q":{"links":[10,34]}}},"par":10,"walks":3},{"id":153,"map":["##v#####","#E.v#.##","#3..X..p","##^##/X#","##S#.#.#","#q.aaa.#","########"],"meta":{"guards":{"a":{"i":0,"f":1,"range":3}},"panels":{"p":{"links":[26,29]},"q":{"links":[11,30]}}},"par":10,"walks":4},{"id":154,"map":["#q######","#.X..###","#..#...#","#.E#.#.#","#.a#...#","##a>.#/#","v.aX.S.v","#1p#####"],"meta":{"guards":{"a":{"i":2,"f":0,"range":3}},"panels":{"p":{"links":[55,43]},"q":{"links":[48,51]}}},"par":11,"walks":4},{"id":155,"map":["########","q.Ea##.#","#.2aX..>","^\\#a##.#","#..a#..#","#X<#..p#","#S#....#","########"],"meta":{"guards":{"a":{"i":3,"f":1,"range":3}},"panels":{"p":{"links":[23,42]},"q":{"links":[24,20]}}},"par":11,"walks":4},{"id":156,"map":["###v####","##3..###","#>aaa.##","##Sq#X##","####..\\#","##p...X#","###..<E#","########"],"meta":{"guards":{"a":{"i":2,"f":1,"range":3}},"panels":{"p":{"links":[53,29]},"q":{"links":[17,38]}}},"par":11,"walks":4},{"id":157,"map":["#######","#####.#","#S.#..#","#..G<.#","#...E.#","#######"],"meta":{"guards":{}},"par":1,"walks":1},{"id":158,"map":["#######","#....S#","##..G##","##X#.##","#..E..#","####^##"],"meta":{"guards":{}},"par":2,"walks":1},{"id":159,"map":["#######","#S..#.#","#.>...#","#>..G.#","#E....#","#######"],"meta":{"guards":{}},"par":4,"walks":1},{"id":160,"map":["#######","##...##","#>..E##","#...GS#","#...<X#","#.....#","#######"],"meta":{"guards":{}},"par":4,"walks":2},{"id":161,"map":["#######","#.##..#","#..#.E#","#..>.G#","#SG.X.#","#....<#","#######"],"meta":{"guards":{}},"par":4,"walks":2},{"id":162,"map":["#######","###.###","#.G...#","#.....#","#X.^G.#","#S^E..#","#######"],"meta":{"guards":{}},"par":6,"walks":2},{"id":163,"map":["#######","##....#","##.GG.#","#.....#","##..<X#","##S^E.#","#######"],"meta":{"guards":{}},"par":7,"walks":2},{"id":164,"map":["########","#.X..#.#","#.vEG..#","#.G##..#","#.X...##","#..#^.S#","########"],"meta":{"guards":{}},"par":7,"walks":3},{"id":165,"map":["########","#...#.##","#......#","#....GX#","#>X.G<.#","#S.#E..#","########"],"meta":{"guards":{}},"par":7,"walks":3},{"id":166,"map":["########","####...#","#.#S.^.#","#.#.G..#","#.G#^.<#","#EX..X##","########"],"meta":{"guards":{}},"par":9,"walks":3},{"id":167,"map":["########","#.#....#","#....G##","##.#..##","#...<X##","#.^SG.E#","########"],"meta":{"guards":{}},"par":6,"walks":2},{"id":168,"map":["########","#.GS.X.#","#E.G.^.#","##..>..#","#..#...#","##....##","########"],"meta":{"guards":{}},"par":8,"walks":2},{"id":169,"map":["########","#.EG>XS#","#.>...##","#..#...#","#....#.#","###.#G.#","########"],"meta":{"guards":{}},"par":8,"walks":2},{"id":170,"map":["########","#..#SX.#","#...#..#","#..GeXe#","##.EG#.#","##.v...#","#.....<#","########"],"meta":{"guards":{},"dogs":{"e":{"rail":[28,29,30],"i":2}}},"par":9,"walks":3},{"id":171,"map":["########","#e.....#","#X#E...<","#e.#.#.#","#>.GX.##","##..G.##","#Saaaa.#","########"],"meta":{"guards":{"a":{"i":1,"f":0,"range":3}},"dogs":{"e":{"rail":[9,17,25],"i":0}}},"par":9,"walks":3},{"id":172,"map":["########","#.#G...#","#...#.E#","#..G#a##","#eXe.a.#","#S.#>a.#","#...X.##","#####^##"],"meta":{"guards":{"a":{"i":2,"f":1,"range":3}},"dogs":{"e":{"rail":[33,34,35],"i":2}}},"par":10,"walks":3},{"id":173,"map":["########","###...##","#.exxe.#","#.G..3G#","#.#aaa.#","#...^\\S#","#....E##","####^###"],"meta":{"guards":{"a":{"i":1,"f":0,"range":3}},"dogs":{"e":{"rail":[18,19,20,21],"i":2}}},"par":9,"walks":4},{"id":174,"map":["#####v##","#......#","#.EG1^e#","##G...e#","#..a\\.x#","##.a<#X#","###aS#.#","########"],"meta":{"guards":{"a":{"i":1,"f":1,"range":3}},"dogs":{"e":{"rail":[22,30,38,46],"i":1}}},"par":11,"walks":4},{"id":175,"map":["#####0##","#.aaaE.#","#...^G.#","#.\\..Ge#",">X##..X#","#S..#^e#","#.######","########"],"meta":{"guards":{"a":{"i":2,"f":0,"range":3}},"dogs":{"e":{"rail":[30,38,46],"i":0}}},"par":11,"walks":1},{"id":176,"map":["##3#####","#...X###","#.GG..E#","#.\\S####",">aaa.###","#..<#.##","#.exe..#","#^######"],"meta":{"guards":{"a":{"i":1,"f":0,"range":3}},"dogs":{"e":{"rail":[50,51,52],"i":0}}},"par":11,"walks":4},{"id":177,"map":["######","###S##","#.>.##","#aaa##","#.E.##","######"],"meta":{"guards":{"a":{"i":2,"f":1,"range":3}}},"par":2,"walks":1},{"id":178,"map":["######","##a#.#","#Eav.#","#.a.S#","######"],"meta":{"guards":{"a":{"i":2,"f":0,"range":3}}},"par":2,"walks":1},{"id":179,"map":["######","#..a.#","#.<a.#","#S#aE#","######"],"meta":{"guards":{"a":{"i":0,"f":0,"range":3}}},"par":3,"walks":1},{"id":180,"map":["######","#b####","#baE.#",">ba<##","#Sa..#","######"],"meta":{"guards":{"a":{"i":0,"f":0,"range":3},"b":{"i":2,"f":1,"range":3}}},"par":4,"walks":1},{"id":181,"map":["#######","#.aaaa#","#..>..#","#.bbbb#","#.S#^E#","#######"],"meta":{"guards":{"a":{"i":3,"f":1,"range":3},"b":{"i":1,"f":1,"range":3}}},"par":4,"walks":2},{"id":182,"map":["#######","##....#","#aaa<.#","#bbb###","#S^E###","#######"],"meta":{"guards":{"a":{"i":2,"f":0,"range":3},"b":{"i":2,"f":1,"range":3}}},"par":4,"walks":3},{"id":183,"map":["#######","#ab.E.#","#ab.###","#abv..#","#.b.S##","##...##","##^####"],"meta":{"guards":{"a":{"i":0,"f":0,"range":3},"b":{"i":3,"f":0,"range":3}}},"par":5,"walks":2},{"id":184,"map":["#######","###a.E#","##ba###","#.ba..#",">.b<#.#","#S...##","#######"],"meta":{"guards":{"a":{"i":0,"f":0,"range":3},"b":{"i":0,"f":1,"range":3}}},"par":5,"walks":1},{"id":185,"map":["#######","##.#S##","#.E>.<#","#.#ba##","#.#ba.#","#..ba.#","#######"],"meta":{"guards":{"a":{"i":0,"f":0,"range":3},"b":{"i":2,"f":1,"range":3}}},"par":6,"walks":1},{"id":186,"map":["#######","#..bbb#","##S#a##","####a.#","##E>a.<","#...a.#","#######"],"meta":{"guards":{"a":{"i":3,"f":1,"range":3},"b":{"i":0,"f":1,"range":3}}},"par":5,"walks":2},{"id":187,"map":["#######","#S..#.#","#bbb<.#","#.^ax.#","##Ea#.#","##.a#.#","#######"],"meta":{"guards":{"a":{"i":0,"f":1,"range":3},"b":{"i":0,"f":0,"range":3}}},"par":5,"walks":1},{"id":188,"map":["#######","#E...v#","###.vb#","#aaaab#","##.\\#b#","##.#Sb#","#######"],"meta":{"guards":{"a":{"i":0,"f":0,"range":3},"b":{"i":3,"f":1,"range":3}}},"par":6,"walks":1},{"id":189,"map":["#######","##bbbb<","1aaa#.#","#.<E###","#.#.###","#S#..##","#######"],"meta":{"guards":{"a":{"i":1,"f":1,"range":3},"b":{"i":0,"f":1,"range":3}}},"par":7,"walks":2},{"id":190,"map":["########","#.#...E#","#bbbb..#","###.a.<#","##..av.#","##.#aXS#","########"],"meta":{"guards":{"a":{"i":2,"f":1,"range":3},"b":{"i":2,"f":0,"range":3}}},"par":7,"walks":1},{"id":191,"map":["########","#E.<#..#",">..v..##","#..bbb.#","#.aaaa/#","##..#S.#","########"],"meta":{"guards":{"a":{"i":3,"f":0,"range":3},"b":{"i":0,"f":1,"range":3}}},"par":5,"walks":3},{"id":192,"map":["########","#..#b..#","#...b.E#","##.Xb.G#","#.#.v#S#",">aaaa..#","###^####"],"meta":{"guards":{"a":{"i":3,"f":0,"range":3},"b":{"i":1,"f":0,"range":3}}},"par":7,"walks":1},{"id":193,"map":["##v#####","#bE##.##","#b.#...#",">b\\v..##","#.aaa.##","#.X.S###","########"],"meta":{"guards":{"a":{"i":0,"f":1,"range":3},"b":{"i":2,"f":1,"range":3}}},"par":6,"walks":1},{"id":194,"map":["########","#......#","#..#.###","#..E..##","#..v##S#","3bbbb>.#","#.aaaa.#","####^###"],"meta":{"guards":{"a":{"i":3,"f":0,"range":3},"b":{"i":2,"f":1,"range":3}}},"par":9,"walks":3},{"id":195,"map":["########","##...Ga#","####..a#","#....ba#","#..<^ba<","#X#..b.#","#S#.Eb.#","########"],"meta":{"guards":{"a":{"i":2,"f":1,"range":3},"b":{"i":0,"f":1,"range":3}}},"par":8,"walks":2},{"id":196,"map":["########","#\\E##S##","#b.#>.##","#b.>..##","#b#a.#.#","#b.a.G.#","#..a...#","###^####"],"meta":{"guards":{"a":{"i":0,"f":0,"range":3},"b":{"i":3,"f":1,"range":3}}},"par":8,"walks":1}];
+</script>
+<script>
+'use strict';
+/* A new look, drawn entirely by code, from two references: the brick-alley screenshot (dark teal shadows, warm pools of light, a green exit sign, mossy brick, a small figure
+   with flat 7-colour shading and no outline) and the prisoner sketch (12x35 px, orange hair, light from the left). Nothing here comes from the game's earlier graphics:
+   only the rules (src/prison.js) and the level data are used. */
+const P = window.Prison, LV = window.PRISON_LEVELS, $ = id => document.getElementById(id);
+const DX = [0, 1, 0, -1], DY = [-1, 0, 1, 0];
+const Q = new URLSearchParams(location.search);
+const st = { level: +(Q.get('level') || 9), rot: +(Q.get('rot') || 0), helpers: Q.get('helpers') !== '0', dither: Q.get('dither') !== '0', grade: Q.get('grade') !== '0' };
+const TW = 48, TH = 24, HF = 21, HL = 8, AP = 2.8;                          // diamond 48x24 (2:1), tall walls 26, cut-away walls 10 (pixels)
+const cv = $('cv'), ctx = cv.getContext('2d', { willReadFrequently: true });
+const mk = (w, h) => { const c = document.createElement('canvas'); c.width = w; c.height = h; const x = c.getContext('2d'); x.imageSmoothingEnabled = false; return [c, x]; };
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v)), lerp = (a, b, t) => a + (b - a) * t, sstep = (a, b, t) => { t = clamp((t - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
+const hh = (x, y, s) => { let h = (x * 374761393 + y * 668265263 + s * 2147483647) | 0; h = (h ^ (h >>> 13)) * 1274126177 | 0; return ((h ^ (h >>> 16)) >>> 0) / 4294967296; };
+function vnoise(x, y, s) { const xi = Math.floor(x), yi = Math.floor(y), xf = x - xi, yf = y - yi, a = hh(xi, yi, s), b = hh(xi + 1, yi, s), c = hh(xi, yi + 1, s), d = hh(xi + 1, yi + 1, s), u = xf * xf * (3 - 2 * xf), v = yf * yf * (3 - 2 * yf); return a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v; }
+function fbm(x, y, s, o = 3) { let t = 0, a = .5, f = 1, n = 0; for (let i = 0; i < o; i++) { t += a * vnoise(x * f, y * f, s + i * 11); n += a; a *= .5; f *= 2; } return t / n; }
+const BAY = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5], bay = (x, y) => BAY[(x & 3) + ((y & 3) << 2)] / 16;
+const hex = h => [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)];
+
+/* ------------------------------------------------------------------------------------------------------------------ geometry */
+let L, W, H, gw, gh, ox = 0, oy = 0, LW = 0, LH = 0, cfgs, dgNow, gdraw, thief, thiefView, plan, tasks, taskI, run = null, K = 0, won = false, auto = false, now = 0, last = 0, flash = 0, thiefDist = 0, floorC, lamps = [], walls = new Map();
+const rotXY = (X, Y) => st.rot === 0 ? [X, Y] : st.rot === 1 ? [H - Y, X] : st.rot === 2 ? [W - X, H - Y] : [Y, W - X];
+const unrot = (rx, ry) => st.rot === 0 ? [rx, ry] : st.rot === 1 ? [ry, H - rx] : st.rot === 2 ? [W - rx, H - ry] : [W - ry, rx];
+const projR = (rx, ry, z = 0) => [ox + (rx - ry) * TW / 2, oy + (rx + ry) * TH / 2 - z];
+const proj = (X, Y, z = 0) => { const [rx, ry] = rotXY(X, Y); return projR(rx, ry, z); };
+const unproj = (x, y) => { const a = (x - ox) / (TW / 2), b = (y - oy) / (TH / 2); return [(a + b) / 2, (b - a) / 2]; };
+const VEC = () => st.rot === 0 ? { rx: [1, 0], ry: [0, 1] } : st.rot === 1 ? { rx: [0, -1], ry: [1, 0] } : st.rot === 2 ? { rx: [-1, 0], ry: [0, -1] } : { rx: [0, 1], ry: [-1, 0] };
+const isWall = (cx, cy) => cx < 0 || cy < 0 || cx >= W || cy >= H || !!L.wall[cy * W + cx];
+const wallH = (cx, cy) => { if (!st.helpers) return HF; const [rx, ry] = rotXY(cx + .5, cy + .5); return (rx > gw - 1 || ry > gh - 1) ? HL : HF; };
+function layout() {
+  W = L.w; H = L.h; gw = st.rot % 2 ? H : W; gh = st.rot % 2 ? W : H; ox = oy = 0;
+  const xs = [], ys = [];
+  for (const [rx, ry] of [[-AP, -AP], [gw + AP, -AP], [-AP, gh + AP], [gw + AP, gh + AP]]) for (const z of [0, HF + 34]) { const [x, y] = projR(rx, ry, z); xs.push(x); ys.push(y); }
+  const M = 4, minx = Math.min(...xs), maxx = Math.max(...xs), miny = Math.min(...ys), maxy = Math.max(...ys);
+  ox = M - minx; oy = M - miny; LW = Math.ceil(maxx - minx + 2 * M); LH = Math.ceil(maxy - miny + 2 * M + 4);
+  cv.width = LW; cv.height = LH; ctx.imageSmoothingEnabled = false;
+  const pix = Math.max(1, Math.floor(Math.min((innerWidth - 12) / LW, (innerHeight - 64) / LH)));
+  cv.style.width = LW * pix + 'px'; cv.style.height = LH * pix + 'px';
+}
+function cellCorners(cx, cy, z = 0) { return [proj(cx, cy, z), proj(cx + 1, cy, z), proj(cx + 1, cy + 1, z), proj(cx, cy + 1, z)]; }
+function diamond(cx, cy) { const p = cellCorners(cx, cy), ys = p.map(q => q[1]), xs = p.map(q => q[0]); return { top: p[ys.indexOf(Math.min(...ys))], bot: p[ys.indexOf(Math.max(...ys))], left: p[xs.indexOf(Math.min(...xs))], right: p[xs.indexOf(Math.max(...xs))] }; }
+
+/* ------------------------------------------------------------------------------------------------------------------ pixel sprites from small shapes (flat tones, no outline, light from the left) */
+const COL = { // palette letters
+  d: '#ce7143', g: '#bd5447', D: '#e89a60',                     // hair: light, shadow, glint
+  c: '#d29978', f: '#a56561', b: '#e8c583',                     // skin: mid, shadow, light
+  v: '#f1e9d0', w: '#e0d6b8', W: '#a89e84',                     // cream stripe: light, mid, shadow
+  a: '#4a4f5e', k: '#2b2f39', K: '#171a21',                     // dark stripe / dark cloth: light, mid, shadow
+  e: '#101216',                                                 // eyes, soles
+  n: '#4c6397', N: '#2f3f68', m: '#1a2138', M: '#2a3556',       // guard uniform: light, mid, cap, cap light
+  y: '#d8b050', Y: '#8a6a28', s: '#c58a6a', S: '#8f5a4c',       // brass, brass shadow, guard skin: mid, shadow
+  o: '#b2603f', O: '#7e402e', P: '#4e2a22', u: '#a8825a', U: '#7a5a3c', V: '#4e3a28', t: '#4f917c', T: '#2f5f52', X: '#1d3a34', l: '#e9d8a0', j: '#ffe9a8',
+  r: '#e04a3c', R: '#8c241e', z: '#aeb6c0', Z: '#6c7480', Q: '#3c424c', q: '#20242a', // red lens, metal tones
+};
+class G { constructor(w, h) { this.w = w; this.h = h; this.d = new Array(w * h).fill('.'); }
+  px(x, y, ch) { x |= 0; y |= 0; if (x >= 0 && y >= 0 && x < this.w && y < this.h) this.d[y * this.w + x] = ch; return this; }
+  rect(x, y, w, h, ch) { for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) this.px(x + i, y + j, ch); return this; }
+  /* fill a shape (fn(x,y) -> bool) with three tones: the left pixels light, the right pixels shadowed, the rest mid */
+  shape(fn, lit, mid, sh, x0 = 0, y0 = 0, x1 = this.w, y1 = this.h) {
+    for (let y = y0; y < y1; y++) { let a = -1, b = -1; for (let x = x0; x < x1; x++) if (fn(x, y)) { if (a < 0) a = x; b = x; }
+      if (a < 0) continue; const wd = b - a + 1;
+      for (let x = a; x <= b; x++) this.px(x, y, wd >= 3 && x === a ? lit : wd >= 4 && x === a + 1 && wd >= 6 ? lit : wd >= 3 && x === b ? sh : wd >= 6 && x === b - 1 ? sh : mid); }
+    return this; }
+  mirror() { const o = new G(this.w, this.h); for (let y = 0; y < this.h; y++) for (let x = 0; x < this.w; x++) o.d[y * this.w + x] = this.d[y * this.w + (this.w - 1 - x)]; return o; }
+  canvas() { const [c, x] = mk(this.w, this.h), id = x.createImageData(this.w, this.h); for (let i = 0; i < this.d.length; i++) { const ch = this.d[i]; if (ch === '.') continue; const [r, g, b] = hex(COL[ch]); id.data[i * 4] = r; id.data[i * 4 + 1] = g; id.data[i * 4 + 2] = b; id.data[i * 4 + 3] = 255; } x.putImageData(id, 0, 0); return c; }
+}
+const ell = (cx, cy, rx, ry) => (x, y) => ((x + .5 - cx) / rx) ** 2 + ((y + .5 - cy) / ry) ** 2 <= 1;
+const box = (x0, y0, x1, y1) => (x, y) => x >= x0 && x <= x1 && y >= y0 && y <= y1;
+const sprites = new Map();
+/* a person: 16x38, feet on the bottom row. back = seen from behind (3/4 view); step 0..3 = the walk cycle (0 and 2: feet apart), -1 = standing. Faces right; the left view is a mirror. */
+function person(kind, back, step) {
+  const key = kind + back + step; if (sprites.has(key)) return sprites.get(key);
+  const thiefK = kind === 'thief', g = new G(16, 38);
+  const passing = step === 1 || step === 3, up = passing ? 1 : 0;                          // the body rises a pixel between steps
+  const lf = step === 0 ? 0 : step === 2 ? 2 : passing ? 1 : 0, rf = step === 2 ? 0 : step === 0 ? 2 : passing ? 1 : 0;   // how far each leg is lifted
+  const armL = step === 0 ? -1 : step === 2 ? 1 : 0, armR = -armL;                           // arms swing against the legs
+  const stripe = (y, mod) => ((y + mod) >> 1) % 2 === 0;
+  const lw = thiefK ? 2 : 3, tx0 = thiefK ? 4 : 3, tx1 = thiefK ? 9 : 10, lx0 = thiefK ? 5 : 4, rx0 = thiefK ? 8 : 8;     // a slim prisoner, a stockier guard
+  const leg = (x0, lift, sh) => {
+    const yEnd = 34 - lift;
+    for (let y = 23 - up; y <= yEnd; y++) for (let x = 0; x < lw; x++) {
+      if (thiefK) { const cr = stripe(y, 0); g.px(x0 + x, y, cr ? (x === 0 && !sh ? 'v' : sh || x === lw - 1 ? 'W' : 'w') : (x === 0 && !sh ? 'a' : sh || x === lw - 1 ? 'K' : 'k')); }
+      else g.px(x0 + x, y, x === 0 && !sh ? 'n' : x === lw - 1 || sh ? 'm' : 'N');
+    }
+    g.rect(x0 - (thiefK ? 0 : 0), yEnd + 1, lw + 1, 2, 'K'); g.px(x0, yEnd + 1, 'k'); g.px(x0 + lw, yEnd + 2, 'e');
+  };
+  leg(lx0, lf, false); leg(rx0, rf, true);
+  const ty = 12 - up, th = thiefK ? 10 : 10;
+  if (thiefK) { for (let y = ty; y <= ty + th - 1; y++) { const cr = stripe(y, 1); for (let x = tx0; x <= tx1; x++) g.px(x, y, cr ? (x === tx0 ? 'v' : x >= tx1 - 1 ? 'W' : 'w') : (x === tx0 ? 'a' : x >= tx1 - 1 ? 'K' : 'k')); } }
+  else { g.shape(box(tx0, ty, tx1, ty + th - 1), 'n', 'N', 'm', 0, ty, 16, ty + th); g.rect(tx0, ty + 8, tx1 - tx0 + 1, 1, 'm'); g.px(7, ty + 8, 'y'); g.px(tx0 + 1, ty + 1, 'y'); g.px(tx1 - 1, ty + 1, 'Y'); }
+  const arm = (x0, dy, sh) => { const len = 8 + dy; for (let y = 0; y < len; y++) { const yy = ty + 1 + y;
+      if (thiefK) { const cr = stripe(yy, 1); g.px(x0, yy, cr ? (sh ? 'W' : 'v') : (sh ? 'K' : 'a')); g.px(x0 + 1, yy, cr ? (sh ? 'W' : 'w') : (sh ? 'K' : 'k')); }
+      else { g.px(x0, yy, sh ? 'm' : 'n'); g.px(x0 + 1, yy, sh ? 'm' : 'N'); } }
+    g.px(x0, ty + 1 + len, sh ? 'f' : 'b'); g.px(x0 + 1, ty + 1 + len, sh ? 'f' : 'c'); };
+  arm(tx0 - 2, armL, false); arm(tx1 + 1, armR, true);
+  const hy = 1 - up;
+  if (thiefK) {
+    if (back) {
+      g.shape(ell(7.5, hy + 5, 4.8, 5), 'D', 'd', 'g', 0, hy, 16, hy + 11); g.shape(box(11, hy + 5, 12, hy + 13), 'd', 'd', 'g', 8, hy + 4, 16, hy + 15); g.px(7, hy + 10, 'f'); g.px(8, hy + 10, 'f');
+    } else {
+      g.shape(ell(7.5, hy + 5.4, 3.8, 4.6), 'b', 'c', 'f', 0, hy, 16, hy + 11);
+      g.shape(ell(7.5, hy + 3.4, 4.8, 4), 'D', 'd', 'g', 0, hy - 1, 16, hy + 5);
+      g.shape(box(3, hy + 3, 4, hy + 13), 'd', 'd', 'g', 0, hy + 3, 7, hy + 14); g.shape(box(11, hy + 3, 11, hy + 8), 'd', 'g', 'g', 9, hy + 3, 14, hy + 9);
+      g.px(6, hy + 5, 'e'); g.px(9, hy + 5, 'e'); g.px(8, hy + 7, 'f'); g.px(5, hy + 4, 'd'); g.px(6, hy + 4, 'd'); g.px(7, hy + 4, 'd');
+    }
+    g.px(7, hy + 10, 'f'); g.px(8, hy + 10, 'f');
+  } else {
+    g.shape(ell(7.5, hy + 5.6, 4.0, 4.5), 'b', 's', 'S', 0, hy, 16, hy + 11);
+    if (!back) { g.px(6, hy + 6, 'e'); g.px(9, hy + 6, 'e'); g.px(7, hy + 8, 'S'); g.px(8, hy + 8, 'S'); } else g.shape(ell(7.5, hy + 5, 4, 3.8), 'M', 'm', 'm', 0, hy + 1, 16, hy + 8);
+    g.shape(box(3, hy, 12, hy + 3), 'M', 'm', 'm', 0, hy, 16, hy + 4); g.rect(4, hy + 4, 9, 1, 'm'); g.px(back ? 7 : 6, hy + 1, 'y'); if (!back) g.rect(11, hy + 3, 4, 1, 'm');
+    g.px(7, hy + 10, 'S'); g.px(8, hy + 10, 'S');
+  }
+  const c = g.canvas(); sprites.set(key, c); return c;
+}
+/* a security camera on a short arm (seen from the front or from behind; faces right) */
+function camera(back) {
+  const key = 'cam' + back; if (sprites.has(key)) return sprites.get(key);
+  const g = new G(16, 16);
+  g.rect(6, 10, 3, 5, 'Q'); g.px(6, 10, 'Z'); g.rect(4, 14, 7, 2, 'q');                                           // arm and mounting plate
+  g.shape(box(1, 3, 12, 10), 'z', 'Z', 'Q', 0, 3, 16, 11); g.rect(1, 9, 12, 1, 'Q'); g.rect(2, 2, 10, 1, 'z');
+  if (!back) { g.rect(9, 4, 4, 5, 'q'); g.px(10, 5, 'r'); g.px(11, 6, 'r'); g.px(10, 6, 'R'); g.px(13, 5, 'q'); } else { g.rect(2, 5, 8, 1, 'Q'); g.px(4, 7, 'q'); g.px(6, 7, 'q'); g.px(8, 7, 'q'); }
+  const c = g.canvas(); sprites.set(key, c); return c;
+}
+const silhouette = (c, col) => { const [t, x] = mk(c.width, c.height); x.drawImage(c, 0, 0); x.globalCompositeOperation = 'source-atop'; x.fillStyle = col; x.fillRect(0, 0, t.width, t.height); return t; };
+const darken = (c, a) => { const [t, x] = mk(c.width, c.height); x.drawImage(c, 0, 0); x.globalCompositeOperation = 'source-atop'; x.fillStyle = `rgba(4,10,12,${a})`; x.fillRect(0, 0, t.width, t.height); return t; };
+const redden = c => { const [t, x] = mk(c.width, c.height); x.drawImage(c, 0, 0); x.globalCompositeOperation = 'source-atop'; x.fillStyle = 'rgba(255,60,46,.34)'; x.fillRect(0, 0, t.width, t.height); return t; };
+const outlineOnly = c => { const [t, x] = mk(c.width + 2, c.height + 2), s = silhouette(c, 'rgba(210,230,220,.30)'); x.drawImage(s, 1, 1);
+  const d = x.getImageData(0, 0, t.width, t.height), dd = d.data, on = (X, Y) => X >= 0 && Y >= 0 && X < t.width && Y < t.height && dd[(Y * t.width + X) * 4 + 3] > 0, o = x.createImageData(t.width, t.height);
+  for (let Y = 0; Y < t.height; Y++) for (let X = 0; X < t.width; X++) if (on(X, Y) && !(on(X - 1, Y) && on(X + 1, Y) && on(X, Y - 1) && on(X, Y + 1))) { const i = (Y * t.width + X) * 4; o.data[i] = 190; o.data[i + 1] = 220; o.data[i + 2] = 210; o.data[i + 3] = 255; }
+  const [u, ux] = mk(t.width, t.height); ux.putImageData(d, 0, 0); ux.putImageData(o, 0, 0, 0, 0, 0, 0); ux.clearRect(0, 0, t.width, t.height); ux.drawImage(t, 0, 0); ux.putImageData(o, 0, 0); return u; };
+
+/* props around the building: an oil drum, a crate, a bin, a dumpster and a lamp post (drawn from small shapes, same flat three-tone shading) */
+function prop(kind) {
+  const key = 'prop' + kind; if (sprites.has(key)) return sprites.get(key);
+  let g;
+  if (kind === 'barrel') { g = new G(16, 24); g.shape(box(2, 6, 13, 21), 'o', 'O', 'P', 0, 6, 16, 22); g.shape(ell(8, 6.4, 6, 2.8), 'l', 'o', 'O', 0, 3, 16, 10); g.rect(2, 10, 12, 1, 'P'); g.rect(2, 16, 12, 1, 'P'); g.px(6, 5, 'P'); g.px(9, 6, 'P'); g.shape(ell(8, 21.2, 6, 2.2), 'P', 'P', 'P', 0, 19, 16, 24); }
+  else if (kind === 'crate') { g = new G(24, 24); g.shape((x, y) => Math.abs(x + .5 - 12) / 12 + Math.abs(y + .5 - 6) / 6 <= 1, 'l', 'u', 'U', 0, 0, 24, 13);
+    for (let x = 0; x < 12; x++) { const yt = 6 + Math.floor((x + .5) / 2); for (let y = yt; y < yt + 13; y++) g.px(x, y, x === 0 ? 'u' : (y - yt === 0 || x === 11 ? 'V' : 'U')); }
+    for (let x = 12; x < 24; x++) { const yt = 12 - Math.floor((x - 12 + .5) / 2); for (let y = yt; y < yt + 13; y++) g.px(x, y, y - yt === 0 || x === 12 ? 'V' : 'V'); }
+    for (let k = 0; k < 3; k++) { for (let x = 0; x < 12; x++) g.px(x, 6 + (x >> 1) + 4 + k * 4 - (k === 2 ? 1 : 0), 'V'); } }
+  else if (kind === 'can') { g = new G(14, 22); g.shape(box(2, 7, 11, 19), 'Z', 'Q', 'q', 0, 7, 14, 20); g.shape(ell(7, 7, 6, 2.6), 'z', 'Z', 'Q', 0, 3, 14, 11); g.rect(3, 12, 8, 1, 'q'); g.rect(3, 15, 8, 1, 'q'); g.px(7, 3, 'q'); g.px(6, 4, 'z'); g.shape(ell(7, 19.4, 5.6, 2), 'q', 'q', 'q', 0, 18, 14, 22); }
+  else if (kind === 'dump') { g = new G(44, 36);
+    for (let x = 0; x < 22; x++) { const yt = 11 + Math.floor((x + .5) / 2); for (let y = yt; y < yt + 15; y++) g.px(x, y, x === 0 ? 't' : y - yt === 0 ? 'z' : 'T'); }
+    for (let x = 22; x < 44; x++) { const yt = 22 - Math.floor((x - 22 + .5) / 2); for (let y = yt; y < yt + 15; y++) g.px(x, y, y - yt === 0 ? 'z' : 'X'); }
+    g.shape((x, y) => Math.abs(x + .5 - 22) / 22 + Math.abs(y + .5 - 11) / 11 <= 1, 't', 'T', 'X', 0, 0, 44, 23); for (let x = 3; x < 41; x++) { const edge = Math.abs(x + .5 - 22) / 22; for (let yy = 0; yy < 23; yy++) if (Math.abs(Math.abs(yy + .5 - 11) / 11 + edge - 1) < .09) g.px(x, yy, 'z'); }
+    for (let k = 0; k < 2; k++) { g.px(4 + k * 9, 20 + k * 4, 'q'); g.px(5 + k * 9, 20 + k * 4, 'q'); } g.rect(30, 30, 3, 3, 'q'); g.rect(8, 26, 3, 3, 'q'); }
+  else { g = new G(10, 46); g.rect(4, 6, 2, 38, 'Q'); g.px(4, 6, 'Z'); g.rect(1, 3, 8, 3, 'q'); g.rect(2, 6, 6, 1, 'q'); g.rect(3, 4, 4, 2, 'j'); g.px(4, 4, 'l'); g.rect(3, 43, 4, 2, 'q'); }
+  const c = g.canvas(); sprites.set(key, c); return c;
+}
+
+/* ------------------------------------------------------------------------------------------------------------------ level, plan, animation */
+const evalAt = cfg => P.evalConfig(L, cfg, true);
+const guardCell = (j, cfg) => L.guards[j].rail[cfg[L.cams.length + j] >> 1];
+function bfs(from, okCell, goal) {
+  const prev = new Map([[from, -1]]), q = [from];
+  while (q.length) { const c = q.shift(); if (goal(c)) { const path = []; for (let k = c; k !== -1; k = prev.get(k)) path.push(k); return path.reverse(); }
+    const x = c % W, y = (c / W) | 0; for (let d = 0; d < 4; d++) { const nx = x + DX[d], ny = y + DY[d]; if (nx < 0 || ny < 0 || nx >= W || ny >= H) continue; const n = ny * W + nx; if (!prev.has(n) && okCell(n)) { prev.set(n, c); q.push(n); } } }
+  return null;
+}
+function loadLevel(id) {
+  const l = LV.find(z => z.id === id); L = P.parseLevel(l.map, l.meta); P.prepare(L);
+  const sol = P.solve(L, { maxDepth: 40 }); cfgs = [P.initialDigits(L), ...sol.configs]; W = L.w; H = L.h;
+  const n = cfgs.length - 1, walkable = cfgs.map(cfg => { const e = evalAt(cfg); return new Uint8Array(W * H).map((_, c) => (!L.wall[c] && !e.occ[c] && !e.lit[c]) ? 1 : 0); });
+  const flood = (k, src) => { const seen = new Uint8Array(W * H), q = []; for (const c of src) if (walkable[k][c] && !seen[c]) { seen[c] = 1; q.push(c); }
+    while (q.length) { const c = q.pop(), x = c % W, y = (c / W) | 0; for (let d = 0; d < 4; d++) { const nx = x + DX[d], ny = y + DY[d]; if (nx < 0 || ny < 0 || nx >= W || ny >= H) continue; const m = ny * W + nx; if (walkable[k][m] && !seen[m]) { seen[m] = 1; q.push(m); } } } return seen; };
+  const cells = arr => { const o = []; arr.forEach((v, c) => { if (v) o.push(c); }); return o; };
+  const ok = new Array(n + 2), good = new Array(n + 1); ok[n + 1] = [L.E];
+  for (let a = n; a >= 0; a--) { good[a] = flood(a, ok[a + 1]); if (a > 0) ok[a] = cells(good[a]).filter(c => walkable[a - 1][c]); }
+  const feasible = !!good[0][L.S]; tasks = []; let pos = L.S; plan = { thiefAt: [pos] };
+  const walkTo = (k, goal) => bfs(pos, c => walkable[k][c], c => goal.has(c));
+  for (let a = 1; a <= n; a++) { const path = (feasible && walkTo(a - 1, new Set(ok[a]))) || [pos]; if (path.length > 1) tasks.push({ kind: 'walk', path }); pos = path[path.length - 1]; tasks.push({ kind: 'act', k: a }); plan.thiefAt.push(pos); }
+  const fin = (feasible && walkTo(n, new Set([L.E]))) || [pos]; if (fin.length > 1) tasks.push({ kind: 'walk', path: fin }); tasks.push({ kind: 'win' });
+  jump(0);
+}
+function jump(k) { dgNow = cfgs[k].slice(); gdraw = L.guards.map((g, j) => { const c = guardCell(j, dgNow); return [c % W, (c / W) | 0]; }); const c = plan.thiefAt[k]; thief = [c % W, (c / W) | 0]; thiefView = { back: 0, flip: false }; taskI = 0; run = null; flash = 0; K = k; won = false; thiefDist = 0; }
+function startNext() { while (taskI < tasks.length) { const t = tasks[taskI++]; if (t.kind === 'win') { won = true; return; } run = Object.assign({ t0: now }, t); return; } }
+const screenDir = (dx, dy) => { const a = proj(0, 0), b = proj(dx, dy); return { back: b[1] < a[1] - 1e-6 || (Math.abs(b[1] - a[1]) < 1e-6 && false) ? 1 : 0, flip: b[0] < a[0] - 1e-6 }; };
+function advance(dt) {
+  for (let j = 0; j < L.guards.length; j++) { const c = guardCell(j, dgNow), tx = c % W, ty = (c / W) | 0, g = gdraw[j], k = 1 - Math.pow(.001, dt / 450); g[0] += (tx - g[0]) * k; g[1] += (ty - g[1]) * k; }
+  if (flash > 0) flash = Math.max(0, flash - dt / 260);
+  if (!run) { if (auto && !won) startNext(); return; }
+  if (run.kind === 'walk') {
+    const per = 190, p = (now - run.t0) / per, i = Math.min(run.path.length - 1, Math.floor(p)), f = Math.min(1, p - i), a = run.path[i], b = run.path[Math.min(run.path.length - 1, i + 1)];
+    const ax = a % W, ay = (a / W) | 0, bx = b % W, by = (b / W) | 0; thief = [ax + (bx - ax) * f, ay + (by - ay) * f]; if (bx !== ax || by !== ay) thiefView = screenDir(bx - ax, by - ay);
+    thiefDist = p; if (p >= run.path.length - 1) { thief = [bx, by]; run = null; }
+  } else if (run.kind === 'act') { if (!run.done) { dgNow = cfgs[run.k].slice(); flash = 1; K = run.k; run.done = true; run.t0 = now; } if (now - run.t0 > 650) run = null; }
+}
+
+/* ------------------------------------------------------------------------------------------------------------------ the world: floor, walls, lamps */
+function pickLamps() {                                                                      // two caged wall lamps, on faces that look onto the floor
+  lamps = []; const V = VEC();
+  const cand = [];
+  for (let cy = 0; cy < H; cy++) for (let cx = 0; cx < W; cx++) if (L.wall[cy * W + cx]) for (const side of ['L', 'R']) {
+    const v = side === 'L' ? V.ry : V.rx, nx = cx + v[0], ny = cy + v[1]; if (isWall(nx, ny)) continue;
+    cand.push({ cx, cy, side, nx, ny, h: hh(cx, cy, side === 'L' ? 3 : 5) });
+  }
+  cand.sort((a, b) => b.h - a.h);
+  for (const c of cand) { if (lamps.length >= 2) break; if (lamps.every(l => Math.abs(l.cx - c.cx) + Math.abs(l.cy - c.cy) > 3)) lamps.push(c); }
+}
+const exposed = (cx, cy, side) => { const V = VEC(), v = side === 'L' ? V.ry : V.rx; return !isWall(cx + v[0], cy + v[1]); };
+function brick(u, v, h, seed, shade, d) {                                                   // one pixel of a brick wall; u along the face, v down from its top edge
+  const row = Math.floor(v / 4), vy = v % 4, off = (row & 1) * 3, uu = u + off, col = Math.floor(uu / 6), vx = uu % 6;
+  const hv = hh(col, row, seed), tones = [[88, 66, 46], [76, 58, 42], [100, 76, 52], [66, 62, 44], [72, 78, 50]];
+  let [r, g, b] = tones[(hv * 5) | 0]; const vary = (hh(col * 3 + vx, row * 5 + vy, seed + 4) - .5) * 14; r += vary; g += vary * .9; b += vary * .7;
+  if (vy === 3 || vx === 5) { r = 30; g = 27; b = 22; } else { if (vy === 0) { r += 22; g += 18; b += 12; } if (vx === 0) { r += 10; g += 8; b += 5; } if (vy === 2) { r -= 8; g -= 8; b -= 6; } }
+  const mn = fbm(u * .10 + seed, v * .17, seed + 9, 3);                                      // moss and yellowish blotches, mostly low on the wall
+  const mt = mn + (v / h) * .16 - .04 + (bay(u, v) - .5) * .08;
+  if (mt > .66) { const t = clamp((mt - .66) * 5, 0, 1); r = lerp(r, 128, t); g = lerp(g, 130, t); b = lerp(b, 52, t); }
+  const sn = vnoise(u * .45 + seed, v * .06, seed + 21); if (sn > .72) { r *= .72; g *= .72; b *= .72; }   // wet streaks
+  const edge = v < 1.5 ? 1.25 : v > h - 3 ? .62 : 1; r *= shade * edge; g *= shade * edge; b *= shade * edge;
+  return [r, g, b];
+}
+function wallSprite(cx, cy, h) {
+  const key = `${cx},${cy},${st.rot},${h}`; if (walls.has(key)) return walls.get(key);
+  const w = TW, hgt = TH + h, [c, x] = mk(w, hgt), img = x.createImageData(w, hgt), d = img.data, seed = (cx * 31 + cy * 17 + 7) | 0;
+  const lampL = lamps.find(l => l.cx === cx && l.cy === cy && l.side === 'L'), lampR = lamps.find(l => l.cx === cx && l.cy === cy && l.side === 'R');
+  const pipeL = exposed(cx, cy, 'L') && hh(cx, cy, 41) > .55, pipeR = exposed(cx, cy, 'R') && hh(cx, cy, 43) > .55;
+  const put = (i, col) => { d[i] = clamp(col[0], 0, 255); d[i + 1] = clamp(col[1], 0, 255); d[i + 2] = clamp(col[2], 0, 255); d[i + 3] = 255; };
+  for (let y = 0; y < hgt; y++) for (let X = 0; X < w; X++) {
+    const i = (y * w + X) * 4, dx = Math.abs(X + .5 - 24) / 24, dy = Math.abs(y + .5 - 12) / 12;
+    if (dx + dy <= 1) {                                                                       // the top: a stone slab
+      const n = fbm(X * .2, y * .3, seed + 2, 2), edge = 1 - (dx + dy);
+      let col = [60 + n * 26, 62 + n * 24, 60 + n * 22]; if (edge < .12) col = y < 12 ? [118, 120, 112] : [26, 28, 28]; else if (edge < .2) col = [col[0] * 1.15, col[1] * 1.15, col[2] * 1.12];
+      if (hh(X, y, seed) > .95) col = [col[0] + 18, col[1] + 18, col[2] + 16]; put(i, col); continue;
+    }
+    let face = 0, u = 0, v = 0;
+    if (X < 24) { const yT = 12 + (X + .5) / 2; if (y >= yT && y < yT + h) { face = 1; u = X; v = y - Math.floor(yT); } }
+    else { const yT = 24 - ((X + .5) - 24) / 2; if (y >= yT && y < yT + h) { face = 2; u = X - 24; v = y - Math.floor(yT); } }
+    if (!face) continue;
+    let col = brick(u, v, h, seed + face, face === 1 ? .86 : .56, 0);
+    if ((face === 1 ? pipeL : pipeR) && h > 14) { const pv = v - 5; if (pv >= 0 && pv < 4) col = pv === 0 ? [118, 124, 116] : pv === 3 ? [26, 28, 28] : pv === 1 ? [84, 90, 84] : [58, 62, 58]; if (u % 12 < 2 && v >= 3 && v < 10) col = [40, 42, 40]; }
+    for (const [lp, f] of [[lampL, 1], [lampR, 2]]) if (lp && face === f && h > 14) {                 // a caged lamp: bright bulb, dark cage, a warm glow on the bricks
+      const lx = 12, ly = 9, dd = Math.hypot(u - lx, (v - ly) * 1.2);
+      if (dd < 14) { const I = Math.pow(1 - dd / 14, 1.5), q = Math.floor(I * 5 + bay(X, y)) / 5; col = [col[0] * (1 + q * 1.3) + 150 * q, col[1] * (1 + q * 1.2) + 118 * q, col[2] * (1 + q) + 56 * q]; }
+      if (u >= lx - 3 && u <= lx + 2 && v >= ly - 2 && v <= ly + 2) col = (u === lx - 3 || u === lx + 2 || v === ly - 2 || v === ly + 2) ? [34, 36, 34] : [255, 238, 176];
+    }
+    put(i, col);
+  }
+  x.putImageData(img, 0, 0); walls.set(key, c); return c;
+}
+function buildFloor() {
+  const [c, x] = mk(LW, LH), img = x.createImageData(LW, LH), d = img.data, V = VEC();
+  const Er = rotXY(L.E % W + .5, ((L.E / W) | 0) + .5);
+  const post = [gw + .9, gh + .9], lampPos0 = [post];
+  const lampPos = lampPos0.concat(lamps.map(l => { const nc = rotXY(l.nx + .5, l.ny + .5), wc = rotXY(l.cx + .5, l.cy + .5); return [nc[0] * .8 + wc[0] * .2, nc[1] * .8 + wc[1] * .2]; }));
+  for (let py = 0; py < LH; py++) for (let px = 0; px < LW; px++) {
+    const [rx, ry] = unproj(px + .5, py + .5); if (rx < -AP || ry < -AP || rx >= gw + AP || ry >= gh + AP) continue;
+    const inside = rx >= 0 && ry >= 0 && rx < gw && ry < gh; let cx = -1, cy = -1;
+    if (inside) { const [X, Y] = unrot(rx, ry); cx = Math.floor(X); cy = Math.floor(Y); if (L.wall[cy * W + cx]) continue; }
+    const fx = rx - Math.floor(rx), fy = ry - Math.floor(ry);
+    const n1 = fbm(rx * .9, ry * .9, 3), n2 = fbm(rx * 3.1, ry * 3.1, 5, 2), n3 = hh(px, py, 9);
+    let r = 48 + (n1 - .5) * 34 + (n2 - .5) * 16, g = 56 + (n1 - .5) * 34 + (n2 - .5) * 16, b = 52 + (n1 - .5) * 30 + (n2 - .5) * 14;
+    if (n3 > .94) { r += 24; g += 24; b += 22; } else if (n3 < .045) { r -= 16; g -= 16; b -= 14; }
+    if (inside) { if (fx < .045 || fy < .045) { r *= .6; g *= .6; b *= .6; } else if (fx > .955 || fy > .955) { r += 7; g += 7; b += 7; } }
+    else { const jx = rx - Math.floor(rx / 2) * 2, jy = ry - Math.floor(ry / 2) * 2; if (jx < .04 || jy < .04) { r *= .66; g *= .66; b *= .66; } r *= .86; g *= .9; b *= .92; if (Math.min(rx + .0, ry + .0, gw - rx, gh - ry) > -.18 && Math.max(-rx, -ry, rx - gw, ry - gh) < .2 && !inside) { r += 26; g += 28; b += 26; } }   // the pavement outside: wide joints, a pale kerb along the walls
+    const pn = fbm(rx * .7 + 11, ry * .7 + 5, 17);
+    if (pn > (inside ? .64 : .6) && (!inside || (fx > .08 && fy > .08 && fx < .92 && fy < .92))) { const t = Math.min(1, (pn - .64) * 8); r = lerp(r, 26, t); g = lerp(g, 54, t); b = lerp(b, 64, t); if (hh(px, py, 3) > .93) { r += 70 * t; g += 80 * t; b += 80 * t; } }
+    if (Math.abs(fbm(rx * 2.6 + 3, ry * 2.6 + 9, 23) - .5) < .013) { r *= .45; g *= .45; b *= .45; }
+    if (inside && hh(cx, cy, 77) > .93) { const dd = Math.hypot(fx - .5, fy - .5); if (dd < .26) { const bar = (Math.floor(fx * 14) & 1); r = bar ? 18 : 54; g = bar ? 22 : 60; b = bar ? 22 : 58; } }
+    if (n3 > .9965) { r = 176; g = 166; b = 134; }                                                // a scrap of litter
+    // contact shadow where a wall meets the floor
+    let ao = 0; const nb = [[-1, 0, fx], [1, 0, 1 - fx], [0, -1, fy], [0, 1, 1 - fy]];
+    for (const [ax, ay, dist] of nb) { const [qx, qy] = unrot(Math.floor(rx) + .5 + ax, Math.floor(ry) + .5 + ay); if (inside || (qx >= 0 && qy >= 0 && qx < W && qy < H)) if (isWall(Math.floor(qx), Math.floor(qy))) ao += clamp((.34 - dist) / .34, 0, 1); }
+    const aoK = 1 - Math.min(.7, ao * .5); r *= aoK; g *= aoK; b *= aoK;
+    r *= .8; g *= .95; b *= .98;                                                                 // the cold teal air
+    if (!inside) { const dist = Math.max(-rx, -ry, rx - gw, ry - gh), f = sstep(1.1, AP - .1, dist); r = r * (1 - f) + 4 * f; g = g * (1 - f) + 5 * f; b = b * (1 - f) + 5 * f; }   // the pavement fades into the dark
+    for (const lp of lampPos) {                                                                  // warm pools under the lamps (dithered into a few bands, like the reference)
+      const dd = Math.hypot(rx - lp[0], (ry - lp[1])) / (lp === post ? 3.4 : 2.6), I = Math.max(0, 1 - dd) ** 1.7, q = Math.min(1, Math.floor(I * 5 + bay(px, py)) / 5); if (q > 0) { r = r * (1 + q * .9) + 150 * q; g = g * (1 + q * .8) + 120 * q; b = b * (1 + q * .4) + 54 * q; } }
+    { const dd = Math.hypot(rx - Er[0], ry - Er[1]) / 2.1, I = Math.max(0, 1 - dd) ** 1.6, q = Math.min(1, Math.floor(I * 5 + bay(px, py)) / 5); if (q > 0) { r = r * (1 - q * .2) + 14 * q; g = g * (1 + q * .6) + 130 * q; b = b * (1 + q * .1) + 66 * q; } }   // the exit sign's green light
+    const i = (py * LW + px) * 4; d[i] = clamp(r, 0, 255); d[i + 1] = clamp(g, 0, 255); d[i + 2] = clamp(b, 0, 255); d[i + 3] = 255;
+  }
+  x.putImageData(img, 0, 0); floorC = c;
+}
+function rebuild() { layout(); walls.clear(); pickLamps(); buildFloor(); syncUI(); }
+
+/* ------------------------------------------------------------------------------------------------------------------ one frame */
+function rayShape(r) {
+  const sx = r.src % W + .5, sy = ((r.src / W) | 0) + .5, d = r.d, n = r.cells.length, dx = DX[d], dy = DY[d], px = -dy, py = dx, end = n + (r.mirror != null ? 1 : .5), w0 = r.first ? .1 : .5, t0 = r.first ? .5 : 0;
+  const pt = (t, w) => [sx + dx * t + px * w, sy + dy * t + py * w], poly = [pt(t0, -w0), pt(end, -.5), pt(end, .5), pt(t0, w0)].map(q => proj(q[0], q[1], 0));
+  return { poly, a: proj(...pt(t0, 0), 0), f: proj(...pt(end, 0), 0) };
+}
+const path = (c, pts) => { c.beginPath(); pts.forEach((q, i) => i ? c.lineTo(q[0], q[1]) : c.moveTo(q[0], q[1])); c.closePath(); };
+const dust = Array.from({ length: 46 }, (_, i) => ({ x: hh(i, 1, 1), y: hh(i, 2, 1), s: .4 + hh(i, 3, 1), a: .12 + hh(i, 4, 1) * .3 }));
+function propsList() {                                                                      // what stands around the building (positions in the rotated grid, all outside the walls)
+  return [{ kind: 'dump', rx: -1.5, ry: gh * .3 }, { kind: 'barrel', rx: -1.0, ry: gh * .62 }, { kind: 'barrel', rx: -1.4, ry: gh * .7 }, { kind: 'crate', rx: gw * .6, ry: -1.4 }, { kind: 'crate', rx: gw * .42, ry: -1.0 },
+    { kind: 'can', rx: gw + .8, ry: gh * .3 }, { kind: 'can', rx: gw + 1.3, ry: gh * .4 }, { kind: 'barrel', rx: gw * .8, ry: gh + .9 }, { kind: 'crate', rx: gw * .22, ry: gh + .8 }, { kind: 'lamp', rx: gw + .9, ry: gh + .9 }];
+}
+function frame(t) {
+  now = t; const dt = Math.min(60, t - last); last = t; advance(dt);
+  const e = evalAt(dgNow), pulse = .5 + .5 * Math.sin(t / 380);
+  ctx.fillStyle = '#040505'; ctx.fillRect(0, 0, LW, LH); ctx.drawImage(floorC, 0, 0);
+  // red light of the beams (added to the floor), a soft halo, and the dark shadow a guard casts into a beam
+  const rays = e.rays.filter(r => r.cells.length || r.mirror != null).map(rayShape);
+  ctx.save(); ctx.globalCompositeOperation = 'lighter';
+  for (const r of rays) {
+    const mid = [(r.poly[1][0] + r.poly[2][0]) / 2, (r.poly[1][1] + r.poly[2][1]) / 2];
+    ctx.fillStyle = 'rgba(150,24,20,.24)'; ctx.beginPath(); r.poly.forEach((q, i) => { const k = (i === 0 || i === 3) ? 1.5 : 1.2, X = mid[0] + (q[0] - mid[0]) * k, Y = mid[1] + (q[1] - mid[1]) * k; i ? ctx.lineTo(X, Y) : ctx.moveTo(X, Y); }); ctx.closePath(); ctx.fill();
+    const g = ctx.createLinearGradient(r.a[0], r.a[1], r.f[0], r.f[1]); g.addColorStop(0, `rgba(255,56,42,${.9 + .05 * pulse})`); g.addColorStop(1, 'rgba(225,40,32,.62)'); ctx.fillStyle = g; path(ctx, r.poly); ctx.fill();
+  }
+  ctx.restore();
+  { const Gh = P.ghostOf(L); P.prepare(Gh); const eg = P.evalConfig(Gh, dgNow, false); P.prepare(L);
+    ctx.fillStyle = 'rgba(0,0,0,.42)'; ctx.strokeStyle = 'rgba(220,60,48,.42)'; ctx.lineWidth = 1;
+    for (let c = 0; c < W * H; c++) if (eg.lit[c] && !e.lit[c] && !L.wall[c]) { path(ctx, cellCorners(c % W, (c / W) | 0)); ctx.fill(); ctx.setLineDash([2, 2]); ctx.stroke(); ctx.setLineDash([]); } }
+  // objects in depth order
+  const items = [], depth = (X, Y) => { const [rx, ry] = rotXY(X, Y); return rx + ry; };
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) if (L.wall[y * W + x]) items.push({ k: 'wall', x, y, d: depth(x + .5, y + .5) });
+  L.guards.forEach((g, j) => items.push({ k: 'guard', j, d: depth(gdraw[j][0] + .5, gdraw[j][1] + .5) + .002 }));
+  items.push({ k: 'thief', d: depth(thief[0] + .5, thief[1] + .5) + .002 });
+  items.push({ k: 'exit', d: depth(L.E % W + .5, ((L.E / W) | 0) + .5) + .003 });
+  for (const pr of propsList()) items.push({ k: 'prop', pr, d: pr.rx + pr.ry });
+  items.sort((a, b) => a.d - b.d);
+  const wallBoxes = [], actors = [];
+  const place = (img, X, Y, flip) => {
+    const p = proj(X, Y, 0), x = Math.round(p[0]), y = Math.round(p[1]);
+    ctx.save(); ctx.globalAlpha = .38; ctx.fillStyle = '#020303'; ctx.beginPath(); ctx.ellipse(x + 2, y + 1, 7, 3, -.1, 0, 7); ctx.fill(); ctx.restore();   // a soft shadow on the floor, a little to the right
+    ctx.save(); ctx.translate(x, y); if (flip) ctx.scale(-1, 1); ctx.drawImage(img, -Math.floor(img.width / 2), -img.height + 1); ctx.restore();
+    return { x: x - img.width / 2, y: y - img.height + 1, w: img.width, h: img.height, cx: x, cy: y, img, flip };
+  };
+  const litAdj = (cx, cy) => [0, 1, 2, 3].some(d => { const nx = cx + DX[d], ny = cy + DY[d]; return nx >= 0 && ny >= 0 && nx < W && ny < H && e.lit[ny * W + nx]; });
+  for (const it of items) {
+    if (it.k === 'wall') {
+      const h = wallH(it.x, it.y), dm = diamond(it.x, it.y), x0 = Math.round(dm.left[0]), y0 = Math.round(dm.top[1] - h);
+      ctx.drawImage(wallSprite(it.x, it.y, h), x0, y0);
+      if (litAdj(it.x, it.y)) { ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = 'rgba(96,16,14,.20)'; const bt = dm.bot, lf = dm.left, rt = dm.right;
+        path(ctx, [lf, bt, [bt[0], bt[1] - h], [lf[0], lf[1] - h]]); ctx.fill(); path(ctx, [bt, rt, [rt[0], rt[1] - h], [bt[0], bt[1] - h]]); ctx.fill(); ctx.restore(); }
+      wallBoxes.push({ x0, x1: x0 + TW, y0, y1: y0 + TH + h, d: it.d });
+      const ci = L.cams.findIndex(q => q.c === it.y * W + it.x);
+      if (ci >= 0) {
+        const rd = (dgNow[ci] + st.rot) % 4, sd = screenDir(DX[dgNow[ci]], DY[dgNow[ci]]), top = proj(it.x + .5, it.y + .5, h), cx = Math.round(top[0]), cy = Math.round(top[1]) + 2, img = camera(sd.back);
+        ctx.save(); ctx.globalAlpha = .4; ctx.fillStyle = '#020303'; ctx.beginPath(); ctx.ellipse(cx + 2, cy, 8, 3, 0, 0, 7); ctx.fill(); ctx.restore();
+        ctx.save(); ctx.translate(cx, cy); if (sd.flip) ctx.scale(-1, 1); ctx.drawImage(img, -8, -img.height + 1); ctx.restore(); void rd;
+        if (!sd.back) { const lx = cx + (sd.flip ? -4 : 4), ly = cy - 9, gg = ctx.createRadialGradient(lx, ly, 0, lx, ly, 7); gg.addColorStop(0, `rgba(255,70,52,${.55 + .25 * pulse})`); gg.addColorStop(1, 'rgba(255,40,30,0)');
+          ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = gg; ctx.fillRect(lx - 7, ly - 7, 14, 14); ctx.restore(); }
+      }
+    } else if (it.k === 'prop') {
+      const pr = it.pr, c = projR(pr.rx, pr.ry, 0), img = darken(prop(pr.kind), .16), x = Math.round(c[0]), y = Math.round(c[1]);
+      ctx.save(); ctx.globalAlpha = .34; ctx.fillStyle = '#020303'; ctx.beginPath(); ctx.ellipse(x + 3, y + 1, img.width * .36, 3.4, -.1, 0, 7); ctx.fill(); ctx.restore();
+      ctx.drawImage(img, x - Math.floor(img.width / 2), y - img.height + 1);
+      if (pr.kind === 'lamp') { const lx = x, ly = y - img.height + 5, gl = ctx.createRadialGradient(lx, ly, 1, lx, ly, 26); gl.addColorStop(0, 'rgba(255,214,130,.7)'); gl.addColorStop(1, 'rgba(0,0,0,0)'); ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = gl; ctx.fillRect(lx - 26, ly - 26, 52, 52); ctx.restore(); }
+    } else if (it.k === 'exit') {
+      const c = proj(L.E % W + .5, ((L.E / W) | 0) + .5, 0), cx = Math.round(c[0]), cy = Math.round(c[1]);
+      ctx.fillStyle = '#16181a'; ctx.fillRect(cx - 15, cy - 25, 3, 27); ctx.fillRect(cx + 12, cy - 25, 3, 27); ctx.fillRect(cx - 15, cy - 26, 30, 3);                // the door frame
+      ctx.fillStyle = '#4a4f50'; ctx.fillRect(cx - 15, cy - 25, 1, 27); ctx.fillRect(cx - 15, cy - 26, 30, 1);
+      const g = ctx.createLinearGradient(0, cy - 23, 0, cy + 2); g.addColorStop(0, 'rgba(30,170,90,.10)'); g.addColorStop(1, 'rgba(60,220,120,.55)'); ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = g; ctx.fillRect(cx - 12, cy - 23, 24, 25); ctx.restore();
+      const sy = cy - 31; ctx.save(); ctx.globalCompositeOperation = 'lighter'; const gl = ctx.createRadialGradient(cx, sy, 1, cx, sy, 22); gl.addColorStop(0, 'rgba(60,210,110,.6)'); gl.addColorStop(1, 'rgba(0,0,0,0)'); ctx.fillStyle = gl; ctx.fillRect(cx - 22, sy - 22, 44, 44); ctx.restore();
+      ctx.fillStyle = '#071a0e'; ctx.fillRect(cx - 9, sy - 4, 18, 9); ctx.fillStyle = '#32c06c'; ctx.fillRect(cx - 8, sy - 3, 16, 7);                                       // the green sign
+      ctx.fillStyle = '#e4ffee'; ctx.fillRect(cx - 1, sy, 6, 1); ctx.fillRect(cx + 3, sy - 1, 1, 3); ctx.fillRect(cx - 6, sy - 2, 2, 1); ctx.fillRect(cx - 6, sy, 1, 2); ctx.fillRect(cx - 4, sy, 1, 1); ctx.fillRect(cx - 5, sy + 2, 3, 1);
+    } else if (it.k === 'guard') {
+      const j = it.j, g = L.guards[j], sd = screenDir(DX[P.guardFacingDir(g, dgNow[L.cams.length + j] & 1)], DY[P.guardFacingDir(g, dgNow[L.cams.length + j] & 1)]);
+      const cell = g.rail[dgNow[L.cams.length + j] >> 1], inBeam = e.rays.some(r => r.cells.length && (() => { const lc = r.cells[r.cells.length - 1]; return (lc % W + DX[r.d]) + ((lc / W | 0) + DY[r.d]) * W === cell; })());
+      const base = person('guard', sd.back, -1), img = inBeam ? redden(base) : darken(base, .04);
+      actors.push(Object.assign(place(img, gdraw[j][0] + .5, gdraw[j][1] + .5, sd.flip), { d: it.d, out: outlineOnly(base) }));
+    } else {
+      const moving = run && run.kind === 'walk', step = moving ? Math.floor(thiefDist * 2) % 4 : -1, base = person('thief', thiefView.back, step);
+      actors.push(Object.assign(place(darken(base, .02), thief[0] + .5, thief[1] + .5, thiefView.flip), { d: it.d, out: outlineOnly(base) }));
+    }
+  }
+  if (st.helpers) {
+    ctx.save(); ctx.strokeStyle = 'rgba(255,80,66,.55)'; ctx.lineWidth = 1; ctx.setLineDash([2, 2]); for (const r of rays) { path(ctx, r.poly); ctx.stroke(); } ctx.restore();
+    for (const a of actors) {
+      const hidden = wallBoxes.some(w => { if (!(w.d > a.d)) return false; const ow = Math.min(w.x1, a.x + a.w) - Math.max(w.x0, a.x), oh = Math.min(w.y1, a.y + a.h) - Math.max(w.y0, a.y); return ow > 0 && oh > 0 && ow * oh / (a.w * a.h) > .22; });
+      if (!hidden) continue; ctx.save(); ctx.translate(a.cx, a.cy); if (a.flip) ctx.scale(-1, 1); ctx.drawImage(a.out, -Math.floor(a.out.width / 2), -a.out.height + 2); ctx.restore();
+    }
+  }
+  // atmosphere
+  for (const d of dust) { const x = (d.x * LW + t * .004 * d.s) % LW, y = (d.y * LH + Math.sin(t / 1400 + d.x * 9) * 3 + t * .002 * d.s) % LH; ctx.fillStyle = `rgba(200,205,180,${d.a * .6})`; ctx.fillRect(x | 0, y | 0, 1, 1); }
+  const vg = ctx.createRadialGradient(LW / 2, LH * .52, Math.min(LW, LH) * .3, LW / 2, LH * .52, Math.max(LW, LH) * .78); vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,0,.78)'); ctx.fillStyle = vg; ctx.fillRect(0, 0, LW, LH);
+  if (flash > 0) { ctx.fillStyle = `rgba(255,70,50,${.07 * flash})`; ctx.fillRect(0, 0, LW, LH); }
+  if (st.grade || st.dither) {                                                                  // colour grade (teal shadows, warm lights, reds kept) and a luminance dither
+    const id = ctx.getImageData(0, 0, LW, LH), d = id.data, lv = 16, step = 255 / (lv - 1);
+    for (let y = 0, i = 0; y < LH; y++) for (let x = 0; x < LW; x++, i += 4) {
+      let r = d[i], g = d[i + 1], b = d[i + 2]; const lum = .3 * r + .59 * g + .11 * b; if (lum < 2) continue;
+      if (st.grade) { const l = lum / 255, redish = r > g * 1.6 && r > b * 1.6, greenish = g > r * 1.4 && g > b * 1.2, w = redish || greenish ? .08 : .5;
+        const gr = l < .45 ? [lerp(10, 82, l / .45), lerp(24, 96, l / .45), lerp(26, 84, l / .45)] : [lerp(82, 238, (l - .45) / .55), lerp(96, 224, (l - .45) / .55), lerp(84, 178, (l - .45) / .55)];
+        const k = lum > 0 ? 1 : 0; void k; r = lerp(r, gr[0] * (l < .45 ? 1 : 1), w); g = lerp(g, gr[1], w); b = lerp(b, gr[2], w); }
+      if (st.dither) { const L2 = .3 * r + .59 * g + .11 * b, bias = (bay(x, y) - .5) * step * clamp((L2 - 16) / 40, 0, 1), q = Math.max(0, Math.round((L2 + bias) / step) * step), k = Math.min(3, q / Math.max(1, L2)); r *= k; g *= k; b *= k; }
+      d[i] = clamp(r, 0, 255); d[i + 1] = clamp(g, 0, 255); d[i + 2] = clamp(b, 0, 255);
+    }
+    ctx.putImageData(id, 0, 0);
+  }
+  if (!freeze) requestAnimationFrame(frame);
+}
+
+/* ------------------------------------------------------------------------------------------------------------------ controls */
+let freeze = Q.has('freeze');
+function syncUI() {
+  document.querySelectorAll('[data-lv]').forEach(b => b.classList.toggle('on', +b.dataset.lv === st.level));
+  for (const [id, k] of [['hlp', 'helpers'], ['grd', 'grade'], ['dth', 'dither']]) { $(id).textContent = st[k] ? 'on' : 'off'; $(id).classList.toggle('on', st[k]); }
+  $('play').textContent = auto ? '❚❚ Pause' : '▶ Play solution';
+}
+document.querySelectorAll('[data-lv]').forEach(b => b.onclick = () => { st.level = +b.dataset.lv; auto = false; loadLevel(st.level); rebuild(); });
+$('rl').onclick = () => { st.rot = (st.rot + 3) % 4; rebuild(); }; $('rr').onclick = () => { st.rot = (st.rot + 1) % 4; rebuild(); };
+$('hlp').onclick = () => { st.helpers = !st.helpers; rebuild(); }; $('grd').onclick = () => { st.grade = !st.grade; syncUI(); }; $('dth').onclick = () => { st.dither = !st.dither; syncUI(); };
+$('play').onclick = () => { auto = !auto; if (auto && won) jump(0); syncUI(); }; $('reset').onclick = () => { auto = false; jump(0); syncUI(); };
+$('step').onclick = () => { auto = false; if (!run) { if (won) jump(0); else startNext(); } };
+addEventListener('resize', () => { layout(); buildFloor(); });
+loadLevel(st.level); rebuild();
+function sheet() {                                                                               // a zoomed contact sheet of the characters, for checking the art
+  const names = [['thief', 0], ['thief', 1], ['guard', 0], ['guard', 1]], steps = [-1, 0, 1, 2, 3], sc = 8, [c, x] = mk(steps.length * 18 * sc, names.length * 40 * sc);
+  x.fillStyle = '#26302c'; x.fillRect(0, 0, c.width, c.height); x.imageSmoothingEnabled = false;
+  names.forEach((n, r) => steps.forEach((s, k) => x.drawImage(person(n[0], n[1], s), (k * 18 + 1) * sc, (r * 40 + 1) * sc, 16 * sc, 38 * sc)));
+  [0, 1].forEach(b => x.drawImage(camera(b), (steps.length * 18 - 17) * sc + 0, (b * 40 + 20) * sc, 16 * sc, 16 * sc));
+  return c.toDataURL();
+}
+window.lab = { st, rebuild, jump: k => jump(k), load: id => { st.level = id; loadLevel(id); rebuild(); }, frame, setAuto: v => { auto = v; if (v && won) jump(0); }, canvas: () => cv.toDataURL(), done: () => won && !run, sheet, exitPose: () => { thief = [L.E % W, (L.E / W) | 0]; } };
+if (!freeze) requestAnimationFrame(frame); else frame(1000);
+</script></body></html>

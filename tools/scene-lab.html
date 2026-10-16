@@ -15,6 +15,7 @@
   <span class="grp"><b>View</b><button data-view="obl">Oblique 3/4</button><button data-view="iso">Isometric</button></span>
   <span class="grp" id="rotg"><b>Rotate</b><button id="rl">⟲</button><button id="rr">⟳</button></span>
   <span class="grp"><b>Readability tricks</b><button id="hlp">on</button></span>
+  <span class="grp"><b>CCTV look</b><button id="cct">off</button></span>
   <span class="grp"><b>Colour grade</b><button id="grd">on</button></span>
   <span class="grp"><b>Dither</b><button id="dth">on</button></span>
   <span class="grp"><button id="play">▶ Play solution</button><button id="step">Step ▸</button><button id="reset">Reset</button></span>
@@ -30,7 +31,7 @@
 const P = window.Prison, LV = window.PRISON_LEVELS, $ = id => document.getElementById(id);
 const DX = [0, 1, 0, -1], DY = [-1, 0, 1, 0];
 const Q = new URLSearchParams(location.search);
-const st = { view: Q.get('view') || 'obl', level: +(Q.get('level') || 9), rot: +(Q.get('rot') || 0), helpers: Q.get('helpers') !== '0', dither: Q.get('dither') !== '0', grade: Q.get('grade') !== '0' };
+const st = { view: Q.get('view') || 'obl', level: +(Q.get('level') || 9), rot: +(Q.get('rot') || 0), helpers: Q.get('helpers') !== '0', dither: Q.get('dither') !== '0', grade: Q.get('grade') !== '0', cctv: Q.get('cctv') === '1' };
 const TW = 48, TH = 24, HF = 21, HL = 8, AP = 2.8;                // isometric: diamond 48x24, walls 21 (8 where cut away)
 const OT = 48, OTY = 34, OHF = 19, OHL = 8;                        // oblique 3/4: floor cell 48x34, wall fronts 22 (9 on the near row)
 const R = () => st.view === 'iso' ? st.rot : 0;                  // rotation only exists in the isometric view
@@ -376,6 +377,21 @@ function propsList() {                                                          
   return [{ kind: 'dump', rx: -1.5, ry: gh * .3 }, { kind: 'barrel', rx: -1.0, ry: gh * .62 }, { kind: 'barrel', rx: -1.4, ry: gh * .7 }, { kind: 'crate', rx: gw * .6, ry: -1.4 }, { kind: 'crate', rx: gw * .42, ry: -1.0 },
     { kind: 'can', rx: gw + .8, ry: gh * .3 }, { kind: 'can', rx: gw + 1.3, ry: gh * .4 }, { kind: 'barrel', rx: gw * .8, ry: gh + .9 }, { kind: 'crate', rx: gw * .22, ry: gh + .8 }, { kind: 'lamp', rx: gw + .9, ry: gh + .9 }];
 }
+const F5 = { 0: '111101101101111', 1: '010110010010111', 2: '111001111100111', 3: '111001111001111', 4: '101101111001001', 5: '111100111001111', 6: '111100111101111', 7: '111001001010010', 8: '111101111101111', 9: '111101111001111',
+  A: '010101111101101', B: '110101110101110', C: '011100100100011', D: '110101101101110', E: '111100110100111', F: '111100110100100', G: '011100101101011', H: '101101111101101', I: '111010010010111', J: '001001001101010', K: '101101110101101', L: '100100100100111', M: '101111111101101',
+  N: '110101101101101', O: '010101101101010', P: '110101110100100', Q: '010101101111011', R: '110101110101101', S: '011100010001110', T: '111010010010010', U: '101101101101111', V: '101101101101010', W: '101101111111101', X: '101101010101101', Y: '101101010010010', Z: '111001010100111',
+  ':': '000010000010000', '-': '000000111000000', '.': '000000000000010', '/': '001001010100100', ' ': '000000000000000' };
+function txt(c, x, y, str, col) { c.fillStyle = col; let cx = x; for (const ch of String(str).toUpperCase()) { const g = F5[ch] || F5[' ']; for (let i = 0; i < 15; i++) if (g[i] === '1') c.fillRect(cx + (i % 3), y + ((i / 3) | 0), 1, 1); cx += 4; } return cx; }
+let thiefBox = null;
+function cctvHud(t) {                                                                       // the security-system overlay: camera name, clock, REC, corner marks, a tracking box on the prisoner
+  const col = 'rgba(190,255,200,.92)', dim = 'rgba(190,255,200,.6)', n = cfgs.length - 1, minute = 14 + K, sec = ((t / 1000) | 0) % 60;
+  txt(ctx, 8, 7, `CAM ${String(st.level).padStart(2, '0')}  BLOCK A`, col); txt(ctx, 8, 14, `2026-10-17 02:${String(minute).padStart(2, '0')}:${String(sec).padStart(2, '0')}`, dim);
+  if (((t / 500) | 0) % 2 === 0) { ctx.fillStyle = '#ff3b30'; ctx.beginPath(); ctx.arc(LW - 30, 9, 2.2, 0, 7); ctx.fill(); } txt(ctx, LW - 25, 7, 'REC', col);
+  txt(ctx, 8, LH - 12, `ACTIONS ${K}/${n}`, col); txt(ctx, LW - 4 - 4 * 16, LH - 12, `DEADLINE 02:${String(14 + n).padStart(2, '0')}`, col);
+  const m = 4, l = 9; ctx.fillStyle = dim; for (const [x, y, dx, dy] of [[m, m, 1, 1], [LW - m - 1, m, -1, 1], [m, LH - m - 1, 1, -1], [LW - m - 1, LH - m - 1, -1, -1]]) { ctx.fillRect(x, y, dx * l, 1); ctx.fillRect(x, y, 1, dy * l); }
+  if (thiefBox) { const b = thiefBox, x0 = Math.round(b.x - 2), y0 = Math.round(b.y - 2), x1 = Math.round(b.x + b.w + 2), y1 = Math.round(b.y + b.h + 2); ctx.fillStyle = 'rgba(255,255,255,.9)';
+    for (const [x, y, dx, dy] of [[x0, y0, 1, 1], [x1, y0, -1, 1], [x0, y1, 1, -1], [x1, y1, -1, -1]]) { ctx.fillRect(x, y, dx * 4, 1); ctx.fillRect(x, y, 1, dy * 4); } txt(ctx, x0, y0 - 7, 'P-01', 'rgba(255,255,255,.95)'); }
+}
 function frame(t) {
   now = t; const dt = Math.min(60, t - last); last = t; advance(dt);
   const e = evalAt(dgNow), pulse = .5 + .5 * Math.sin(t / 380);
@@ -442,7 +458,7 @@ function frame(t) {
       actors.push(Object.assign(place(img, gdraw[j][0] + .5, gdraw[j][1] + .5, sd.flip), { d: it.d, out: outlineOnly(base) }));
     } else {
       const moving = run && run.kind === 'walk', step = moving ? Math.floor(thiefDist * 2) % 4 : -1, base = person('thief', thiefView.view, step);
-      actors.push(Object.assign(place(darken(base, .02), thief[0] + .5, thief[1] + .5, thiefView.flip), { d: it.d, out: outlineOnly(base) }));
+      { const pl = place(darken(base, .02), thief[0] + .5, thief[1] + .5, thiefView.flip); thiefBox = { x: pl.x, y: pl.y, w: pl.w, h: pl.h }; actors.push(Object.assign(pl, { d: it.d, out: outlineOnly(base) })); }
     }
   }
   if (st.helpers) {
@@ -456,7 +472,7 @@ function frame(t) {
   for (const d of dust) { const x = (d.x * LW + t * .004 * d.s) % LW, y = (d.y * LH + Math.sin(t / 1400 + d.x * 9) * 3 + t * .002 * d.s) % LH; ctx.fillStyle = `rgba(200,205,180,${d.a * .6})`; ctx.fillRect(x | 0, y | 0, 1, 1); }
   const vg = ctx.createRadialGradient(LW / 2, LH * .52, Math.min(LW, LH) * .3, LW / 2, LH * .52, Math.max(LW, LH) * .78); vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,0,.78)'); ctx.fillStyle = vg; ctx.fillRect(0, 0, LW, LH);
   if (flash > 0) { ctx.fillStyle = `rgba(255,70,50,${.07 * flash})`; ctx.fillRect(0, 0, LW, LH); }
-  if (st.grade || st.dither) {                                                                  // colour grade (teal shadows, warm lights, reds kept) and a luminance dither
+  if (st.grade || st.dither || st.cctv) {                                                                  // colour grade (teal shadows, warm lights, reds kept) and a luminance dither
     const id = ctx.getImageData(0, 0, LW, LH), d = id.data, lv = 16, step = 255 / (lv - 1);
     for (let y = 0, i = 0; y < LH; y++) for (let x = 0; x < LW; x++, i += 4) {
       let r = d[i], g = d[i + 1], b = d[i + 2]; const lum = .3 * r + .59 * g + .11 * b; if (lum < 2) continue;
@@ -464,10 +480,17 @@ function frame(t) {
         const gr = l < .45 ? [lerp(10, 82, l / .45), lerp(24, 96, l / .45), lerp(26, 84, l / .45)] : [lerp(82, 238, (l - .45) / .55), lerp(96, 224, (l - .45) / .55), lerp(84, 178, (l - .45) / .55)];
         const k = lum > 0 ? 1 : 0; void k; r = lerp(r, gr[0] * (l < .45 ? 1 : 1), w); g = lerp(g, gr[1], w); b = lerp(b, gr[2], w); }
       if (st.dither) { const L2 = .3 * r + .59 * g + .11 * b, bias = (bay(x, y) - .5) * step * clamp((L2 - 16) / 40, 0, 1), q = Math.max(0, Math.round((L2 + bias) / step) * step), k = Math.min(3, q / Math.max(1, L2)); r *= k; g *= k; b *= k; }
+      if (st.cctv) {                                                                          // green phosphor, scanlines, grain and a slow bright bar; reds (the danger) and the green sign stay
+        const l2 = Math.pow((.3 * r + .59 * g + .11 * b) / 255, .85), redish = r > g * 1.5 && r > b * 1.5, sign = g > r * 1.5 && g > b * 1.3 && g > 120;
+        if (!redish && !sign) { r = lerp(3, 148, l2); g = lerp(14, 255, l2); b = lerp(8, 172, l2); } else if (redish) { r = Math.min(255, r * 1.15); }
+        const band = ((t * .04) % (LH + 40)) - 20, bd = Math.abs(y - band), gl = bd < 7 ? (1 - bd / 7) * 16 : 0, k = (y & 1 ? .78 : 1.0) * (1 + (Math.random() - .5) * .16);
+        r = r * k + gl * .5; g = g * k + gl; b = b * k + gl * .6;
+      }
       d[i] = clamp(r, 0, 255); d[i + 1] = clamp(g, 0, 255); d[i + 2] = clamp(b, 0, 255);
     }
     ctx.putImageData(id, 0, 0);
   }
+  if (st.cctv) cctvHud(t);
   if (!freeze) requestAnimationFrame(frame);
 }
 
@@ -476,13 +499,13 @@ let freeze = Q.has('freeze');
 function syncUI() {
   document.querySelectorAll('[data-lv]').forEach(b => b.classList.toggle('on', +b.dataset.lv === st.level));
   document.querySelectorAll('[data-view]').forEach(b => b.classList.toggle('on', b.dataset.view === st.view)); $('rotg').style.display = isIso() ? '' : 'none';
-  for (const [id, k] of [['hlp', 'helpers'], ['grd', 'grade'], ['dth', 'dither']]) { $(id).textContent = st[k] ? 'on' : 'off'; $(id).classList.toggle('on', st[k]); }
+  for (const [id, k] of [['hlp', 'helpers'], ['grd', 'grade'], ['dth', 'dither'], ['cct', 'cctv']]) { $(id).textContent = st[k] ? 'on' : 'off'; $(id).classList.toggle('on', st[k]); }
   $('play').textContent = auto ? '❚❚ Pause' : '▶ Play solution';
 }
 document.querySelectorAll('[data-view]').forEach(b => b.onclick = () => { st.view = b.dataset.view; rebuild(); });
 document.querySelectorAll('[data-lv]').forEach(b => b.onclick = () => { st.level = +b.dataset.lv; auto = false; loadLevel(st.level); rebuild(); });
 $('rl').onclick = () => { st.rot = (st.rot + 3) % 4; rebuild(); }; $('rr').onclick = () => { st.rot = (st.rot + 1) % 4; rebuild(); };
-$('hlp').onclick = () => { st.helpers = !st.helpers; rebuild(); }; $('grd').onclick = () => { st.grade = !st.grade; syncUI(); }; $('dth').onclick = () => { st.dither = !st.dither; syncUI(); };
+$('hlp').onclick = () => { st.helpers = !st.helpers; rebuild(); }; $('cct').onclick = () => { st.cctv = !st.cctv; syncUI(); }; $('grd').onclick = () => { st.grade = !st.grade; syncUI(); }; $('dth').onclick = () => { st.dither = !st.dither; syncUI(); };
 $('play').onclick = () => { auto = !auto; if (auto && won) jump(0); syncUI(); }; $('reset').onclick = () => { auto = false; jump(0); syncUI(); };
 $('step').onclick = () => { auto = false; if (!run) { if (won) jump(0); else startNext(); } };
 addEventListener('resize', () => { layout(); buildFloor(); });
@@ -494,6 +517,13 @@ function sheet() {                                                              
   [0, 1, 2].forEach(b => x.drawImage(camera(b), (steps.length * 18 - 17) * sc + 0, (b * 40 + 20) * sc, 16 * sc, 16 * sc));
   return c.toDataURL();
 }
-window.lab = { st, rebuild, jump: k => jump(k), load: id => { st.level = id; loadLevel(id); rebuild(); }, frame, setAuto: v => { auto = v; if (v && won) jump(0); }, canvas: () => cv.toDataURL(), done: () => won && !run, sheet, exitPose: () => { thief = [L.E % W, (L.E / W) | 0]; } };
+function camInfo() {                                                                       // where each camera is on the canvas, and whether a guard is in front of its lens
+  const e = evalAt(dgNow), out = [];
+  L.cams.forEach((cam, ci) => { const x = cam.c % W, y = (cam.c / W) | 0, h = wallH(x, y), top = proj(x + .5, y + .5, h), d = dgNow[ci], r = e.rays.find(q => q.first && q.src === cam.c);
+    const last = r && r.cells.length ? r.cells[r.cells.length - 1] : cam.c, nx = (last % W) + DX[d], ny = ((last / W) | 0) + DY[d], next = ny * W + nx, blocked = nx >= 0 && ny >= 0 && nx < W && ny < H && L.guards.some((g, j) => guardCell(j, dgNow) === next);
+    out.push({ x: top[0], y: top[1], d, blocked, lit: !!(r && r.cells.length), lens: r ? rayShape(r) : null }); });
+  return out;
+}
+window.lab = { cams: camInfo, tbox: () => thiefBox, state: () => ({ K, n: cfgs.length - 1, W, H, LW, LH }), st, rebuild, jump: k => jump(k), load: id => { st.level = id; loadLevel(id); rebuild(); }, frame, setAuto: v => { auto = v; if (v && won) jump(0); }, canvas: () => cv.toDataURL(), done: () => won && !run, sheet, exitPose: () => { thief = [L.E % W, (L.E / W) | 0]; } };
 if (!freeze) requestAnimationFrame(frame); else frame(1000);
 </script></body></html>

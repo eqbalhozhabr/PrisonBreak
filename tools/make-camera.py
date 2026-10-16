@@ -25,30 +25,41 @@ def vox_builder():
                 for z in range(z0, z1 + 1): v[(x, y, z)] = ident
     return v, box
 
-def model_camera():
+def model_camera_mount():
+    """the part that stays on the wall: plate, arm and the joint's ball (symmetric about Y = 0; the head turns on the joint at X = 4)"""
     v, box = vox_builder()
-    box(0, 0, -3, 3, 2, 9, 'plate'); v[(0, -2, 3)] = 'bolt'; v[(0, 2, 3)] = 'bolt'; v[(0, -2, 8)] = 'bolt'; v[(0, 2, 8)] = 'bolt'
+    box(0, 0, -3, 2, 2, 9, 'plate'); v[(0, -2, 3)] = 'bolt'; v[(0, 1, 3)] = 'bolt'; v[(0, -2, 8)] = 'bolt'; v[(0, 1, 8)] = 'bolt'
     box(1, 3, -1, 0, 5, 6, 'arm'); box(3, 4, -1, 0, 4, 7, 'joint')
-    box(4, 12, -2, 2, 4, 7, 'metal'); box(4, 12, -2, 2, 8, 8, 'ring'); box(4, 14, -3, 3, 9, 9, 'shield')       # body, a dark gap, the sun shield
-    box(13, 13, -2, 2, 4, 7, 'ring'); box(14, 14, -1, 1, 5, 6, 'glass'); v[(6, 0, 9)] = 'led'                 # lens ring, glass, the recording lamp
-    for z in range(4, 8): v[(8, 2, z)] = 'seam'
     return v
 
-def model_light():
-    """a searchlight: wall plate, a yoke, a drum (octagonal section) and a big bright lens"""
+def model_camera_head():
+    """the part that turns: body, sun shield, lens, recording lamp; coordinates are relative to the pivot (the joint, X = 4)"""
     v, box = vox_builder()
-    box(0, 0, -4, 4, 1, 11, 'plate'); v[(0, -3, 2)] = 'bolt'; v[(0, 3, 2)] = 'bolt'; v[(0, -3, 10)] = 'bolt'; v[(0, 3, 10)] = 'bolt'
-    box(1, 4, -4, -4, 3, 9, 'arm'); box(1, 4, 4, 4, 3, 9, 'arm')                                              # the yoke arms
-    for x in range(3, 11):                                                                                    # the drum, an octagon in section (Y -3..3, Z 3..9)
-        for y in range(-3, 4):
-            for z in range(3, 10):
-                if abs(y) + abs(z - 6) <= 4 and not (abs(y) == 3 and abs(z - 6) == 3): v[(x, y, z)] = 'drum' if x < 8 else 'drumdark'
-    for y in range(-3, 4):
-        for z in range(3, 10):
-            if abs(y) + abs(z - 6) <= 4 and not (abs(y) == 3 and abs(z - 6) == 3): v[(11, y, z)] = 'ring'
-    for y in range(-2, 3):
-        for z in range(4, 9):
-            if abs(y) + abs(z - 6) <= 3: v[(12, y, z)] = 'lamp'                                              # the lens
+    box(0, 8, -2, 1, 4, 7, 'metal'); box(0, 8, -2, 1, 8, 8, 'ring'); box(0, 10, -3, 2, 9, 9, 'shield')
+    box(9, 9, -2, 1, 4, 7, 'ring'); box(10, 10, -1, 0, 5, 6, 'glass'); v[(2, 0, 9)] = 'led'
+    for z in range(4, 8): v[(4, 1, z)] = 'seam'
+    return v
+
+def model_light_mount():
+    v, box = vox_builder()
+    box(0, 0, -4, 3, 1, 11, 'plate'); v[(0, -3, 2)] = 'bolt'; v[(0, 2, 2)] = 'bolt'; v[(0, -3, 10)] = 'bolt'; v[(0, 2, 10)] = 'bolt'
+    box(1, 4, -4, -4, 3, 9, 'arm'); box(1, 4, 3, 3, 3, 9, 'arm'); box(3, 4, -1, 0, 5, 6, 'joint')
+    return v
+
+def model_light_head():
+    """the drum, an octagon in section (6 x 6), turning on the yoke's pivot (X = 4); big bright lens in front"""
+    v, box = vox_builder()
+    def oct_ok(y, z, r): return abs(y + .5) <= r and abs(z - 5.5) <= r and abs(y + .5) + abs(z - 5.5) <= r + 1.5
+    for x in range(-1, 7):
+        for y in range(-3, 3):
+            for z in range(3, 9):
+                if oct_ok(y, z, 2.5): v[(x, y, z)] = 'drum' if x < 4 else 'drumdark'
+    for y in range(-3, 3):
+        for z in range(3, 9):
+            if oct_ok(y, z, 2.5): v[(7, y, z)] = 'ring'
+    for y in range(-2, 2):
+        for z in range(4, 8):
+            if oct_ok(y, z, 1.5): v[(8, y, z)] = 'lamp'
     return v
 
 def model_panel():
@@ -102,28 +113,35 @@ def render(vox, state, sc):
                 prev = cell; ppos = (X / sc, Y / sc, z / sc); z -= .05
     return img
 
-MODELS = {
-    'camera': (model_camera, ['on', 'dim', 'off'], (14.5, 0.5, 6.0)),
-    'searchlight': (model_light, ['on', 'dim'], (12.5, 0.5, 6.0)),
-    'panel': (model_panel, ['amber', 'cyan', 'magenta'], None),
+MODELS = {                                   # name: (voxel model, states, lens point in the model (for a head), scale key, wall mount?)
+    'camera_mount': (model_camera_mount, ['x'], None, 'camera', True),
+    'camera_head': (model_camera_head, ['on', 'dim', 'off'], (10.5, 0.0, 6.0), 'camera', False),
+    'searchlight_mount': (model_light_mount, ['x'], None, 'searchlight', True),
+    'searchlight_head': (model_light_head, ['on', 'dim'], (8.5, 0.0, 5.5), 'searchlight', False),
+    'panel': (model_panel, ['amber', 'cyan', 'magenta'], None, 'panel', True),
 }
+PIVOT = (4.0, 0.0)                                                             # where a head sits on its mount, in the mount's model coordinates
 
 def build(name):
-    fn, states, lens = MODELS[name]; sc = SCALE[name]; out = os.path.join(ART, name); os.makedirs(out, exist_ok=True)
+    fn, states, lens, skey, mount = MODELS[name]; sc = SCALE[skey]; folder = name.split('_')[0]; out = os.path.join(ART, folder); os.makedirs(out, exist_ok=True)
     dirs = [('SE', 0), ('SW', 1), ('NW', 2), ('NE', 3)]
     sheet = Image.new('RGBA', (len(states) * CW, len(dirs) * CH), (0, 0, 0, 0)); rows = []
     for r, (dn, k) in enumerate(dirs):
         vox = rotate(fn(), k)
-        for s, st in enumerate(states): sheet.paste(render(vox, st, sc), (s * CW, r * CH))
+        for si, st in enumerate(states): sheet.paste(render(vox, st if st != 'x' else 'on', sc), (si * CW, r * CH))
         row = dict(name=dn, row=r, frames=len(states))
         if lens:
             lx, ly = lens[0], lens[1]
             for _ in range(k): lx, ly = -ly, lx
             row['lens'] = [round(OX + (lx - ly) * sc, 1), round(OY + (lx + ly) * K * sc - lens[2] * sc, 1)]
+        if mount and name != 'panel':
+            px, py = PIVOT
+            for _ in range(k): px, py = -py, px
+            row['pivot'] = [round((px - py) * sc, 1), round((px + py) * K * sc, 1)]                 # where the head's origin lies relative to the mount's origin on the screen
         rows.append(row)
     sheet.save(os.path.join(out, f'{name}.png'))
-    json.dump(dict(file=f'{name}.png', cell=[CW, CH], anchor=[OX, OY], states=states, rows=rows, scale=sc, plate_top=round((11 if name != 'camera' else 9) * sc),
-                   note='anchor = the point on the wall plane (X=Y=0, Z=0) in the cell; put it at the wall top minus 8 px and a little toward the room; lens = pixel of the lens centre in the cell'), open(os.path.join(out, f'{name}.json'), 'w'), indent=1)
+    json.dump(dict(file=f'{name}.png', cell=[CW, CH], anchor=[OX, OY], states=states, rows=rows, scale=sc, plate_top=round((11 if skey != 'camera' else 9) * sc),
+                   note='anchor = the point on the wall plane (X=Y=0, Z=0) in the cell (for a head: the pivot); put it at the wall top minus the plate height and a little toward the room'), open(os.path.join(out, f'{name}.json'), 'w'), indent=1)
     prev = Image.new('RGBA', (len(states) * CW + 4, len(dirs) * CH + 4), (53, 39, 74, 255)); prev.alpha_composite(sheet, (2, 2)); prev.resize((prev.width * 10, prev.height * 10), Image.NEAREST).save(os.path.join(out, f'{name}-preview.png'))
 
 if __name__ == '__main__':

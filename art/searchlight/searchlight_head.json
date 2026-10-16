@@ -1,5 +1,5 @@
 {
- "file": "searchlight.png",
+ "file": "searchlight_head.png",
  "cell": [
   26,
   26
@@ -18,8 +18,8 @@
    "row": 0,
    "frames": 2,
    "lens": [
-    20.4,
-    19.8
+    18.3,
+    18.2
    ]
   },
   {
@@ -27,8 +27,8 @@
    "row": 1,
    "frames": 2,
    "lens": [
-    4.9,
-    19.4
+    7.7,
+    18.2
    ]
   },
   {
@@ -36,8 +36,8 @@
    "row": 2,
    "frames": 2,
    "lens": [
-    5.6,
-    8.7
+    7.7,
+    11.0
    ]
   },
   {
@@ -45,12 +45,12 @@
    "row": 3,
    "frames": 2,
    "lens": [
-    21.1,
-    9.2
+    18.3,
+    11.0
    ]
   }
  ],
  "scale": 0.62,
  "plate_top": 7,
- "note": "anchor = the point on the wall plane (X=Y=0, Z=0) in the cell; put it at the wall top minus 8 px and a little toward the room; lens = pixel of the lens centre in the cell"
+ "note": "anchor = the point on the wall plane (X=Y=0, Z=0) in the cell (for a head: the pivot); put it at the wall top minus the plate height and a little toward the room"
 }

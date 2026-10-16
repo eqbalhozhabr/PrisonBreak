@@ -1,0 +1,55 @@
+{
+ "file": "camera_mount.png",
+ "cell": [
+  26,
+  26
+ ],
+ "anchor": [
+  13,
+  18
+ ],
+ "states": [
+  "x"
+ ],
+ "rows": [
+  {
+   "name": "SE",
+   "row": 0,
+   "frames": 1,
+   "pivot": [
+    2.4,
+    1.6
+   ]
+  },
+  {
+   "name": "SW",
+   "row": 1,
+   "frames": 1,
+   "pivot": [
+    -2.4,
+    1.6
+   ]
+  },
+  {
+   "name": "NW",
+   "row": 2,
+   "frames": 1,
+   "pivot": [
+    -2.4,
+    -1.6
+   ]
+  },
+  {
+   "name": "NE",
+   "row": 3,
+   "frames": 1,
+   "pivot": [
+    2.4,
+    -1.6
+   ]
+  }
+ ],
+ "scale": 0.6,
+ "plate_top": 5,
+ "note": "anchor = the point on the wall plane (X=Y=0, Z=0) in the cell (for a head: the pivot); put it at the wall top minus the plate height and a little toward the room"
+}

@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Blind Eye — first 20 levels, new look (playable preview)</title>
+<style>
+  @font-face { font-family:Silk; src:url(fonts/silkscreen-700.ttf); }
+  :root { --bg:#14102a; --panel:#1a1530; --line:#342c56; --txt:#cbc6e6; --dim:#7d78a0; --acc:#ffb43a; }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html,body { margin:0; height:100%; background:var(--bg); color:var(--txt); font:14px system-ui,sans-serif; overflow:hidden; touch-action:manipulation; user-select:none; }
+  #top { position:fixed; top:0; left:0; right:0; height:48px; display:flex; align-items:center; gap:10px; padding:0 10px; background:rgba(13,10,24,.92); border-bottom:1px solid var(--line); z-index:3; }
+  #title { font:700 15px Silk, system-ui; letter-spacing:.06em; flex:1; text-align:center; }
+  #moves { font:700 12px Silk, system-ui; color:var(--txt); min-width:96px; text-align:right; } #moves b { color:var(--acc); } #moves span { color:var(--dim); }
+  button { background:var(--panel); color:var(--txt); border:1px solid var(--line); border-radius:6px; padding:9px 14px; font:700 12px Silk, system-ui; letter-spacing:.05em; cursor:pointer; }
+  button:active { background:#2a2150; } button:disabled { opacity:.35; }
+  #tip { position:fixed; top:48px; left:0; right:0; min-height:36px; padding:8px 14px; font-size:13px; line-height:1.35; color:#d9d4f0; background:rgba(26,21,48,.85); z-index:2; text-align:center; }
+  #tip.warn { color:#ffb1a6; }
+  #wrap { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; padding:96px 0 78px; }
+  canvas { image-rendering:pixelated; image-rendering:crisp-edges; touch-action:none; }
+  #bar { position:fixed; bottom:0; left:0; right:0; height:66px; display:flex; justify-content:center; align-items:center; gap:10px; background:rgba(13,10,24,.92); border-top:1px solid var(--line); z-index:3; padding-bottom:env(safe-area-inset-bottom); }
+  .ov { position:fixed; inset:0; display:none; align-items:center; justify-content:center; background:rgba(8,6,16,.8); z-index:10; }
+  .ov.on { display:flex; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:22px 24px; text-align:center; max-width:92vw; }
+  .card h2 { margin:0 0 6px; font:700 22px Silk, system-ui; letter-spacing:.06em; color:var(--acc); }
+  #winStars { font-size:34px; letter-spacing:.2em; color:var(--acc); margin:6px 0; } #winInfo { color:var(--dim); margin-bottom:14px; }
+  .row { display:flex; gap:8px; justify-content:center; flex-wrap:wrap; }
+  #grid { display:grid; grid-template-columns:repeat(5,1fr); gap:8px; margin:14px 0; }
+  .lv { padding:10px 0; min-width:54px; } .lv b { display:block; font:700 15px Silk, system-ui; } .lv i { display:block; font-style:normal; height:14px; font-size:11px; color:var(--acc); }
+  .lv.cur { border-color:var(--acc); } .lv.done { background:#241c45; }
+</style></head><body>
+<div id="top"><button id="menu">Levels</button><div id="title"></div><div id="moves"></div></div>
+<div id="tip"></div>
+<div id="wrap"><canvas id="cv"></canvas></div>
+<div id="bar"><button id="undo">↶ Undo</button><button id="restart">⟲ Restart</button><button id="toExit">Go to exit ▸</button></div>
+<div class="ov" id="winOv"><div class="card"><h2 id="winTitle"></h2><div id="winStars"></div><div id="winInfo"></div><div class="row"><button id="next">Next level ▸</button><button id="again">Replay</button><button id="winLevels">Levels</button></div></div></div>
+<div class="ov" id="lvOv"><div class="card"><h2>Levels</h2><div id="grid"></div><button id="lvClose">Close</button></div></div>
+<script>/*PRISON*/</script>
+<script>/*LEVELS*/</script>
+<script>/*SPRITES*/</script>
+<script>window.TIPS = /*TIPS*/;</script>
+<script>
+/*RENDER*/
+</script></body></html>

@@ -12,7 +12,8 @@
 </style></head><body>
 <div id="bar">
   <span class="grp"><b>Level</b><button data-lv="8">8</button><button data-lv="9">9</button><button data-lv="10">10</button></span>
-  <span class="grp"><b>Rotate</b><button id="rl">⟲</button><button id="rr">⟳</button></span>
+  <span class="grp"><b>View</b><button data-view="obl">Oblique 3/4</button><button data-view="iso">Isometric</button></span>
+  <span class="grp" id="rotg"><b>Rotate</b><button id="rl">⟲</button><button id="rr">⟳</button></span>
   <span class="grp"><b>Readability tricks</b><button id="hlp">on</button></span>
   <span class="grp"><b>Colour grade</b><button id="grd">on</button></span>
   <span class="grp"><b>Dither</b><button id="dth">on</button></span>
@@ -822,8 +823,11 @@ window.PRISON_LEVELS = [{"id":1,"map":["#####","##.E#","#S#.#",">...#","#####"],
 const P = window.Prison, LV = window.PRISON_LEVELS, $ = id => document.getElementById(id);
 const DX = [0, 1, 0, -1], DY = [-1, 0, 1, 0];
 const Q = new URLSearchParams(location.search);
-const st = { level: +(Q.get('level') || 9), rot: +(Q.get('rot') || 0), helpers: Q.get('helpers') !== '0', dither: Q.get('dither') !== '0', grade: Q.get('grade') !== '0' };
-const TW = 48, TH = 24, HF = 21, HL = 8, AP = 2.8;                          // diamond 48x24 (2:1), tall walls 26, cut-away walls 10 (pixels)
+const st = { view: Q.get('view') || 'obl', level: +(Q.get('level') || 9), rot: +(Q.get('rot') || 0), helpers: Q.get('helpers') !== '0', dither: Q.get('dither') !== '0', grade: Q.get('grade') !== '0' };
+const TW = 48, TH = 24, HF = 21, HL = 8, AP = 2.8;                // isometric: diamond 48x24, walls 21 (8 where cut away)
+const OT = 48, OTY = 34, OHF = 19, OHL = 8;                        // oblique 3/4: floor cell 48x34, wall fronts 22 (9 on the near row)
+const R = () => st.view === 'iso' ? st.rot : 0;                  // rotation only exists in the isometric view
+const isIso = () => st.view === 'iso';                          // diamond 48x24 (2:1), tall walls 26, cut-away walls 10 (pixels)
 const cv = $('cv'), ctx = cv.getContext('2d', { willReadFrequently: true });
 const mk = (w, h) => { const c = document.createElement('canvas'); c.width = w; c.height = h; const x = c.getContext('2d'); x.imageSmoothingEnabled = false; return [c, x]; };
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v)), lerp = (a, b, t) => a + (b - a) * t, sstep = (a, b, t) => { t = clamp((t - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
@@ -835,18 +839,19 @@ const hex = h => [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), pars
 
 /* ------------------------------------------------------------------------------------------------------------------ geometry */
 let L, W, H, gw, gh, ox = 0, oy = 0, LW = 0, LH = 0, cfgs, dgNow, gdraw, thief, thiefView, plan, tasks, taskI, run = null, K = 0, won = false, auto = false, now = 0, last = 0, flash = 0, thiefDist = 0, floorC, lamps = [], walls = new Map();
-const rotXY = (X, Y) => st.rot === 0 ? [X, Y] : st.rot === 1 ? [H - Y, X] : st.rot === 2 ? [W - X, H - Y] : [Y, W - X];
-const unrot = (rx, ry) => st.rot === 0 ? [rx, ry] : st.rot === 1 ? [ry, H - rx] : st.rot === 2 ? [W - rx, H - ry] : [W - ry, rx];
-const projR = (rx, ry, z = 0) => [ox + (rx - ry) * TW / 2, oy + (rx + ry) * TH / 2 - z];
+const rotXY = (X, Y) => { const r = R(); return r === 0 ? [X, Y] : r === 1 ? [H - Y, X] : r === 2 ? [W - X, H - Y] : [Y, W - X]; };
+const unrot = (rx, ry) => { const r = R(); return r === 0 ? [rx, ry] : r === 1 ? [ry, H - rx] : r === 2 ? [W - rx, H - ry] : [W - ry, rx]; };
+const projR = (rx, ry, z = 0) => isIso() ? [ox + (rx - ry) * TW / 2, oy + (rx + ry) * TH / 2 - z] : [ox + rx * OT, oy + ry * OTY - z];
 const proj = (X, Y, z = 0) => { const [rx, ry] = rotXY(X, Y); return projR(rx, ry, z); };
-const unproj = (x, y) => { const a = (x - ox) / (TW / 2), b = (y - oy) / (TH / 2); return [(a + b) / 2, (b - a) / 2]; };
-const VEC = () => st.rot === 0 ? { rx: [1, 0], ry: [0, 1] } : st.rot === 1 ? { rx: [0, -1], ry: [1, 0] } : st.rot === 2 ? { rx: [-1, 0], ry: [0, -1] } : { rx: [0, 1], ry: [-1, 0] };
+const unproj = (x, y) => { if (!isIso()) return [(x - ox) / OT, (y - oy) / OTY]; const a = (x - ox) / (TW / 2), b = (y - oy) / (TH / 2); return [(a + b) / 2, (b - a) / 2]; };
+const depthR = (rx, ry) => isIso() ? rx + ry : ry + rx * .001;
+const VEC = () => { const r = R(); return r === 0 ? { rx: [1, 0], ry: [0, 1] } : r === 1 ? { rx: [0, -1], ry: [1, 0] } : r === 2 ? { rx: [-1, 0], ry: [0, -1] } : { rx: [0, 1], ry: [-1, 0] }; };
 const isWall = (cx, cy) => cx < 0 || cy < 0 || cx >= W || cy >= H || !!L.wall[cy * W + cx];
-const wallH = (cx, cy) => { if (!st.helpers) return HF; const [rx, ry] = rotXY(cx + .5, cy + .5); return (rx > gw - 1 || ry > gh - 1) ? HL : HF; };
+const wallH = (cx, cy) => { if (isIso()) { if (!st.helpers) return HF; const [rx, ry] = rotXY(cx + .5, cy + .5); return (rx > gw - 1 || ry > gh - 1) ? HL : HF; } return st.helpers && cy === H - 1 ? OHL : OHF; };
 function layout() {
-  W = L.w; H = L.h; gw = st.rot % 2 ? H : W; gh = st.rot % 2 ? W : H; ox = oy = 0;
+  W = L.w; H = L.h; gw = R() % 2 ? H : W; gh = R() % 2 ? W : H; ox = oy = 0;
   const xs = [], ys = [];
-  for (const [rx, ry] of [[-AP, -AP], [gw + AP, -AP], [-AP, gh + AP], [gw + AP, gh + AP]]) for (const z of [0, HF + 34]) { const [x, y] = projR(rx, ry, z); xs.push(x); ys.push(y); }
+  for (const [rx, ry] of [[-AP, -AP], [gw + AP, -AP], [-AP, gh + AP], [gw + AP, gh + AP]]) for (const z of [0, OHF + 34]) { const [x, y] = projR(rx, ry, z); xs.push(x); ys.push(y); }
   const M = 4, minx = Math.min(...xs), maxx = Math.max(...xs), miny = Math.min(...ys), maxy = Math.max(...ys);
   ox = M - minx; oy = M - miny; LW = Math.ceil(maxx - minx + 2 * M); LH = Math.ceil(maxy - miny + 2 * M + 4);
   cv.width = LW; cv.height = LH; ctx.imageSmoothingEnabled = false;
@@ -854,6 +859,12 @@ function layout() {
   cv.style.width = LW * pix + 'px'; cv.style.height = LH * pix + 'px';
 }
 function cellCorners(cx, cy, z = 0) { return [proj(cx, cy, z), proj(cx + 1, cy, z), proj(cx + 1, cy + 1, z), proj(cx, cy + 1, z)]; }
+function wallBox(cx, cy, h) {                                                               // where a wall block's sprite goes and which faces catch a beam's red
+  if (isIso()) { const dm = diamond(cx, cy), x0 = Math.round(dm.left[0]), y0 = Math.round(dm.top[1] - h), bt = dm.bot, lf = dm.left, rt = dm.right;
+    return { x0, y0, w: TW, h: TH + h, faces: [[lf, bt, [bt[0], bt[1] - h], [lf[0], lf[1] - h]], [bt, rt, [rt[0], rt[1] - h], [bt[0], bt[1] - h]]] }; }
+  const p = proj(cx, cy, 0), x0 = Math.round(p[0]), y0 = Math.round(p[1] - h);
+  return { x0, y0, w: OT, h: OTY + h, faces: [[[x0, y0 + OTY], [x0 + OT, y0 + OTY], [x0 + OT, y0 + OTY + h], [x0, y0 + OTY + h]]] };
+}
 function diamond(cx, cy) { const p = cellCorners(cx, cy), ys = p.map(q => q[1]), xs = p.map(q => q[0]); return { top: p[ys.indexOf(Math.min(...ys))], bot: p[ys.indexOf(Math.max(...ys))], left: p[xs.indexOf(Math.min(...xs))], right: p[xs.indexOf(Math.max(...xs))] }; }
 
 /* ------------------------------------------------------------------------------------------------------------------ pixel sprites from small shapes (flat tones, no outline, light from the left) */
@@ -883,8 +894,39 @@ class G { constructor(w, h) { this.w = w; this.h = h; this.d = new Array(w * h).
 const ell = (cx, cy, rx, ry) => (x, y) => ((x + .5 - cx) / rx) ** 2 + ((y + .5 - cy) / ry) ** 2 <= 1;
 const box = (x0, y0, x1, y1) => (x, y) => x >= x0 && x <= x1 && y >= y0 && y <= y1;
 const sprites = new Map();
+const stripeRow = (y, mod) => ((y + mod) >> 1) % 2 === 0;
 /* a person: 16x38, feet on the bottom row. back = seen from behind (3/4 view); step 0..3 = the walk cycle (0 and 2: feet apart), -1 = standing. Faces right; the left view is a mirror. */
-function person(kind, back, step) {
+function personSide(kind, step) {                                                         // a profile, facing right (the left view is a mirror)
+  const key = kind + 'S' + step; if (sprites.has(key)) return sprites.get(key);
+  const thiefK = kind === 'thief', g = new G(16, 38), passing = step === 1 || step === 3, up = passing ? 1 : 0;
+  const A = step === 0 ? [3, 0] : step === 2 ? [-3, 2] : passing ? [0, step === 1 ? 1 : 0] : [0, 0], B = step === 0 ? [-3, 2] : step === 2 ? [3, 0] : passing ? [0, step === 3 ? 1 : 0] : [0, 0];   // [stride, lift] of the near and the far leg
+  const hipX = 6, hipY = 23 - up;
+  const leg = ([dx, lift], near) => { const yEnd = 34 - lift, n = Math.max(1, yEnd - hipY);
+    for (let y = hipY; y <= yEnd; y++) { const x0 = hipX + Math.round(dx * (y - hipY) / n); for (let k = 0; k < 2; k++) { const cr = stripeRow(y, 0);
+      g.px(x0 + k, y, thiefK ? (cr ? (near ? (k === 0 ? 'v' : 'w') : 'W') : (near ? (k === 0 ? 'a' : 'k') : 'K')) : (near ? (k === 0 ? 'n' : 'N') : 'm')); } }
+    const fx = hipX + dx; g.rect(fx, yEnd + 1, 4, 2, 'K'); g.px(fx, yEnd + 1, 'k'); g.px(fx + 3, yEnd + 2, 'e'); };
+  leg(B, false); leg(A, true);
+  const ty = 12 - up;
+  for (let y = ty; y <= ty + 9; y++) for (let x = 4; x <= 9; x++) { const cr = stripeRow(y, 1);
+    g.px(x, y, thiefK ? (cr ? (x === 4 ? 'v' : x >= 8 ? 'W' : 'w') : (x === 4 ? 'a' : x >= 8 ? 'K' : 'k')) : (x === 4 ? 'n' : x >= 8 ? 'm' : 'N')); }
+  if (!thiefK) { g.rect(4, ty + 8, 6, 1, 'm'); g.px(8, ty + 8, 'y'); g.px(5, ty + 1, 'y'); }
+  const sw = step === 0 ? -2 : step === 2 ? 2 : 0;                                                 // the near arm swings against the near leg
+  for (let y = 0; y < 8; y++) { const yy = ty + 1 + y, x0 = 6 + Math.round(sw * y / 8), cr = stripeRow(yy, 1); for (let k = 0; k < 2; k++) g.px(x0 + k, yy, thiefK ? (cr ? (k === 0 ? 'v' : 'w') : (k === 0 ? 'a' : 'k')) : (k === 0 ? 'n' : 'N')); }
+  g.px(6 + sw, ty + 9, 'c'); g.px(7 + sw, ty + 9, 'f');
+  const hy = 1 - up;
+  if (thiefK) {
+    g.shape(ell(8.6, hy + 5.4, 3.6, 4.5), 'b', 'c', 'f', 0, hy, 16, hy + 11); g.px(12, hy + 6, 'c'); g.px(12, hy + 7, 'f');           // face and a nose
+    g.shape(ell(7, hy + 3.6, 4.6, 4.2), 'D', 'd', 'g', 0, hy - 1, 16, hy + 6); g.shape(box(3, hy + 3, 5, hy + 13), 'd', 'd', 'g', 0, hy + 3, 7, hy + 14);   // hair on top and a tail that trails behind
+    g.px(10, hy + 5, 'e'); g.px(7, hy + 10, 'f'); g.px(8, hy + 10, 'f');
+  } else {
+    g.shape(ell(8.4, hy + 5.6, 3.8, 4.4), 'b', 's', 'S', 0, hy, 16, hy + 11); g.px(12, hy + 6, 's'); g.px(12, hy + 7, 'S'); g.px(10, hy + 6, 'e');
+    g.shape(box(3, hy, 11, hy + 3), 'M', 'm', 'm', 0, hy, 16, hy + 4); g.rect(11, hy + 3, 4, 1, 'm'); g.px(9, hy + 1, 'y'); g.rect(4, hy + 4, 4, 1, 'm'); g.px(7, hy + 10, 'S');
+  }
+  const c = g.canvas(); sprites.set(key, c); return c;
+}
+function person(kind, view, step) {
+  if (view === 2) return personSide(kind, step);
+  const back = view === 1;
   const key = kind + back + step; if (sprites.has(key)) return sprites.get(key);
   const thiefK = kind === 'thief', g = new G(16, 38);
   const passing = step === 1 || step === 3, up = passing ? 1 : 0;                          // the body rises a pixel between steps
@@ -929,12 +971,13 @@ function person(kind, back, step) {
   const c = g.canvas(); sprites.set(key, c); return c;
 }
 /* a security camera on a short arm (seen from the front or from behind; faces right) */
-function camera(back) {
-  const key = 'cam' + back; if (sprites.has(key)) return sprites.get(key);
+function camera(kind) {                                                                      // 0: from the front-right (lens on the right), 1: from behind, 2: head on (lens in the middle)
+  const key = 'cam' + kind, back = kind === 1; if (sprites.has(key)) return sprites.get(key);
   const g = new G(16, 16);
   g.rect(6, 10, 3, 5, 'Q'); g.px(6, 10, 'Z'); g.rect(4, 14, 7, 2, 'q');                                           // arm and mounting plate
   g.shape(box(1, 3, 12, 10), 'z', 'Z', 'Q', 0, 3, 16, 11); g.rect(1, 9, 12, 1, 'Q'); g.rect(2, 2, 10, 1, 'z');
-  if (!back) { g.rect(9, 4, 4, 5, 'q'); g.px(10, 5, 'r'); g.px(11, 6, 'r'); g.px(10, 6, 'R'); g.px(13, 5, 'q'); } else { g.rect(2, 5, 8, 1, 'Q'); g.px(4, 7, 'q'); g.px(6, 7, 'q'); g.px(8, 7, 'q'); }
+  if (kind === 2) { g.rect(5, 4, 5, 5, 'q'); g.px(7, 5, 'r'); g.px(7, 6, 'r'); g.px(6, 5, 'R'); g.px(8, 6, 'R'); g.rect(1, 3, 2, 6, 'Q'); }
+  else if (!back) { g.rect(9, 4, 4, 5, 'q'); g.px(10, 5, 'r'); g.px(11, 6, 'r'); g.px(10, 6, 'R'); g.px(13, 5, 'q'); } else { g.rect(2, 5, 8, 1, 'Q'); g.px(4, 7, 'q'); g.px(6, 7, 'q'); g.px(8, 7, 'q'); }
   const c = g.canvas(); sprites.set(key, c); return c;
 }
 const silhouette = (c, col) => { const [t, x] = mk(c.width, c.height); x.drawImage(c, 0, 0); x.globalCompositeOperation = 'source-atop'; x.fillStyle = col; x.fillRect(0, 0, t.width, t.height); return t; };
@@ -988,9 +1031,11 @@ function loadLevel(id) {
   const fin = (feasible && walkTo(n, new Set([L.E]))) || [pos]; if (fin.length > 1) tasks.push({ kind: 'walk', path: fin }); tasks.push({ kind: 'win' });
   jump(0);
 }
-function jump(k) { dgNow = cfgs[k].slice(); gdraw = L.guards.map((g, j) => { const c = guardCell(j, dgNow); return [c % W, (c / W) | 0]; }); const c = plan.thiefAt[k]; thief = [c % W, (c / W) | 0]; thiefView = { back: 0, flip: false }; taskI = 0; run = null; flash = 0; K = k; won = false; thiefDist = 0; }
+function jump(k) { dgNow = cfgs[k].slice(); gdraw = L.guards.map((g, j) => { const c = guardCell(j, dgNow); return [c % W, (c / W) | 0]; }); const c = plan.thiefAt[k]; thief = [c % W, (c / W) | 0]; thiefView = { view: 0, flip: false }; taskI = 0; run = null; flash = 0; K = k; won = false; thiefDist = 0; }
 function startNext() { while (taskI < tasks.length) { const t = tasks[taskI++]; if (t.kind === 'win') { won = true; return; } run = Object.assign({ t0: now }, t); return; } }
-const screenDir = (dx, dy) => { const a = proj(0, 0), b = proj(dx, dy); return { back: b[1] < a[1] - 1e-6 || (Math.abs(b[1] - a[1]) < 1e-6 && false) ? 1 : 0, flip: b[0] < a[0] - 1e-6 }; };
+const screenDir = (dx, dy) => { const a = proj(0, 0), b = proj(dx, dy), vx = b[0] - a[0], vy = b[1] - a[1];
+  if (!isIso()) { if (Math.abs(vx) > Math.abs(vy)) return { view: 2, flip: vx < 0 }; return { view: vy < 0 ? 1 : 0, flip: false }; }
+  return { view: vy < 0 ? 1 : 0, flip: vx < 0 }; };
 function advance(dt) {
   for (let j = 0; j < L.guards.length; j++) { const c = guardCell(j, dgNow), tx = c % W, ty = (c / W) | 0, g = gdraw[j], k = 1 - Math.pow(.001, dt / 450); g[0] += (tx - g[0]) * k; g[1] += (ty - g[1]) * k; }
   if (flash > 0) flash = Math.max(0, flash - dt / 260);
@@ -1004,16 +1049,15 @@ function advance(dt) {
 
 /* ------------------------------------------------------------------------------------------------------------------ the world: floor, walls, lamps */
 function pickLamps() {                                                                      // two caged wall lamps, on faces that look onto the floor
-  lamps = []; const V = VEC();
-  const cand = [];
-  for (let cy = 0; cy < H; cy++) for (let cx = 0; cx < W; cx++) if (L.wall[cy * W + cx]) for (const side of ['L', 'R']) {
-    const v = side === 'L' ? V.ry : V.rx, nx = cx + v[0], ny = cy + v[1]; if (isWall(nx, ny)) continue;
-    cand.push({ cx, cy, side, nx, ny, h: hh(cx, cy, side === 'L' ? 3 : 5) });
+  lamps = []; const V = VEC(), cand = [];
+  for (let cy = 0; cy < H; cy++) for (let cx = 0; cx < W; cx++) if (L.wall[cy * W + cx]) for (const side of isIso() ? ['L', 'R'] : ['F']) {
+    const v = side === 'L' ? V.ry : side === 'R' ? V.rx : [0, 1], nx = cx + v[0], ny = cy + v[1]; if (isWall(nx, ny)) continue;
+    cand.push({ cx, cy, side, nx, ny, h: hh(cx, cy, side === 'L' ? 3 : side === 'R' ? 5 : 7) });
   }
   cand.sort((a, b) => b.h - a.h);
   for (const c of cand) { if (lamps.length >= 2) break; if (lamps.every(l => Math.abs(l.cx - c.cx) + Math.abs(l.cy - c.cy) > 3)) lamps.push(c); }
 }
-const exposed = (cx, cy, side) => { const V = VEC(), v = side === 'L' ? V.ry : V.rx; return !isWall(cx + v[0], cy + v[1]); };
+const exposed = (cx, cy, side) => { const V = VEC(), v = side === 'L' ? V.ry : side === 'R' ? V.rx : [0, 1]; return !isWall(cx + v[0], cy + v[1]); };
 function brick(u, v, h, seed, shade, d) {                                                   // one pixel of a brick wall; u along the face, v down from its top edge
   const row = Math.floor(v / 4), vy = v % 4, off = (row & 1) * 3, uu = u + off, col = Math.floor(uu / 6), vx = uu % 6;
   const hv = hh(col, row, seed), tones = [[88, 66, 46], [76, 58, 42], [100, 76, 52], [66, 62, 44], [72, 78, 50]];
@@ -1026,7 +1070,31 @@ function brick(u, v, h, seed, shade, d) {                                       
   const edge = v < 1.5 ? 1.25 : v > h - 3 ? .62 : 1; r *= shade * edge; g *= shade * edge; b *= shade * edge;
   return [r, g, b];
 }
+function wallSpriteObl(cx, cy, h) {                                                         // a block seen from the front: a stone top over a brick front
+  const key = `o${cx},${cy},${h}`; if (walls.has(key)) return walls.get(key);
+  const w = OT, hgt = OTY + h, [c, x] = mk(w, hgt), img = x.createImageData(w, hgt), d = img.data, seed = (cx * 31 + cy * 17 + 7) | 0;
+  const lampF = lamps.find(l => l.cx === cx && l.cy === cy && l.side === 'F'), pipeF = exposed(cx, cy, 'F') && hh(cx, cy, 41) > .5 && h > 14;
+  for (let y = 0; y < hgt; y++) for (let X = 0; X < w; X++) {
+    const i = (y * w + X) * 4; let col;
+    if (y < OTY) {
+      const n = fbm(X * .18, y * .25, seed + 2, 2), m = fbm(X * .1 + seed, y * .12, seed + 5, 2); col = [40 + n * 26, 42 + n * 24, 42 + n * 22];
+      if (m > .66) { const t = clamp((m - .66) * 5, 0, .8); col = [lerp(col[0], 78, t), lerp(col[1], 84, t), lerp(col[2], 48, t)]; }
+      if (y < 1) col = [104, 106, 98]; else if (y === 1) col = [col[0] * 1.4, col[1] * 1.4, col[2] * 1.3]; else if (y >= OTY - 2) col = [col[0] * .55, col[1] * .55, col[2] * .55]; else if (X === 0 || X === w - 1) col = [col[0] * .6, col[1] * .6, col[2] * .6];
+      if (hh(X, y, seed) > .95) col = [col[0] + 18, col[1] + 18, col[2] + 16];
+    } else {
+      const u = X, v = y - OTY; col = brick(u, v, h, seed + 1, .84, 0);
+      if (v === 0) col = [col[0] * .35, col[1] * .35, col[2] * .35];
+      if (pipeF) { const pv = v - 5; if (pv >= 0 && pv < 4) col = pv === 0 ? [118, 124, 116] : pv === 3 ? [26, 28, 28] : pv === 1 ? [84, 90, 84] : [58, 62, 58]; if (u % 14 < 2 && v >= 3 && v < 10) col = [40, 42, 40]; }
+      if (lampF && h > 14) { const lx = 24, ly = 9, dd = Math.hypot(u - lx, (v - ly) * 1.2);
+        if (dd < 16) { const I = Math.pow(1 - dd / 16, 1.5), q = Math.floor(I * 5 + bay(X, y)) / 5; col = [col[0] * (1 + q * 1.3) + 150 * q, col[1] * (1 + q * 1.2) + 118 * q, col[2] * (1 + q) + 56 * q]; }
+        if (u >= lx - 3 && u <= lx + 2 && v >= ly - 2 && v <= ly + 2) col = (u === lx - 3 || u === lx + 2 || v === ly - 2 || v === ly + 2) ? [34, 36, 34] : [255, 238, 176]; }
+    }
+    d[i] = clamp(col[0], 0, 255); d[i + 1] = clamp(col[1], 0, 255); d[i + 2] = clamp(col[2], 0, 255); d[i + 3] = 255;
+  }
+  x.putImageData(img, 0, 0); walls.set(key, c); return c;
+}
 function wallSprite(cx, cy, h) {
+  if (!isIso()) return wallSpriteObl(cx, cy, h);
   const key = `${cx},${cy},${st.rot},${h}`; if (walls.has(key)) return walls.get(key);
   const w = TW, hgt = TH + h, [c, x] = mk(w, hgt), img = x.createImageData(w, hgt), d = img.data, seed = (cx * 31 + cy * 17 + 7) | 0;
   const lampL = lamps.find(l => l.cx === cx && l.cy === cy && l.side === 'L'), lampR = lamps.find(l => l.cx === cx && l.cy === cy && l.side === 'R');
@@ -1118,12 +1186,12 @@ function frame(t) {
     ctx.fillStyle = 'rgba(0,0,0,.42)'; ctx.strokeStyle = 'rgba(220,60,48,.42)'; ctx.lineWidth = 1;
     for (let c = 0; c < W * H; c++) if (eg.lit[c] && !e.lit[c] && !L.wall[c]) { path(ctx, cellCorners(c % W, (c / W) | 0)); ctx.fill(); ctx.setLineDash([2, 2]); ctx.stroke(); ctx.setLineDash([]); } }
   // objects in depth order
-  const items = [], depth = (X, Y) => { const [rx, ry] = rotXY(X, Y); return rx + ry; };
+  const items = [], depth = (X, Y) => { const [rx, ry] = rotXY(X, Y); return depthR(rx, ry); };
   for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) if (L.wall[y * W + x]) items.push({ k: 'wall', x, y, d: depth(x + .5, y + .5) });
   L.guards.forEach((g, j) => items.push({ k: 'guard', j, d: depth(gdraw[j][0] + .5, gdraw[j][1] + .5) + .002 }));
   items.push({ k: 'thief', d: depth(thief[0] + .5, thief[1] + .5) + .002 });
   items.push({ k: 'exit', d: depth(L.E % W + .5, ((L.E / W) | 0) + .5) + .003 });
-  for (const pr of propsList()) items.push({ k: 'prop', pr, d: pr.rx + pr.ry });
+  for (const pr of propsList()) items.push({ k: 'prop', pr, d: depthR(pr.rx, pr.ry) });
   items.sort((a, b) => a.d - b.d);
   const wallBoxes = [], actors = [];
   const place = (img, X, Y, flip) => {
@@ -1135,17 +1203,16 @@ function frame(t) {
   const litAdj = (cx, cy) => [0, 1, 2, 3].some(d => { const nx = cx + DX[d], ny = cy + DY[d]; return nx >= 0 && ny >= 0 && nx < W && ny < H && e.lit[ny * W + nx]; });
   for (const it of items) {
     if (it.k === 'wall') {
-      const h = wallH(it.x, it.y), dm = diamond(it.x, it.y), x0 = Math.round(dm.left[0]), y0 = Math.round(dm.top[1] - h);
-      ctx.drawImage(wallSprite(it.x, it.y, h), x0, y0);
-      if (litAdj(it.x, it.y)) { ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = 'rgba(96,16,14,.20)'; const bt = dm.bot, lf = dm.left, rt = dm.right;
-        path(ctx, [lf, bt, [bt[0], bt[1] - h], [lf[0], lf[1] - h]]); ctx.fill(); path(ctx, [bt, rt, [rt[0], rt[1] - h], [bt[0], bt[1] - h]]); ctx.fill(); ctx.restore(); }
-      wallBoxes.push({ x0, x1: x0 + TW, y0, y1: y0 + TH + h, d: it.d });
+      const h = wallH(it.x, it.y), bx = wallBox(it.x, it.y, h);
+      ctx.drawImage(wallSprite(it.x, it.y, h), bx.x0, bx.y0);
+      if (litAdj(it.x, it.y)) { ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = 'rgba(96,16,14,.20)'; for (const f of bx.faces) { path(ctx, f); ctx.fill(); } ctx.restore(); }
+      wallBoxes.push({ x0: bx.x0, x1: bx.x0 + bx.w, y0: bx.y0, y1: bx.y0 + bx.h, d: it.d });
       const ci = L.cams.findIndex(q => q.c === it.y * W + it.x);
       if (ci >= 0) {
-        const rd = (dgNow[ci] + st.rot) % 4, sd = screenDir(DX[dgNow[ci]], DY[dgNow[ci]]), top = proj(it.x + .5, it.y + .5, h), cx = Math.round(top[0]), cy = Math.round(top[1]) + 2, img = camera(sd.back);
+        const sd = screenDir(DX[dgNow[ci]], DY[dgNow[ci]]), kind = isIso() ? (sd.view === 1 ? 1 : 0) : (sd.view === 0 ? 2 : sd.view === 1 ? 1 : 0), top = proj(it.x + .5, it.y + .5, h), cx = Math.round(top[0]), cy = Math.round(top[1]) + 2, img = camera(kind);
         ctx.save(); ctx.globalAlpha = .4; ctx.fillStyle = '#020303'; ctx.beginPath(); ctx.ellipse(cx + 2, cy, 8, 3, 0, 0, 7); ctx.fill(); ctx.restore();
-        ctx.save(); ctx.translate(cx, cy); if (sd.flip) ctx.scale(-1, 1); ctx.drawImage(img, -8, -img.height + 1); ctx.restore(); void rd;
-        if (!sd.back) { const lx = cx + (sd.flip ? -4 : 4), ly = cy - 9, gg = ctx.createRadialGradient(lx, ly, 0, lx, ly, 7); gg.addColorStop(0, `rgba(255,70,52,${.55 + .25 * pulse})`); gg.addColorStop(1, 'rgba(255,40,30,0)');
+        ctx.save(); ctx.translate(cx, cy); if (sd.flip) ctx.scale(-1, 1); ctx.drawImage(img, -8, -img.height + 1); ctx.restore();
+        if (kind !== 1) { const lx = cx + (kind === 2 ? 0 : (sd.flip ? -4 : 4)), ly = cy - 9, gg = ctx.createRadialGradient(lx, ly, 0, lx, ly, 7); gg.addColorStop(0, `rgba(255,70,52,${.55 + .25 * pulse})`); gg.addColorStop(1, 'rgba(255,40,30,0)');
           ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = gg; ctx.fillRect(lx - 7, ly - 7, 14, 14); ctx.restore(); }
       }
     } else if (it.k === 'prop') {
@@ -1164,10 +1231,10 @@ function frame(t) {
     } else if (it.k === 'guard') {
       const j = it.j, g = L.guards[j], sd = screenDir(DX[P.guardFacingDir(g, dgNow[L.cams.length + j] & 1)], DY[P.guardFacingDir(g, dgNow[L.cams.length + j] & 1)]);
       const cell = g.rail[dgNow[L.cams.length + j] >> 1], inBeam = e.rays.some(r => r.cells.length && (() => { const lc = r.cells[r.cells.length - 1]; return (lc % W + DX[r.d]) + ((lc / W | 0) + DY[r.d]) * W === cell; })());
-      const base = person('guard', sd.back, -1), img = inBeam ? redden(base) : darken(base, .04);
+      const base = person('guard', sd.view, -1), img = inBeam ? redden(base) : darken(base, .04);
       actors.push(Object.assign(place(img, gdraw[j][0] + .5, gdraw[j][1] + .5, sd.flip), { d: it.d, out: outlineOnly(base) }));
     } else {
-      const moving = run && run.kind === 'walk', step = moving ? Math.floor(thiefDist * 2) % 4 : -1, base = person('thief', thiefView.back, step);
+      const moving = run && run.kind === 'walk', step = moving ? Math.floor(thiefDist * 2) % 4 : -1, base = person('thief', thiefView.view, step);
       actors.push(Object.assign(place(darken(base, .02), thief[0] + .5, thief[1] + .5, thiefView.flip), { d: it.d, out: outlineOnly(base) }));
     }
   }
@@ -1201,9 +1268,11 @@ function frame(t) {
 let freeze = Q.has('freeze');
 function syncUI() {
   document.querySelectorAll('[data-lv]').forEach(b => b.classList.toggle('on', +b.dataset.lv === st.level));
+  document.querySelectorAll('[data-view]').forEach(b => b.classList.toggle('on', b.dataset.view === st.view)); $('rotg').style.display = isIso() ? '' : 'none';
   for (const [id, k] of [['hlp', 'helpers'], ['grd', 'grade'], ['dth', 'dither']]) { $(id).textContent = st[k] ? 'on' : 'off'; $(id).classList.toggle('on', st[k]); }
   $('play').textContent = auto ? '❚❚ Pause' : '▶ Play solution';
 }
+document.querySelectorAll('[data-view]').forEach(b => b.onclick = () => { st.view = b.dataset.view; rebuild(); });
 document.querySelectorAll('[data-lv]').forEach(b => b.onclick = () => { st.level = +b.dataset.lv; auto = false; loadLevel(st.level); rebuild(); });
 $('rl').onclick = () => { st.rot = (st.rot + 3) % 4; rebuild(); }; $('rr').onclick = () => { st.rot = (st.rot + 1) % 4; rebuild(); };
 $('hlp').onclick = () => { st.helpers = !st.helpers; rebuild(); }; $('grd').onclick = () => { st.grade = !st.grade; syncUI(); }; $('dth').onclick = () => { st.dither = !st.dither; syncUI(); };
@@ -1212,10 +1281,10 @@ $('step').onclick = () => { auto = false; if (!run) { if (won) jump(0); else sta
 addEventListener('resize', () => { layout(); buildFloor(); });
 loadLevel(st.level); rebuild();
 function sheet() {                                                                               // a zoomed contact sheet of the characters, for checking the art
-  const names = [['thief', 0], ['thief', 1], ['guard', 0], ['guard', 1]], steps = [-1, 0, 1, 2, 3], sc = 8, [c, x] = mk(steps.length * 18 * sc, names.length * 40 * sc);
+  const names = [['thief', 0], ['thief', 1], ['thief', 2], ['guard', 0], ['guard', 1], ['guard', 2]], steps = [-1, 0, 1, 2, 3], sc = 8, [c, x] = mk(steps.length * 18 * sc, names.length * 40 * sc);
   x.fillStyle = '#26302c'; x.fillRect(0, 0, c.width, c.height); x.imageSmoothingEnabled = false;
   names.forEach((n, r) => steps.forEach((s, k) => x.drawImage(person(n[0], n[1], s), (k * 18 + 1) * sc, (r * 40 + 1) * sc, 16 * sc, 38 * sc)));
-  [0, 1].forEach(b => x.drawImage(camera(b), (steps.length * 18 - 17) * sc + 0, (b * 40 + 20) * sc, 16 * sc, 16 * sc));
+  [0, 1, 2].forEach(b => x.drawImage(camera(b), (steps.length * 18 - 17) * sc + 0, (b * 40 + 20) * sc, 16 * sc, 16 * sc));
   return c.toDataURL();
 }
 window.lab = { st, rebuild, jump: k => jump(k), load: id => { st.level = id; loadLevel(id); rebuild(); }, frame, setAuto: v => { auto = v; if (v && won) jump(0); }, canvas: () => cv.toDataURL(), done: () => won && !run, sheet, exitPose: () => { thief = [L.E % W, (L.E / W) | 0]; } };

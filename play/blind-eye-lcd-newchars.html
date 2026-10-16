@@ -2383,7 +2383,7 @@ $('accLogout').onclick = async () => { try { await api('/api/auth/logout', { met
 /* ------------------------------------------------- statistics and reports */
 /* Anonymous play statistics (random id kept in this browser, never linked to an account) help tune the levels: how many start, win, get caught,
    take hints, leave. Only on the game's own site (and localhost, flagged as test traffic). Players can switch them off in Settings. */
-const BUILD = "2026-10-16-c294761";
+const BUILD = "2026-10-16-54a9dff";
 const TEST_HOST = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
 const STATS_HOST = !PORTAL && (new RegExp('^(www\\.)?luckylion\\.games$').test(location.hostname) || TEST_HOST);
 const rid = n => Array.from(crypto.getRandomValues(new Uint8Array(n)), b => b.toString(16).padStart(2, '0')).join('');
@@ -2502,7 +2502,23 @@ function newFrame(kind, view, anim, k) {
 }
 /* the olive-screen look ('lcd'): the characters are drawn in the screen's own inks: black for the dark parts, a mid green-grey for the middle tones (hair, uniform, fur), the pale paper tone
    for the light parts (stripes, skin), pink for the reds, amber for the gold. The game's own faint shadow (to the lower right) is added by drawSprite. */
+/* the prisoner: the sheet's thin white-and-black stripes turned the figure into a walking skeleton on the olive screen. So the body is closed into a solid silhouette (gaps between the limbs
+   filled) and striped evenly: one ink line in every three rows over the pale tone. The head keeps its own colours: pink hair (the player's accent, like the red beams), pale skin. */
+function thiefTone(c) {
+  const w = c.width, h = c.height, g = c.getContext('2d'), id = g.getImageData(0, 0, w, h), d = id.data, INK = [20, 22, 20], LIGHT = [226, 230, 198], PINK = [208, 48, 56];
+  const has = (x, y) => x >= 0 && y >= 0 && x < w && y < h && d[(y * w + x) * 4 + 3] > 0, put = (i, o) => { d[i] = o[0]; d[i + 1] = o[1]; d[i + 2] = o[2]; d[i + 3] = 255; }, body = y => y % 3 === 1 ? INK : LIGHT, gaps = [];
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const i = (y * w + x) * 4;
+    if (!d[i + 3]) { if ((has(x - 1, y) && has(x + 1, y)) || (has(x, y - 1) && has(x, y + 1))) gaps.push(i); continue; }
+    const r = d[i], gg = d[i + 1], b = d[i + 2], mx = Math.max(r, gg, b), mn = Math.min(r, gg, b), sat = mx ? (mx - mn) / mx : 0, L = (.299 * r + .587 * gg + .114 * b) / 255;
+    let hu = 0; if (mx !== mn) { if (mx === r) hu = ((gg - b) / (mx - mn) + 6) % 6; else if (mx === gg) hu = (b - r) / (mx - mn) + 2; else hu = (r - gg) / (mx - mn) + 4; hu *= 60; }
+    if (sat > .3 && mx > 110) put(i, sat > .45 && (hu < 32 || hu > 340) ? PINK : L > .5 ? LIGHT : PINK); else put(i, body(y));
+  }
+  for (const i of gaps) put(i, body((i >> 2) / w | 0));
+  g.putImageData(id, 0, 0);
+}
 function lcdTone(c, kind) {
+  if (kind === 'thief') return thiefTone(c);
   const g = c.getContext('2d'), id = g.getImageData(0, 0, c.width, c.height), d = id.data, INK = [20, 22, 20], MID = [92, 100, 90], PAPER = [172, 178, 152], PINK = [208, 48, 56], AMBER = [208, 166, 84];
   for (let i = 0; i < d.length; i += 4) {
     if (!d[i + 3]) continue; const r = d[i], gg = d[i + 1], b = d[i + 2], mx = Math.max(r, gg, b), mn = Math.min(r, gg, b), sat = mx ? (mx - mn) / mx : 0, L = (.299 * r + .587 * gg + .114 * b) / 255;

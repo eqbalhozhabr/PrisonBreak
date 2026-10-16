@@ -171,7 +171,7 @@ function advance(dt) {
 
 /* ------------------------------------------------------------------------------------------------------------------ readability: how much of the floor hides behind walls, per rotation */
 function occlusion(rot) {                                                                    // per rotation: floor cells whose tile is >25% covered by walls, and cells where a standing figure (10 x 20 px) would be covered at the feet / at least a quarter
-  const keep = st.rot; st.rot = rot; layout(); buildEdges(); const sp = edges.map(e => ({ e, s: wallSprite(e), a: alphaOf(wallSprite(e).c) })); let tile = 0, f20 = 0, f50 = 0, total = 0;
+  const keep = st.rot; st.rot = rot; layout(); buildEdges(); const sp = edges.map(e => ({ e, s: wallSprite(e), a: alphaOf(wallSprite(e).c) })); let tile = 0, tile50 = 0, f20 = 0, f50 = 0, total = 0;
   const covered = (x, y) => sp.some(({ s, a }) => x >= s.x && x < s.x + s.c.width && y >= s.y && y < s.y + s.c.height && a[((y - s.y) * s.c.width + (x - s.x)) * 4 + 3] > 0);
   for (let cy = 0; cy < H; cy++) for (let cx = 0; cx < W; cx++) { if (L.wall[cy * W + cx]) continue; total++;
     const [rx, ry] = rotXY(cx + .5, cy + .5), key = rx + ry, [fx, fy] = projR(rx, ry), ax = Math.round(fx) - 5, ay = Math.round(fy) - 20; let cover = 0;
@@ -180,8 +180,8 @@ function occlusion(rot) {                                                       
     if (cover >= 20) f20++; if (cover >= 50) f50++;
     let inn = 0, cov = 0; const [rcx, rcy] = rotXY(cx, cy); const bx = Math.min(rcx, rotXY(cx + 1, cy + 1)[0]), by = Math.min(rcy, rotXY(cx + 1, cy + 1)[1]);
     for (let y = Math.floor(fy - TH); y <= Math.ceil(fy + TH); y++) for (let x = Math.floor(fx - TW / 2); x <= Math.ceil(fx + TW / 2); x++) { const [qx, qy] = unprojR(x + .5, y + .5), u = qx - bx, v = qy - by; if (u < .15 || u > .85 || v < .15 || v > .85) continue; inn++; if (covered(x, y)) cov++; }
-    if (inn && cov / inn > .25) tile++; }
-  st.rot = keep; return { hidden: f20, f50, tile, total };
+    if (inn && cov / inn > .25) tile++; if (inn && cov / inn > .5) tile50++; }
+  st.rot = keep; return { hidden: f20, f50, tile, tile50, total };
 }
 function pickRotation() { const r = [0, 1, 2, 3].map(q => occlusion(q).hidden), best = Math.min(...r); return [0, 1, 3, 2].find(q => r[q] === best); }       // ties keep the usual orientation
 
@@ -471,5 +471,5 @@ addEventListener('resize', () => { layout(); buildFloor(); });
 function boot() { loadLevel(st.level); rebuild(); if (!freeze) requestAnimationFrame(frame); else frame(1000); }
 Promise.all(Object.values(sheets).map(i => i.complete ? 0 : new Promise(r => i.onload = r))).then(boot);
 const alphaCacheClear = () => alphaCache.clear();
-window.lab = { occAll: ids => { const out = {}; for (const id of ids) { const l = LV.find(z => z.id === id); L = P.parseLevel(l.map, l.meta); W = L.w; H = L.h; frameCache.clear(); alphaCacheClear(); out[id] = [0, 1, 2, 3].map(q => occlusion(q)); } return out; }, st, rebuild, jump: k => jump(k), load: id => { st.level = id; loadLevel(id); rebuild(); }, frame, setAuto: v => { auto = v; if (v && won) jump(0); }, canvas: () => cv.toDataURL(), done: () => won && !run, state: () => ({ K, n: cfgs.length - 1, W, H, LW, LH }), exitPose: () => { thief = [L.E % W, (L.E / W) | 0]; }, doorAt: (o, p) => { doorOpen = o; if (p != null && door) { const ex = L.E % W, ey = (L.E / W) | 0; thief = [ex + DX[door.d] * .98 * p, ey + DY[door.d] * .98 * p]; thiefView = screenDir(DX[door.d], DY[door.d]); thiefAlpha = 1 - clamp((p - .5) / .45, 0, 1); thiefMoving = p > 0 && p < 1; thiefDist = p * 1.1; } } };
+window.lab = { occMaps: (maps, rots) => { const out = []; for (const m of maps) { L = P.parseLevel(m.map, m.meta); W = L.w; H = L.h; frameCache.clear(); alphaCacheClear(); out.push(rots.map(q => occlusion(q))); } return out; }, occAll: ids => { const out = {}; for (const id of ids) { const l = LV.find(z => z.id === id); L = P.parseLevel(l.map, l.meta); W = L.w; H = L.h; frameCache.clear(); alphaCacheClear(); out[id] = [0, 1, 2, 3].map(q => occlusion(q)); } return out; }, st, rebuild, jump: k => jump(k), load: id => { st.level = id; loadLevel(id); rebuild(); }, frame, setAuto: v => { auto = v; if (v && won) jump(0); }, canvas: () => cv.toDataURL(), done: () => won && !run, state: () => ({ K, n: cfgs.length - 1, W, H, LW, LH }), exitPose: () => { thief = [L.E % W, (L.E / W) | 0]; }, doorAt: (o, p) => { doorOpen = o; if (p != null && door) { const ex = L.E % W, ey = (L.E / W) | 0; thief = [ex + DX[door.d] * .98 * p, ey + DY[door.d] * .98 * p]; thiefView = screenDir(DX[door.d], DY[door.d]); thiefAlpha = 1 - clamp((p - .5) / .45, 0, 1); thiefMoving = p > 0 && p < 1; thiefDist = p * 1.1; } } };
 </script></body></html>

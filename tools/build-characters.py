@@ -69,6 +69,20 @@ def sink_upper(name, f, dy=1):
         ny = y + dy; row = f[y]; mask = row[:, 3] > 0; out[ny][mask] = row[mask]
     return out
 
+def grow(name, f, rows=2):
+    """makes the figure `rows` pixels taller by repeating one torso row and one thigh row (the classic pixel-art stretch); the feet stay on the ground line"""
+    top, bottom, _, _ = bbox(f); belt = belt_row(name, f); h = bottom - top
+    dup = [belt - 3, belt + max(1, int(round((bottom - belt) * .3)))][:rows]
+    src = []
+    for y in range(top, bottom + 1):
+        src.append(y)
+        if y in dup: src.append(y)
+    out = np.zeros_like(f); n = len(src)
+    for i, y in enumerate(src):
+        dest = bottom - (n - 1) + i
+        if 0 <= dest < f.shape[0]: out[dest] = f[y]
+    return out
+
 def belt_row(name, f):
     top, bottom, _, _ = bbox(f); return top + int(round((bottom - top) * .55))                   # about the hips
 
@@ -84,6 +98,7 @@ def make(name):
     A[('walk', 'N')] = [L('20'), L('21'), L('22'), L('23')]
     m12 = L('12'); e = [swap_head(name, L('32'), m12), m12, L('13'), swap_head(name, L('33'), m12)]
     A[('walk', 'E')] = e
+    if name == 'guard': A = {k: [grow(name, f) for f in v] for k, v in A.items()}                       # the guard stands a little taller than the prisoner
     return A
 
 def build(name):

@@ -1,0 +1,207 @@
+<!doctype html>
+<html lang="fa" dir="rtl"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="claude:viewport-fit-sides" content="cover">
+<title>Blind Eye Art List</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;600;800&display=swap">
+<style>
+:root { --bg:#f2f1e8; --card:#fbfaf3; --fg:#1d211c; --muted:#5d6458; --line:#cfcdb9; --accent:#a24a56; --accent-fg:#fff; --code:#e6e4d2; --p1:#1f6b3a; --p2:#8a6a12; --p3:#5d6458; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg:#171b17; --card:#1f241f; --fg:#e4e7dc; --muted:#a2a99a; --line:#363d35; --accent:#d98a94; --accent-fg:#1a1a1a; --code:#2a312a; --p1:#7ccb94; --p2:#e0bd5c; --p3:#a2a99a; color-scheme:dark; } }
+:root[data-theme="dark"] { --bg:#171b17; --card:#1f241f; --fg:#e4e7dc; --muted:#a2a99a; --line:#363d35; --accent:#d98a94; --accent-fg:#1a1a1a; --code:#2a312a; --p1:#7ccb94; --p2:#e0bd5c; --p3:#a2a99a; color-scheme:dark; }
+* { box-sizing:border-box; }
+body { margin:0; background:var(--bg); color:var(--fg); font:15px/1.75 Vazirmatn, system-ui, "Segoe UI", Tahoma, sans-serif; padding-block:20px 48px; padding-left:max(16px, env(safe-area-inset-left, 0px)); padding-right:max(16px, env(safe-area-inset-right, 0px)); }
+main { max-width:980px; margin:0 auto; display:flex; flex-direction:column; gap:28px; }
+h1 { font-size:26px; line-height:1.3; margin:0; text-wrap:balance; font-weight:800; }
+h2 { font-size:19px; margin:0 0 4px; font-weight:800; border-inline-start:5px solid var(--accent); padding-inline-start:10px; text-wrap:balance; }
+h3 { font-size:15.5px; margin:14px 0 4px; font-weight:800; }
+p { margin:6px 0; } .lead { color:var(--muted); margin:0; }
+section { display:flex; flex-direction:column; gap:6px; min-width:0; }
+.card { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:12px 14px; min-width:0; }
+.wrap { overflow-x:auto; border:1px solid var(--line); border-radius:10px; background:var(--card); }
+table { border-collapse:collapse; width:100%; min-width:640px; font-size:13.5px; line-height:1.55; }
+th, td { padding:7px 10px; border-bottom:1px solid var(--line); text-align:start; vertical-align:top; }
+th { font-weight:800; background:var(--code); white-space:nowrap; } tr:last-child td { border-bottom:0; }
+code, .en { direction:ltr; unicode-bidi:isolate; font-family:ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size:.92em; background:var(--code); border-radius:4px; padding:0 4px; white-space:nowrap; }
+td .en, td code { white-space:normal; }
+.pre { direction:ltr; text-align:left; font:12.5px/1.55 ui-monospace, Menlo, Consolas, monospace; background:var(--code); border-radius:8px; padding:10px 12px; overflow-x:auto; white-space:pre; margin:6px 0; }
+.chip { display:inline-block; font-size:11.5px; font-weight:800; padding:0 7px; border-radius:99px; border:1px solid currentColor; line-height:1.6; }
+.p1 { color:var(--p1); } .p2 { color:var(--p2); } .p3 { color:var(--p3); }
+ul { margin:6px 0; padding-inline-start:20px; } li { margin:2px 0; }
+.note { border-inline-start:4px solid var(--accent); background:var(--card); padding:8px 12px; border-radius:6px; margin:6px 0; }
+.num { font-variant-numeric:tabular-nums; }
+</style></head>
+<body><main>
+
+<header><h1>فهرست طرح‌های Blind Eye برای تم کنسول</h1>
+<p class="lead">همه‌ی چیزهایی که باید طراحی شوند، با اندازه، تعداد قاب و اولویت. اندازه‌ها بر پایه‌ی خود بازی (بدون حدس) اندازه‌گیری شده‌اند. نام فایل‌ها و حروف انگلیسی را همان‌طور که هست بنویسید.</p></header>
+
+<section id="rules"><h2>۰. قاعده‌ها و واحد اندازه</h2>
+<div class="card">
+<ul>
+<li><b>واحد پایه = یک کاشی ۲۵۶ پیکسل پهن.</b> همه‌ی اندازه‌ها (کاراکتر، شیء، دیوار) نسبت به این کاشی‌اند. کاشی روی صفحه: موبایل ۴۴ تا ۷۱ پیکسل css (= ۱۳۲ تا ۲۱۳ پیکسل واقعی در ×۳)، دسکتاپ <bdi dir="ltr">۱۲۸۰×۷۲۰</bdi> بین ۱۱۵ تا ۱۵۸ و دسکتاپ <bdi dir="ltr">۱۹۲۰×۱۰۸۰</bdi> بین ۱۷۷ تا ۲۳۸. پس ۲۵۶ از بزرگ‌ترین حالت (دسکتاپ فول‌اچ‌دی) بزرگ‌تر یا برابر است و هیچ‌جا کشیده و محو نمی‌شود. اگر روی لپ‌تاپ‌ها و مانیتورهای رتینا هم می‌خواهید تیز بماند، همه‌چیز را ×۲ بکشید (کاشی ۵۱۲)؛ بازی برای طرح‌های مشکی خودش به اندازه‌ی دقیق پیکسل صفحه کوچک می‌کند، پس هر دو درست کار می‌کند.</li>
+<li><b>شکل کاشی:</b> کاشی کف <code>256×200</code> (نسبت ثابت ۰٫۷۸ در بازی). بلوک دیوار = سطح بالا <code>256×200</code> + روی جلویی <code>256×87</code> = بوم <code>256×287</code>.</li>
+<li><b>نما:</b> مایل (۳/۴)، همان بازی اولیه: کف از بالا با کمی شیب، دیوارها یک سطح بالا و یک روی جلویی. دوربین‌ها <b>بالای بلوک</b> می‌نشینند و چهار همسایه را نشان می‌دهند (طبق تصمیم قبلی شما).</li>
+<li><b>سبک مثل مرجع شما:</b> <b>کاراکترها و اشیای متحرک فقط مشکی</b> (خط دور + سیاهی‌ها)، داخل شفاف؛ <b>دنیای ثابت (کف و دیوار و…) با خط صورتی-قرمز کم‌رنگ</b> روی زمینه‌ی زیتونی، بدون پرکردن. رنگ‌های نمونه‌گیری‌شده از تصویر مرجع‌تان: مشکی <code>#050405</code>، زمینه‌ی صفحه <code>#969C84</code>، خط دنیا <code>#A4747A</code>، قرمز خطر (پرتو و چراغ دوربین) <code>#D03038</code>. بقیه‌ی رنگ‌ها فقط برای قاب کنسول و دکمه‌هاست.</li>
+<li><b>ضخامت خط (روی بوم ۲۵۶):</b> خط دور ≥ ۶ پیکسل، ریزترین جزئیات ≥ ۳ پیکسل. روی موبایل <bdi dir="ltr">۸×۸</bdi> کاشی حدود ۰٫۵ برابر می‌شود؛ خط ۶ پیکسلی می‌شود ۳ پیکسل واقعی و خوانا می‌ماند.</li>
+<li><b>فرمت:</b> PNG با شفافیت (alpha)، sRGB، بدون پیش‌ضرب‌شده. برای طرح‌های مشکی هر پیکسل کاملاً مشکی یا کاملاً شفاف باشد (محو مرزی اشکالی ندارد، آستانه‌گذاری با من). <b>سایه نکشید</b>: بازی خودش از شکل شما سایه‌ی کم‌رنگ پایین‌راست می‌سازد.</li>
+<li><b>جهت‌ها:</b> <code>n</code> (پشت به ما، بالا)، <code>e</code> (راست)، <code>s</code> (رو به ما، پایین). <b>چپ را بازی با آینه‌کردن راست می‌سازد</b>: روی لباس نوشته و چیز نامتقارن مهم نکشید.</li>
+<li><b>لنگرگاه:</b> کاراکترها و اشیای متحرک: وسط پایین بوم (پاها روی پایین‌ترین ردیف). هیچ‌وقت جای پاها بین قاب‌ها نپرد.</li>
+<li><b>حجم:</b> کل بازی را زیر حدود ۴ مگابایت نگه دارید تا روی موبایل سریع باز شود (شیت ده‌قابی زندانی فعلی فقط ۲۷ کیلوبایت است). سقف CrazyGames ۵۰ مگابایت است ولی ما به آن نزدیک نمی‌شویم.</li>
+</ul></div></section>
+
+<section id="chars"><h2>۱. کاراکترها <span class="chip p1">متحرک</span></h2>
+<p class="lead">بوم همه‌ی آدم‌ها <code>256×384</code>، سگ <code>320×224</code>؛ لنگرگاه وسط پایین. قد روی صفحه حدود ۱٫۲۷ کاشی (موبایل ۵۶ تا ۹۰، دسکتاپ فول‌اچ‌دی حدود ۳۰۰ پیکسل css).</p>
+<div class="wrap"><table>
+<tr><th>کاراکتر</th><th>حالت‌ها و تعداد قاب (برای هر جهت)</th><th>جهت‌ها</th><th>مجموع قاب</th><th>اولویت</th></tr>
+<tr><td><b>زندانی</b><br><span class="en">prisoner</span></td><td>ایستاده <code>idle</code> ۴ قاب (نفس‌کشیدن؛ بالاتنه کمی تکان بخورد، نه فقط سر)؛ راه رفتن <code>walk</code> ۶ قاب (همان شیت جدید شما)</td><td>n, e, s</td><td class="num"><bdi dir="ltr">۳×(۴+۶) = ۳۰</bdi></td><td><span class="chip p1">P1</span></td></tr>
+<tr><td>زندانی: گیر افتادن و پیروزی</td><td><code>caught</code> ۴ قاب (دست بالا، رو به ما)؛ <code>win</code> ۴ قاب (شادی، رو به ما)</td><td>s</td><td class="num"><bdi dir="ltr">۸</bdi></td><td><span class="chip p2">P2</span></td></tr>
+<tr><td><b>نگهبان A</b> (لاغر، کلاه)<br><span class="en">guard_a</span></td><td><code>idle</code> ۴، <code>walk</code> ۶</td><td>n, e, s</td><td class="num"><bdi dir="ltr">۳۰</bdi></td><td><span class="chip p1">P1</span></td></tr>
+<tr><td><b>نگهبان B</b> (هیکل دیگر، برای تنوع مرحله‌های چندنگهبانه)</td><td><code>idle</code> ۴، <code>walk</code> ۶</td><td>n, e, s</td><td class="num"><bdi dir="ltr">۳۰</bdi></td><td><span class="chip p3">P3</span></td></tr>
+<tr><td><b>سگ نگهبان</b><br><span class="en">dog</span></td><td><code>idle</code> ۴، <code>walk</code> ۶، <code>run</code> ۶ (دویدن آژیر، کشیده‌تر)</td><td>e (سگ از بغل)</td><td class="num"><bdi dir="ltr">۱۶</bdi></td><td><span class="chip p1">P1</span></td></tr>
+<tr><td>سگ: بالا و پایین‌رفتن</td><td><code>idle</code> ۴، <code>walk</code> ۶ (سگ روی ریل بالا و پایین هم می‌رود)</td><td>n, s</td><td class="num"><bdi dir="ltr">۲۰</bdi></td><td><span class="chip p2">P2</span></td></tr>
+<tr><td>سگ: بو کشیدن و پارس</td><td><code>sniff</code> ۲، <code>bark</code> ۲</td><td>e</td><td class="num"><bdi dir="ltr">۴</bdi></td><td><span class="chip p3">P3</span></td></tr>
+</table></div>
+<p>جمع: <b>P1 = ۷۶ قاب</b>، P2 = ۲۸، P3 = ۳۴. گام راه رفتن: یک دور کامل = ۲ قدم = ۲ کاشی (قاب‌ها بر اساس مسافت پخش می‌شوند تا پا روی زمین نلغزد). حالت «دیده شدن» (!) را بازی خودش می‌کشد.</p></section>
+
+<section id="moving"><h2>۲. اشیای متحرک و تغییرکننده <span class="chip p1">حالت‌دار</span></h2>
+<p class="lead">این‌ها جابه‌جا نمی‌شوند ولی با لمس بازیکن حالتشان عوض می‌شود. بوم <bdi dir="ltr">۲۵۶×۱۹۲</bdi> برای چیزهایی که روی بلوک می‌نشینند (لنگرگاه = وسط پایین، روی ۷۲٪ پایین سطح بالای بلوک)، و <bdi dir="ltr">۲۵۶×۲۸۷</bdi> برای بلوک‌های کامل.</p>
+<div class="wrap"><table>
+<tr><th>شیء</th><th>بوم</th><th>حالت‌ها و تعداد قاب</th><th>جهت / نوع</th><th>مجموع</th><th>اولویت</th></tr>
+<tr><td><b>دوربین</b><br><span class="en">camera</span></td><td class="num"><bdi dir="ltr">256×192</bdi></td><td><code>idle</code> ۲ قاب (چراغ LED چشمک)؛ <code>turn</code> ۴ قاب برای یک‌چهارم چرخش ساعتگرد (n→e و e→s؛ s→w و w→n را بازی با آینه و معکوس می‌سازد)</td><td>n, e, s</td><td class="num"><bdi dir="ltr">۶ + ۸ = ۱۴</bdi></td><td><span class="chip p1">P1</span></td></tr>
+<tr><td>دوربین: آژیر</td><td class="num"><bdi dir="ltr">256×192</bdi></td><td><code>alarm</code> ۲ قاب (لرزش یک‌پیکسلی، LED روشن)</td><td>n, e, s</td><td class="num"><bdi dir="ltr">۶</bdi></td><td><span class="chip p3">P3</span></td></tr>
+<tr><td><b>نورافکن</b><br><span class="en">searchlight</span></td><td class="num"><bdi dir="ltr">256×192</bdi></td><td>مثل دوربین ولی بدنه‌ی دیگر و عدسی بزرگ: <code>idle</code> ۲، <code>turn</code> ۴ (باید در یک نگاه از دوربین قابل‌تشخیص باشد، با شکل، نه فقط رنگ)</td><td>n, e, s</td><td class="num"><bdi dir="ltr">۱۴</bdi></td><td><span class="chip p1">P1</span></td></tr>
+<tr><td>نورافکن: آژیر</td><td class="num"><bdi dir="ltr">256×192</bdi></td><td><code>alarm</code> ۲</td><td>n, e, s</td><td class="num"><bdi dir="ltr">۶</bdi></td><td><span class="chip p3">P3</span></td></tr>
+<tr><td><b>در</b><br><span class="en">door</span></td><td class="num"><bdi dir="ltr">256×287</bdi></td><td><code>0</code> بسته، <code>1–4</code> در حال باز شدن، <code>5</code> باز (بستن = همان قاب‌ها برعکس). جعبه‌ی اهرم وسط کاشی و بزرگ و واضح (جای لمس همان‌جاست)</td><td>h (پهنایش چپ‌وراست)، v (پهنایش جلو–عقب)</td><td class="num"><bdi dir="ltr">۲×۶ = ۱۲</bdi></td><td><span class="chip p1">P1</span></td></tr>
+<tr><td><b>آینه</b><br><span class="en">mirror</span></td><td class="num"><bdi dir="ltr">256×287</bdi></td><td><code>0</code> حالت «/»، <code>1–2</code> وسط چرخش؛ حالت «\» را بازی از آینه‌ی «/» می‌سازد (برگشت = معکوس)</td><td>—</td><td class="num"><bdi dir="ltr">۳</bdi></td><td><span class="chip p1">P1</span></td></tr>
+<tr><td><b>تابلو برق</b><br><span class="en">panel</span></td><td class="num"><bdi dir="ltr">256×192</bdi></td><td>برای هر نوع: <code>idle</code> ۲ قاب، <code>pulse</code> ۳ قاب (وقتی لمس می‌شود). ۳ نوع با <b>شکل نماد</b> متفاوت (دایره، مثلث، مربع) چون تم تک‌رنگ است. سیم‌ها را بازی می‌کشد.</td><td>type1, type2, type3</td><td class="num"><bdi dir="ltr">۳×۵ = ۱۵</bdi></td><td><span class="chip p1">P1</span></td></tr>
+<tr><td><b>در خروج</b><br><span class="en">exit</span></td><td class="num"><bdi dir="ltr">256×287</bdi></td><td><code>idle</code> ۲ قاب (چراغ تابلو)؛ <code>open</code> ۴ قاب (وقتی زندانی می‌رسد؛ زندانی داخل در محو می‌شود)</td><td>—</td><td class="num"><bdi dir="ltr">۶</bdi></td><td><span class="chip p1">P1</span></td></tr>
+</table></div>
+<p>جمع: <b>P1 = ۶۴ قاب</b>، P3 = ۱۲. <b>یادآوری:</b> اگر ظاهر دوربین عوض شود، حالت‌هایش را باید در مرحله‌های اول آموزش بدهیم (یادداشت قبلی شما)، پس اول دوربین را نهایی کنید.</p></section>
+
+<section id="static"><h2>۳. اشیای ثابت <span class="chip p1">بدون حرکت</span></h2>
+<div class="wrap"><table>
+<tr><th>شیء</th><th>بوم</th><th>تعداد</th><th>توضیح</th><th>اولویت</th></tr>
+<tr><td><b>کاشی کف</b><br><span class="en">floor</span></td><td class="num"><bdi dir="ltr">256×200</bdi></td><td class="num">۴ ساده + ۲ ویژه</td><td>۴ نوع ساده تقریباً هم‌شکل (کف آرام بماند)؛ ۲ ویژه: خطوط هشدار، کف‌شور. خط‌ها کم‌رنگ (خط دنیا)، بدون پر کردن.</td><td><span class="chip p1">P1</span></td></tr>
+<tr><td><b>نشان شروع</b><br><span class="en">start</span></td><td class="num"><bdi dir="ltr">256×200</bdi></td><td class="num"><bdi dir="ltr">۱</bdi></td><td>روی کاشی کف: دریچه یا ردپا که شروع زندانی را نشان می‌دهد.</td><td><span class="chip p1">P1</span></td></tr>
+<tr><td><b>دیوار</b><br><span class="en">wall</span></td><td class="num"><bdi dir="ltr">256×287</bdi></td><td class="num">۳ بتنی + ۳ آجری</td><td>سطح بالا + روی جلویی. نوع را بازی با هش مکان انتخاب می‌کند. اختیاری (P3): میله‌دار، ترک‌خورده.</td><td><span class="chip p1">P1</span></td></tr>
+<tr><td><b>شیشه</b><br><span class="en">glass</span></td><td class="num"><bdi dir="ltr">256×287</bdi></td><td class="num">۲ (+۱ ترک‌دار)</td><td>خط روشن و دو خط درخشش، بدون پر کردن، چون پرتو از آن رد می‌شود.</td><td><span class="chip p1">P1</span></td></tr>
+<tr><td><b>پس‌زمینه‌ی فصل</b><br><span class="en">backdrop</span></td><td class="num">دسکتاپ <bdi dir="ltr">۱۹۲۰×۱۰۸۰</bdi><br>موبایل <bdi dir="ltr">۱۰۸۰×۲۲۰۰</bdi></td><td class="num">۳ (سلول، حیاط، اتاق کنترل)</td><td>طرح خطی صورتی پشت صفحه‌ی بازی، مثل جرثقیل و حصار در مرجع‌تان. فقط دور و بر تخته دیده می‌شود.</td><td><span class="chip p3">P3</span></td></tr>
+</table></div>
+<p>جمع: P1 = ۱۵ تصویر. پرتوها و مخروط دید، خانه‌های روشن، هاله‌ی انتخاب، ریل نگهبان، نقطه‌های بو و سیم تابلو برق را <b>بازی خودش می‌کشد</b>؛ نکشید.</p></section>
+
+<section id="fx"><h2>۴. جلوه‌ها <span class="chip p3">اختیاری</span></h2>
+<p>الان با کد کشیده می‌شوند و کافی‌اند. اگر خواستید جایگزین کنید: علامت تعجب <code>fx_alert</code> ۲ قاب <code>128×128</code>؛ گرد و خاک پا <code>fx_dust</code> ۴ قاب <code>128×64</code>؛ ریزش ستاره‌ی پایان مرحله <code>fx_stars</code> ۶ قاب <code>256×256</code>.</p></section>
+
+<section id="ui"><h2>۵. رابط: آیکون‌ها و دکمه‌ها</h2>
+<h3>آیکون‌ها (هر کدام یک تصویر <code>128×128</code>، مشکی، شفاف)</h3>
+<div class="wrap"><table>
+<tr><th>گروه</th><th>آیکون‌ها</th><th>اولویت</th></tr>
+<tr><td>در بازی</td><td><span class="en">undo, hint (bulb), exit (door), arrow_left, arrow_right (بالا و پایین را بازی می‌چرخاند)، turn, wait (clock), swap</span></td><td><span class="chip p1">P1</span></td></tr>
+<tr><td>منو و کارت‌ها</td><td><span class="en">menu, home, play, retry, next, back, close, check, levels, gear, help, lock, calendar, flame, skip</span></td><td><span class="chip p1">P1</span></td></tr>
+<tr><td>جان و ستاره</td><td><span class="en">heart_full, heart_empty, heart_break (۳ قاب)، star_full, star_empty</span></td><td><span class="chip p1">P1</span></td></tr>
+<tr><td>تنظیمات</td><td><span class="en">sound_on/off, music_on/off, vibration_on/off</span></td><td><span class="chip p2">P2</span></td></tr>
+<tr><td>راهنما</td><td><span class="en">hand (دست اشاره، ۲ قاب)</span></td><td><span class="chip p2">P2</span></td></tr>
+<tr><td>فقط نسخه‌ی سایت</td><td><span class="en">trophy, user, video, flag</span> (در CrazyGames نیست)</td><td><span class="chip p3">P3</span></td></tr>
+</table></div>
+<h3>دکمه‌ها</h3>
+<div class="wrap"><table>
+<tr><th>نوع</th><th>اندازه‌ی نهایی روی صفحه (css)</th><th>اندازه‌ی طرح (×۳)</th><th>حالت‌ها</th></tr>
+<tr><td>دکمه‌ی آیکونی (منو، بستن)</td><td class="num">۴۰×۴۰ (حداقل لمس <bdi dir="ltr">۴۴×۴۴</bdi> استاندارد اپل، ۴۸ گوگل؛ بازی ناحیه‌ی لمس را بزرگ می‌کند)</td><td class="num"><bdi dir="ltr">۱۹۲×۱۹۲</bdi></td><td>normal, pressed, disabled, on</td></tr>
+<tr><td>دکمه‌ی عریض نوار پایین (Undo، Exit، Hint)</td><td class="num">۹۱ تا ۱۳۷ پهن × ۵۲ بلند</td><td class="num">۹-slice <code>288×168</code>، گوشه ۴۸</td><td>normal, pressed, disabled</td></tr>
+<tr><td>دکمه‌ی اصلی بزرگ (Play، Next)</td><td class="num">تا <bdi dir="ltr">۳۰۰×۶۰</bdi></td><td class="num">۹-slice <code>384×192</code>، گوشه ۶۰</td><td>normal, pressed, disabled</td></tr>
+<tr><td>سه دکمه‌ی زمینه (چرخش و فلش‌ها)</td><td class="num">۵۲ بلند، سه جای ثابت (چپ، وسط، راست)</td><td class="num">۱۹۲×۱۹۲ هر کدام</td><td>normal, pressed, disabled</td></tr>
+<tr><td>سوئیچ روشن/خاموش</td><td class="num"><bdi dir="ltr">۵۲×۳۰</bdi></td><td class="num"><bdi dir="ltr">۱۵۶×۹۰</bdi></td><td>on, off</td></tr>
+<tr><td>کارت منو (توقف، برد، باخت، تنظیمات)</td><td class="num">تا ۳۶۰ پهن</td><td class="num">۹-slice <code>384×384</code>، گوشه ۹۶</td><td>—</td></tr>
+</table></div></section>
+
+<section id="skin"><h2>۶. اسکین کنسول</h2>
+<div class="note"><b>پیشنهاد من:</b> برای موبایل تصویر تمام‌صفحه نکشید؛ نسبت صفحه‌ی گوشی‌ها فرق می‌کند (۹:۱۶ تا ۹:۲۱) و تصویر کامل یا کج می‌شود یا بریده. اسکین را <b>تکه‌تکه و ۹-slice</b> بکشید (قاب، پلاک‌ها، دکمه‌ها). برای دسکتاپ یک تصویر تمام‌صفحه‌ی ۱۶:۹ مشکلی ندارد، چون همه‌ی اندازه‌های iframe پلتفرم ۱۶:۹اند.</div>
+<div class="wrap"><table>
+<tr><th>نسخه</th><th>بوم اسکین</th><th>نسبت و اندازه‌های واقعی که پوشش می‌دهد</th><th>ناحیه‌ی ایمن</th></tr>
+<tr><td><b>دسکتاپ</b></td><td class="num">۱۹۲۰×۱۰۸۰ (حداقل)<br>۲۵۶۰×۱۴۴۰ (برای رتینا)</td><td>۱۶:۹. iframe پلتفرم: <bdi dir="ltr">۸۰۰×۴۵۰</bdi>، <bdi dir="ltr">۸۲۱×۴۶۲</bdi>، <bdi dir="ltr">۹۰۷×۵۱۰</bdi>، <bdi dir="ltr">۱۰۷۷×۶۰۶</bdi>، <bdi dir="ltr">۱۲۸۰×۷۲۰</bdi>، <bdi dir="ltr">۱۳۶۶×۷۶۸</bdi>، <bdi dir="ltr">۱۵۳۶×۸۶۴</bdi>، <bdi dir="ltr">۱۹۲۰×۱۰۸۰</bdi> (همه در تست‌های ما)</td><td>۴۰ پیکسل از هر لبه، بدون چیز مهم</td></tr>
+<tr><td><b>موبایل عمودی</b></td><td class="num">۱۱۷۰×۲۵۳۲ (آیفون ×۳)</td><td>۳۶۰×۸۰۰، <bdi dir="ltr">۳۹۰×۸۴۴</bdi>، <bdi dir="ltr">۳۹۳×۸۵۲</bdi>، <bdi dir="ltr">۴۳۰×۹۳۲</bdi> (css). بالا و پایین قابل‌کش‌آمدن (وسط قاب ساده)</td><td>بالا ۱۸۰، پایین ۱۱۰، چپ و راست ۶۰ پیکسل</td></tr>
+<tr><td><b>موبایل افقی</b></td><td class="num"><bdi dir="ltr">۲۵۳۲×۱۱۷۰</bdi></td><td>همان گوشی‌ها چرخیده؛ مثلاً <bdi dir="ltr">۸۴۴×۳۹۰</bdi> css</td><td>چپ و راست ۱۴۰ (ناچ)، بالا ۶۰، پایین ۸۰</td></tr>
+</table></div>
+<h3>مستطیل‌هایی که بازی الان استفاده می‌کند (در پیکسل css)</h3>
+<div class="wrap"><table>
+<tr><th>صفحه</th><th>پنجره‌ی بازی (canvas)</th><th>نوار بالا HUD</th><th>پیام</th><th>دکمه‌های زمینه</th><th>نوار پایین</th></tr>
+<tr><td>دسکتاپ <bdi dir="ltr">۱۹۲۰×۱۰۸۰</bdi></td><td class="num">۱۴۳۲×۱۰۷۱ (چپ)</td><td class="num">ستون راست ۴۳۲ پهن: ۶۴ بلند</td><td class="num">۴۴۰×۹۶ + هدف ۱۱۶</td><td class="num"><bdi dir="ltr">۴۳۲×۱۵۳</bdi></td><td class="num"><bdi dir="ltr">۴۴۰×۷۲</bdi></td></tr>
+<tr><td>دسکتاپ <bdi dir="ltr">۱۲۸۰×۷۲۰</bdi></td><td class="num"><bdi dir="ltr">۹۲۵×۷۱۱</bdi></td><td class="num"><bdi dir="ltr">۲۹۹×۶۴</bdi></td><td class="num"><bdi dir="ltr">۳۰۷×۹۶</bdi></td><td class="num"><bdi dir="ltr">۲۹۹×۱۵۳</bdi></td><td class="num"><bdi dir="ltr">۳۰۷×۷۲</bdi></td></tr>
+<tr><td>CrazyGames <bdi dir="ltr">۹۰۷×۵۱۰</bdi></td><td class="num"><bdi dir="ltr">۵۵۹×۵۰۱</bdi></td><td class="num"><bdi dir="ltr">۲۹۲×۶۴</bdi></td><td class="num"><bdi dir="ltr">۳۰۰×۱۱۲</bdi></td><td>—</td><td class="num"><bdi dir="ltr">۳۰۰×۷۲</bdi></td></tr>
+<tr><td>موبایل عمودی <bdi dir="ltr">۳۹۰×۸۴۴</bdi></td><td class="num"><bdi dir="ltr">۳۵۶×۵۴۷</bdi></td><td class="num"><bdi dir="ltr">۳۵۴×۶۴</bdi></td><td class="num"><bdi dir="ltr">۳۶۲×۷۰</bdi></td><td>بالای نوار پایین</td><td class="num"><bdi dir="ltr">۳۶۲×۷۲</bdi></td></tr>
+<tr><td>موبایل افقی <bdi dir="ltr">۸۴۴×۳۹۰</bdi></td><td class="num">۴۶۰×۳۸۱ (چپ)</td><td class="num"><bdi dir="ltr">۳۳۲×۶۴</bdi></td><td class="num"><bdi dir="ltr">۳۴۰×۱۱۲</bdi></td><td>—</td><td class="num"><bdi dir="ltr">۳۴۰×۷۲</bdi></td></tr>
+</table></div>
+<p>بزرگ‌ترین مرحله <bdi dir="ltr">۸×۸</bdi> است و تخته تقریباً ۱٫۲:۱ می‌شود (۸ کاشی پهنا، حدود ۶٫۸ کاشی ارتفاع). پس <b>پنجره‌ی بازی در اسکین دسکتاپ نزدیک ۴:۳ بهتر است، مثلاً <bdi dir="ltr">۱۲۰۰×۹۰۰</bdi> در <bdi dir="ltr">۱۹۲۰×۱۰۸۰</bdi></b>، نه عریضِ ۱٫۸:۱ مثل تصویر مرجع. باقی عرض را برای ستون HUD بگذارید. اگر اسکین نهایی‌تان مستطیل‌ها را جابه‌جا کرد، فقط مختصات تازه را بگویید؛ کد را من وفق می‌دهم.</p>
+<h3>قطعه‌های اسکین</h3>
+<div class="wrap"><table>
+<tr><th>قطعه</th><th>اندازه‌ی طرح</th><th>توضیح</th><th>اولویت</th></tr>
+<tr><td>قاب دسکتاپ <span class="en">skin_desktop_frame</span></td><td class="num"><bdi dir="ltr">۱۹۲۰×۱۰۸۰</bdi></td><td>پنجره‌ی بازی و ستون HUD شفاف (سوراخ)، بقیه قاب کنسول</td><td><span class="chip p1">P1</span></td></tr>
+<tr><td>قاب موبایل عمودی / افقی</td><td class="num">۹-slice، <code>۳۶۰×۳۶۰</code> با گوشه ۱۲۰</td><td>لبه‌ها کشیده می‌شوند؛ وسط شفاف</td><td><span class="chip p1">P1</span></td></tr>
+<tr><td>پلاک‌های HUD (مرحله، حرکت، par)</td><td class="num">۹-slice <code>۳۰۰×۱۹۲</code>، گوشه ۴۸</td><td>سه پلاک؛ عددها را بازی با فونت پیکسلی می‌نویسد</td><td><span class="chip p1">P1</span></td></tr>
+<tr><td>جای جان‌ها (۳ قلب)</td><td class="num"><bdi dir="ltr">۴۵۰×۱۲۰</bdi></td><td>سینی با سه شیار</td><td><span class="chip p2">P2</span></td></tr>
+<tr><td>پلاک پیام و هدف</td><td class="num">۹-slice <code>۳۶۰×۲۴۰</code>، گوشه ۶۰</td><td>جای متن آموزش و راهنما</td><td><span class="chip p1">P1</span></td></tr>
+<tr><td>لایه‌ی بازتاب شیشه</td><td class="num">هم‌اندازه‌ی پنجره</td><td>شفاف، بسیار کم‌رنگ؛ خطوط اسکن را بازی خودش می‌اندازد</td><td><span class="chip p3">P3</span></td></tr>
+<tr><td>لوگوی بازی</td><td class="num"><bdi dir="ltr">۱۰۲۴×۳۸۴</bdi></td><td>منوی اصلی؛ دوربین لوگو را هم حساب کنید</td><td><span class="chip p2">P2</span></td></tr>
+<tr><td>پس‌زمینه‌ی منو</td><td class="num">۱۹۲۰×۱۰۸۰ و <bdi dir="ltr">۱۰۸۰×۲۲۰۰</bdi></td><td>خطی، مثل پس‌زمینه‌ی فصل</td><td><span class="chip p3">P3</span></td></tr>
+</table></div></section>
+
+<section id="store"><h2>۷. تصویرهای فروشگاه CrazyGames</h2>
+<div class="wrap"><table>
+<tr><th>تصویر</th><th>اندازه</th><th>نکته</th></tr>
+<tr><td>کاور افقی</td><td class="num">۱۹۲۰×۱۰۸۰ (۱۶:۹)</td><td>فقط عنوان به‌صورت متن، دور از گوشه‌ی بالا-چپ (برچسب پلتفرم)</td></tr>
+<tr><td>کاور عمودی</td><td class="num">۸۰۰×۱۲۰۰ (۲:۳)</td><td>همان قاعده</td></tr>
+<tr><td>کاور مربع</td><td class="num">۸۰۰×۸۰۰ (۱:۱)</td><td>همان قاعده</td></tr>
+<tr><td>ویدیوی پیش‌نمایش</td><td class="num">۱۹۲۰×۱۰۸۰ و <bdi dir="ltr">۱۰۸۰×۱۶۲۰</bdi></td><td>حدود ۱۹ ثانیه، بی‌صدا، حدود ۲ مگابایت. با ابزار خودم از بازی نهایی ضبط می‌شود (لازم نیست شما بکشید)</td></tr>
+</table></div>
+<p>کاورها و ویدیوها را من از بازی نهایی می‌سازم؛ فقط اگر کاور دستی می‌خواهید این اندازه‌ها لازم است.</p></section>
+
+<section id="files"><h2>۸. نام‌گذاری و پوشه‌ها (از همین حالا)</h2>
+<div class="card"><p><b>قالب نام:</b> <code>گروه_شیء_حالت_جهت_شماره.png</code>، همه حروف کوچک انگلیسی، با زیرخط، بدون فاصله و بدون حروف فارسی. شماره‌ی قاب دو رقمی و از <code>00</code> شروع می‌شود. جهت‌ها فقط <code>n</code>، <code>e</code>، <code>s</code>.</p>
+<div class="pre">char_prisoner_walk_e_03.png      کاراکتر، راه رفتن، رو به راست، قاب ۴ام
+char_guard_a_idle_s_00.png
+char_dog_run_e_05.png
+obj_camera_turn_n2e_02.png       چرخش دوربین از n به e، قاب ۳ام
+obj_door_open_h_04.png           در، باز شدن، نوع h
+obj_mirror_turn_01.png
+obj_panel_type2_pulse_01.png
+tile_floor_plain_02.png          کف ساده، تنوع ۳ام (از 00 تا 03)
+tile_wall_brick_01.png
+ui_icon_undo.png    ui_btn_wide_pressed.png    ui_card_9slice.png
+skin_desktop_frame.png    skin_phone_portrait_9slice.png
+fx_alert_00.png</div>
+<p><b>ساختار پوشه:</b></p>
+<div class="pre">art/
+  _source/              فایل‌های لایه‌دار (.aseprite .psd .clip)، هم‌نام خروجی‌شان
+  characters/
+    prisoner/  guard_a/  guard_b/  dog/
+  objects/
+    camera/  searchlight/  door/  mirror/  panel/  exit/
+  tiles/
+    floor/  wall/  glass/  start/
+  fx/
+  ui/
+    icons/  buttons/  cards/
+  skin/
+    desktop/  phone_portrait/  phone_landscape/
+  backdrops/
+  store/                کاور و ویدیو (خروجی ابزار من)
+  reference/            تصویرهای مرجع شما (همین حالا هم هست)</div>
+<ul>
+<li><b>هر قاب یک فایل جدا</b> (نه شیت). من با یک اسکریپت (<code>tools/pack-art.py</code>) فایل‌ها را از روی نامشان به شیت و JSON تبدیل می‌کنم؛ شما هیچ JSON‌ای را دست نمی‌زنید.</li>
+<li>اسکریپت <b>اندازه‌ی هر بوم را چک می‌کند</b> و اگر با جدول بالا نخواند، خطای واضح می‌دهد. پس اشتباه اندازه‌ی ۲۰ فایل بعد از کشیدن معلوم نمی‌شود، همان لحظه‌ی اول معلوم می‌شود.</li>
+<li>برای هر شیء، اول <b>یک قاب کامل</b> بدهید تا تأیید کنیم (مثل زندانی)، بعد بقیه‌ی قاب‌ها.</li>
+<li>پوشه‌های قدیمی (<code>art/thief</code>، <code>art/guard</code>، <code>art/dog</code> و…) را من خودم به ساختار جدید منتقل می‌کنم و <code>art-kit</code> قدیمی را (که مخصوص نسخه‌ی رنگی بود) کنار می‌گذارم.</li>
+</ul></div></section>
+
+<section id="order"><h2>۹. ترتیب پیشنهادی (کمترین کار، بیشترین اثر)</h2>
+<div class="card"><ol style="margin:0;padding-inline-start:20px">
+<li><b>نگهبان A و سگ</b> (E) با همان سبک زندانی، چون الان از زندانی عقب‌ترند. <span class="chip p1">P1</span></li>
+<li><b>دوربین</b> (idle + turn)، چون ظاهرش بازی را تعیین می‌کند و آموزش مرحله‌ها به آن وابسته است. <span class="chip p1">P1</span></li>
+<li><b>کف، دیوار، شیشه</b> و سپس <b>در، آینه، خروج، نورافکن، تابلو برق</b>. <span class="chip p1">P1</span></li>
+<li>نماهای n و s برای زندانی و نگهبان و سگ. <span class="chip p1">P1</span></li>
+<li>آیکون‌ها، دکمه‌ها و اسکین دسکتاپ، بعد اسکین موبایل. <span class="chip p1">P1</span> / <span class="chip p2">P2</span></li>
+<li>جلوه‌ها، حالت آژیر، نگهبان B، پس‌زمینه‌ها. <span class="chip p3">P3</span></li>
+</ol>
+<p>جمع قاب‌ها (بدون UI و اسکین): <b>P1 حدود ۱۵۵ تصویر</b> (۷۶ کاراکتر + ۶۴ شیء متحرک + ۱۵ ثابت)، P2 حدود ۲۸، P3 حدود ۴۶ + ۱۲ جلوه.</p></div></section>
+
+</main></body></html>

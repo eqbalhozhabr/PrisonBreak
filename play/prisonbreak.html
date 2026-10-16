@@ -197,6 +197,19 @@
   body.desk #introOv #introCv { width:100%; margin:0; }
   body.desk #introOv .howl { margin:0; font-size:15px; }
   body.desk #pauseOv .card, body.desk #winOv .card, body.desk #caughtOv .card { max-width:480px; }
+
+  /* ---- the optional "lcd" look (see the theme layer in the script): steel frame, olive screen, pink for danger ---- */
+  body.lcd { --bg:#4b5f6b; --panel:#9fb2bd; --panel2:#b6c6cf; --edge:#1a2229; --hi:#dbe6eb; --lo:#6c8290; --ink:#141a20; --mute:#2b3b48; --red:#e8547c; --red-hi:#f7a0b7; --red-lo:#a22a4f; --gold:#8a5f0a; --ok:#1d7a60; --line:#7f95a2; }
+  body.lcd button.primary { color:#fff; }
+  body.lcd canvas#cv { background:#9ba05a; }
+  body.lcd #menu .tag, body.lcd .keylist .kr, body.lcd #keys .kr { color:#1a2229; text-shadow:none; }
+  body.desk.lcd .mpanel { background:rgba(150,170,181,.97); }
+  body.lcd #menuProg { color:#1a2229; text-shadow:none; }
+  body.lcd #stage { background:#9ea35c; box-shadow:inset 0 0 0 4px #1a2229; }
+  body.lcd #stage::before { content:''; position:absolute; inset:-6px; pointer-events:none; z-index:3; box-shadow:0 0 0 3px #1a2229, inset 0 0 0 6px #8aa0ad, inset 0 0 0 9px #1a2229, inset 0 0 40px 6px rgba(20,26,14,.45); }
+  body.lcd #stage::after { content:''; position:absolute; inset:0; pointer-events:none; z-index:2; background:repeating-linear-gradient(0deg, rgba(20,26,14,.10) 0 1px, transparent 1px 3px); }
+  body.lcd .hud { border-top:6px solid var(--red); }
+  body.lcd .overlay { background:rgba(26,34,41,.82); }
 </style>
 </head>
 <body>
@@ -1147,6 +1160,57 @@ window.PRISON_DAILY = {"start":"2026-10-13","days":[[{"map":["######","#Sbbb#","
 'use strict';
 const P = window.Prison, LEVELS = window.PRISON_LEVELS;
 const DX = [0, 1, 0, -1], DY = [-1, 0, 1, 0];
+
+/* ---------------------------------------------------------------------------------------------------------------------------------------------------------------
+   Optional look "lcd": an olive handheld screen with ink outlines and a steel frame (a style study, see docs/art-lcd-study.md). It is OFF in the shipped builds
+   (STYLE_DEFAULT stays 'classic'); open the game with ?style=lcd or build it with `node tools/build-single.js --style lcd` (-> play/blind-eye-lcd.html).
+   It does not touch the game: every colour the canvas is given goes through one mapper. The world (floor, walls, doors, beams) maps light<->dark inverted into a
+   six-tone olive ramp, so dim light floors carry dark ink walls; sprites keep their own light/dark and get crisp tones; red, gold and green keep their meaning as
+   pink, amber and teal. Alpha is kept. */
+const STYLE_DEFAULT = 'classic';
+const LCD = /[?&]style=lcd/.test(location.search) || STYLE_DEFAULT === 'lcd';
+let spriteInk = false;                                       // true while a sprite is being painted (it uses the sprite mapping, not the world mapping)
+if (LCD) {
+  const RAMP = [[22, 26, 14], [56, 64, 38], [98, 108, 60], [141, 150, 88], [182, 188, 122], [219, 222, 164]];
+  const PINK = [232, 84, 124], AMBER = [222, 170, 64], TEAL = [56, 170, 140];
+  const lerp = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
+  const cache = new Map();
+  const parse = c => {
+    let m;
+    if (c[0] === '#') { let h = c.slice(1); if (h.length === 3) h = h.replace(/./g, '$&$&'); if (h.length < 6) return null; return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16), h.length === 8 ? parseInt(h.slice(6, 8), 16) / 255 : 1]; }
+    if ((m = /^rgba?\(([^)]+)\)/.exec(c))) { const q = m[1].split(',').map(Number); return [q[0], q[1], q[2], q.length > 3 ? q[3] : 1]; }
+    return null;
+  };
+  const accent = (r, g, b) => {                               // strong colours keep their meaning
+    const mx = Math.max(r, g, b), mn = Math.min(r, g, b); if (mx < 150 || (mx - mn) / mx < .6) return null;
+    let h; if (mx === r) h = ((g - b) / (mx - mn) + 6) % 6; else if (mx === g) h = (b - r) / (mx - mn) + 2; else h = (r - g) / (mx - mn) + 4; h *= 60;
+    if (h < 25 || h > 335) return PINK; if (h < 70) return AMBER; if (h > 90 && h < 180) return TEAL; return null;
+  };
+  const world = (r, g, b) => {                                // light <-> dark inverted: pale floors, dark solid blocks
+    const a = accent(r, g, b); if (a) return a;
+    const L = (.299 * r + .587 * g + .114 * b) / 255; if (L < .1) return RAMP[0];
+    const v = Math.pow(1 - Math.min(1, (L - .1) / .85), 1.7), f = v * 4, i = Math.min(3, f | 0); return lerp(RAMP[i + 1], RAMP[i + 2], f - i);
+  };
+  const sprite = (r, g, b) => {                               // keeps light as light, crisp tones
+    const a = accent(r, g, b); if (a) return a;
+    const L = (.299 * r + .587 * g + .114 * b) / 255; if (L < .12) return RAMP[0];
+    return RAMP[Math.max(1, Math.min(5, Math.round(Math.min(1, (L - .12) / .85) * 4) + 1))];
+  };
+  const mapCol = c => {
+    if (c.length === 4 && c.startsWith('lcd')) { const o = RAMP[+c[3]]; return `rgb(${o[0]},${o[1]},${o[2]})`; }       // 'lcd0'..'lcd5': a tone of the ramp, as is
+    const key = (spriteInk ? 's' : 'w') + c, hit = cache.get(key); if (hit) return hit;
+    const q = parse(c); if (!q) return c;
+    const o = (spriteInk ? sprite : world)(q[0], q[1], q[2]), out = q[3] < 1 ? `rgba(${o[0] | 0},${o[1] | 0},${o[2] | 0},${q[3]})` : `rgb(${o[0] | 0},${o[1] | 0},${o[2] | 0})`;
+    cache.set(key, out); return out;
+  };
+  for (const prop of ['fillStyle', 'strokeStyle']) {
+    const d = Object.getOwnPropertyDescriptor(CanvasRenderingContext2D.prototype, prop);
+    Object.defineProperty(CanvasRenderingContext2D.prototype, prop, { configurable: true, get() { return d.get.call(this); }, set(v) { d.set.call(this, typeof v === 'string' ? mapCol(v) : v); } });
+  }
+  const stop = CanvasGradient.prototype.addColorStop;
+  CanvasGradient.prototype.addColorStop = function (o, c) { return stop.call(this, o, mapCol(c)); };
+  document.body.classList.add('lcd');
+}
 const $ = id => document.getElementById(id);
 const PORTAL = 'web' === 'crazygames';                                  // the CrazyGames build: no server, no accounts, no ads (see docs/crazygames-submission.md)
 /* The CrazyGames SDK object, only in the portal build and only when its init() succeeded (the loader at the end of the page starts this script after init).
@@ -2317,7 +2381,7 @@ $('accLogout').onclick = async () => { try { await api('/api/auth/logout', { met
 /* ------------------------------------------------- statistics and reports */
 /* Anonymous play statistics (random id kept in this browser, never linked to an account) help tune the levels: how many start, win, get caught,
    take hints, leave. Only on the game's own site (and localhost, flagged as test traffic). Players can switch them off in Settings. */
-const BUILD = "2026-10-14-3726916";
+const BUILD = "2026-10-16-6c80e45";
 const TEST_HOST = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
 const STATS_HOST = !PORTAL && (new RegExp('^(www\\.)?luckylion\\.games$').test(location.hostname) || TEST_HOST);
 const rid = n => Array.from(crypto.getRandomValues(new Uint8Array(n)), b => b.toString(16).padStart(2, '0')).join('');
@@ -2423,11 +2487,11 @@ document.addEventListener('click', e => { const b = e.target.closest && e.target
 /* Characters are painted from rectangles on a small canvas, outlined automatically and scaled up without smoothing.
    They stand in for the real sprite sheets (docs/art-spec.md). The left profile is the right profile mirrored. */
 const sprites = new Map();
-function pxr(c, col, x, y, w, h) { c.fillStyle = col; c.fillRect(x, y, w, h); }
+function pxr(c, col, x, y, w, h) { spriteInk = true; c.fillStyle = col; spriteInk = false; c.fillRect(x, y, w, h); }
 function outline(cnv, col) {
   const c = cnv.getContext('2d'), w = cnv.width, h = cnv.height, id = c.getImageData(0, 0, w, h), d = id.data, src = new Uint8Array(d.length / 4);
   for (let i = 0; i < src.length; i++) src[i] = d[i * 4 + 3] > 0 ? 1 : 0;
-  c.fillStyle = col;
+  spriteInk = true; c.fillStyle = col; spriteInk = false;
   for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) if (!src[y * w + x]) {
     if ((x > 0 && src[y * w + x - 1]) || (x < w - 1 && src[y * w + x + 1]) || (y > 0 && src[(y - 1) * w + x]) || (y < h - 1 && src[(y + 1) * w + x])) c.fillRect(x, y, 1, 1);
   }
@@ -2520,11 +2584,13 @@ const glowFor = (k, pulse) => sel === k ? { col: hintWho === k ? '#ffc54a' : '#f
 const hash = (x, y, s) => { let h = (x * 374761393 + y * 668265263 + s * 2147483647) | 0; h = (h ^ (h >>> 13)) * 1274126177 | 0; return ((h ^ (h >>> 16)) >>> 0) / 4294967296; };
 function drawFloor(x, y) {
   const px = FX(x), py = FY(y);
-  ctx.fillStyle = (x + y) % 2 ? '#3b4252' : '#363d4d'; ctx.fillRect(px, py, cs, cellH);
+  ctx.fillStyle = LCD ? 'lcd5' : (x + y) % 2 ? '#3b4252' : '#363d4d'; ctx.fillRect(px, py, cs, cellH);
   ctx.fillStyle = 'rgba(255,255,255,.04)'; ctx.fillRect(px, py, cs, 1); ctx.fillRect(px, py, 1, cellH);
   for (let i = 0; i < 3; i++) { const h = hash(x, y, i + 1); ctx.fillStyle = h > .5 ? 'rgba(255,255,255,.05)' : 'rgba(0,0,0,.12)'; ctx.fillRect(px + hash(x, y, i + 9) * (cs - 3), py + hash(x, y, i + 17) * (cellH - 3), 2, 2); }
 }
+const LCD_BLOCK = { '#b4604a': ['lcd3', 'lcd1'], '#a3adbd': ['lcd3', 'lcd1'], '#7f8a9d': ['lcd4', 'lcd2'], '#6fa8d6': ['lcd4', 'lcd3'] };     // look 'lcd': wall, door, mirror
 function block(x, y, topC, frontC, lineC, brick) {
+  if (LCD) { const t = LCD_BLOCK[topC]; if (t) { topC = t[0]; frontC = t[1]; } lineC = 'lcd0'; }
   const px = FX(x), py = FY(y) - wallH;
   ctx.fillStyle = frontC; ctx.fillRect(px, py + cellH, cs, wallH);
   ctx.strokeStyle = lineC; ctx.lineWidth = 1;
@@ -2540,6 +2606,16 @@ function block(x, y, topC, frontC, lineC, brick) {
   ctx.fillStyle = 'rgba(255,255,255,.18)'; ctx.fillRect(px, py, cs, 2);
   ctx.fillStyle = 'rgba(0,0,0,.18)'; ctx.fillRect(px, py + cellH - 1, cs, 1);
   ctx.fillStyle = 'rgba(0,0,0,.28)'; ctx.fillRect(px, py + cellH + wallH - 2, cs, 2);
+  if (LCD) {                                                                    // ink lines only where a block meets open floor, plus the edge between its top and its front
+    const open = (cx, cy) => cx >= 0 && cy >= 0 && cx < L.w && cy < L.h && !L.wall[cy * L.w + cx], lw = Math.max(2, cs * .035), h2 = cellH + wallH;
+    ctx.strokeStyle = '#16101f'; ctx.lineWidth = lw; ctx.lineCap = 'square'; ctx.beginPath();
+    ctx.moveTo(px, py + cellH); ctx.lineTo(px + cs, py + cellH);
+    if (open(x - 1, y)) { ctx.moveTo(px + lw / 2, py); ctx.lineTo(px + lw / 2, py + h2); }
+    if (open(x + 1, y)) { ctx.moveTo(px + cs - lw / 2, py); ctx.lineTo(px + cs - lw / 2, py + h2); }
+    if (open(x, y - 1)) { ctx.moveTo(px, py + lw / 2); ctx.lineTo(px + cs, py + lw / 2); }
+    if (open(x, y + 1)) { ctx.moveTo(px, py + h2 - lw / 2); ctx.lineTo(px + cs, py + h2 - lw / 2); }
+    ctx.stroke();
+  }
 }
 function drawGlass(x, y, pulse) {                       // a pane: pale blue, see-through, with glints
   const px = FX(x), py = FY(y) - wallH;

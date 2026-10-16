@@ -16,7 +16,9 @@ const T = target === 'crazygames'
   ? { TARGET: 'crazygames', SITE_PATH: 'the website', SITE_RE: 'portal\\\\.invalid', POM_EN: '', POM_FA: '', OWNER: owner, YEAR: year,
       PORTAL_META: `<script src="${SDK_URL}"></script>\n<meta name="author" content="${owner}">\n<meta name="copyright" content="© ${year} ${owner}">\n<meta name="description" content="Blind Eye: a pixel-art stealth puzzle. Turn cameras, move guards, close doors and flip mirrors so the prisoner can slip out unseen.">` }
   : { TARGET: 'web', SITE_PATH: 'luckylion.games/blind-eye', SITE_RE: 'luckylion\\\\.games', POM_EN: ' It is the same account as Pixels of the Mist.', POM_FA: ' همان حساب Pixels of the Mist است.', OWNER: '', YEAR: year, PORTAL_META: '' };
+const style = arg('style');                                                       // 'lcd': the olive-screen style study -> play/blind-eye-lcd.html (not shipped)
 let html = rd('play/index.html').replace("'__BUILD__'", () => JSON.stringify(build));
+if (style === 'lcd') html = html.replace("const STYLE_DEFAULT = 'classic';", "const STYLE_DEFAULT = 'lcd';");
 html = html.replace(/<!--@PORTAL_META@-->/, () => T.PORTAL_META).replace(/@(TARGET|SITE_PATH|SITE_RE|POM_EN|POM_FA|OWNER|YEAR)@/g, (m, k) => T[k]);
 html = html.replace('<script src="../src/prison.js"></script>', () => '<script>\n' + rd('src/prison.js') + '\n</script>')
            .replace('<script src="levels.js"></script>', () => '<script>\n' + rd('play/levels.js') + '\n</script>')
@@ -48,6 +50,9 @@ if (target === 'crazygames') {
   const out = path.resolve(root, arg('out') || 'dist-crazygames');
   fs.mkdirSync(out, { recursive: true }); fs.writeFileSync(path.join(out, 'index.html'), html);
   console.log('wrote', path.relative(root, path.join(out, 'index.html')), html.length, 'bytes (portal build ' + build + ', owner "' + owner + '")');
+} else if (style === 'lcd') {
+  fs.writeFileSync(path.join(root, 'play/blind-eye-lcd.html'), html);
+  console.log('wrote play/blind-eye-lcd.html', html.length, 'bytes (style study, not shipped)');
 } else {
   fs.writeFileSync(path.join(root, 'play/prisonbreak.html'), html);
   const title = html.match(/<title>[\s\S]*?<\/title>/)[0];

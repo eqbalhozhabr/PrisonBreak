@@ -9,7 +9,8 @@ from PIL import Image
 
 HERE = os.path.dirname(os.path.abspath(__file__)); ART = os.path.join(HERE, '..', 'art')
 K = 22 / 32
-CW, CH, OX, OY = 36, 36, 18, 24
+SCALE = {'camera': .6, 'searchlight': .62, 'panel': .6}                        # how many pixels one model unit is: the gadgets are small next to a 22-px guard
+CW, CH, OX, OY = 26, 26, 13, 18
 
 def hx(h): return tuple(int(h[i:i + 2], 16) for i in (1, 3, 5))
 BASE = dict(metal=hx('#e6eaf4'), shield=hx('#9aa3b8'), arm=hx('#7f889d'), joint=hx('#6b7388'), plate=hx('#69718a'), ring=hx('#4a5166'), bolt=hx('#aab2c6'),
@@ -79,26 +80,26 @@ def colour(ident, face, state):
     if ident in ('tag', 'ledfront'): return {'amber': hx('#ffb43a'), 'cyan': hx('#40d8f0'), 'magenta': hx('#e868e8')}[state]
     return sh(BASE[ident])
 
-def render(vox, state):
+def render(vox, state, sc):
     img = Image.new('RGBA', (CW, CH), (0, 0, 0, 0)); px = img.load()
-    zmax = max(p[2] for p in vox) + 2
+    zmax = (max(p[2] for p in vox) + 2) * sc
     for j in range(CH):
         for i in range(CW):
             sx, sy = i + .5 - OX + .0113, j + .5 - OY + .0071                      # (a hair off the pixel centre: no ray runs exactly along an edge)
             prev = None; ppos = None; z = zmax
             while z > -1:
                 b = (sy + z) / K; X, Y = (sx + b) / 2, (b - sx) / 2
-                cell = (math.floor(X), math.floor(Y), math.floor(z))
+                cell = (math.floor(X / sc), math.floor(Y / sc), math.floor(z / sc))
                 if cell in vox:
                     face = 'top'
                     if prev is not None:                                             # the face the ray came through: of the boundaries it crossed, the last one
-                        cur = (X, Y, z); best = -1
+                        cur = (X / sc, Y / sc, z / sc); best = -1
                         for a, name in ((2, 'top'), (1, 'left'), (0, 'right')):
                             if prev[a] != cell[a]:
                                 t = (ppos[a] - prev[a]) / ((ppos[a] - cur[a]) or 1e-9)
                                 if t > best: best, face = t, name
                     px[i, j] = colour(vox[cell], face, state) + (255,); break
-                prev = cell; ppos = (X, Y, z); z -= .05
+                prev = cell; ppos = (X / sc, Y / sc, z / sc); z -= .05
     return img
 
 MODELS = {
@@ -108,22 +109,22 @@ MODELS = {
 }
 
 def build(name):
-    fn, states, lens = MODELS[name]; out = os.path.join(ART, name); os.makedirs(out, exist_ok=True)
+    fn, states, lens = MODELS[name]; sc = SCALE[name]; out = os.path.join(ART, name); os.makedirs(out, exist_ok=True)
     dirs = [('SE', 0), ('SW', 1), ('NW', 2), ('NE', 3)]
     sheet = Image.new('RGBA', (len(states) * CW, len(dirs) * CH), (0, 0, 0, 0)); rows = []
     for r, (dn, k) in enumerate(dirs):
         vox = rotate(fn(), k)
-        for s, st in enumerate(states): sheet.paste(render(vox, st), (s * CW, r * CH))
+        for s, st in enumerate(states): sheet.paste(render(vox, st, sc), (s * CW, r * CH))
         row = dict(name=dn, row=r, frames=len(states))
         if lens:
             lx, ly = lens[0], lens[1]
             for _ in range(k): lx, ly = -ly, lx
-            row['lens'] = [round(OX + (lx - ly), 1), round(OY + (lx + ly) * K - lens[2], 1)]
+            row['lens'] = [round(OX + (lx - ly) * sc, 1), round(OY + (lx + ly) * K * sc - lens[2] * sc, 1)]
         rows.append(row)
     sheet.save(os.path.join(out, f'{name}.png'))
-    json.dump(dict(file=f'{name}.png', cell=[CW, CH], anchor=[OX, OY], states=states, rows=rows,
+    json.dump(dict(file=f'{name}.png', cell=[CW, CH], anchor=[OX, OY], states=states, rows=rows, scale=sc, plate_top=round((11 if name != 'camera' else 9) * sc),
                    note='anchor = the point on the wall plane (X=Y=0, Z=0) in the cell; put it at the wall top minus 8 px and a little toward the room; lens = pixel of the lens centre in the cell'), open(os.path.join(out, f'{name}.json'), 'w'), indent=1)
-    prev = Image.new('RGBA', (len(states) * CW + 4, len(dirs) * CH + 4), (53, 39, 74, 255)); prev.alpha_composite(sheet, (2, 2)); prev.resize((prev.width * 8, prev.height * 8), Image.NEAREST).save(os.path.join(out, f'{name}-preview.png'))
+    prev = Image.new('RGBA', (len(states) * CW + 4, len(dirs) * CH + 4), (53, 39, 74, 255)); prev.alpha_composite(sheet, (2, 2)); prev.resize((prev.width * 10, prev.height * 10), Image.NEAREST).save(os.path.join(out, f'{name}-preview.png'))
 
 if __name__ == '__main__':
     for n in MODELS: build(n)

@@ -472,10 +472,10 @@ function frame(t) {
       let lx, ly;
       if (isIso()) {                                                                         // the camera sprite (art/camera): the wall plate on the wall, the lens looking along d
         const man = SP.camera.man, row = man.rows.find(r => r.name === diagOf(DX[d], DY[d])), [cw, ch] = man.cell, [ax, ay] = man.anchor, ix = m.horiz ? 0 : (m.far ? 1 : -1), iy = m.horiz ? (m.far ? 1 : -1) : 0;
-        const [ox2, oy2] = projR(m.mx + ix * .1, m.my + iy * .1, Math.max(m.h - 8, 0)), x0 = Math.round(ox2) - ax, y0 = Math.round(oy2) - ay, fr = on ? (Math.floor(now / 520) % 2) : 2;
+        const [ox2, oy2] = projR(m.mx + ix * .1, m.my + iy * .1, Math.max(m.h - man.plate_top + 1, 0)), x0 = Math.round(ox2) - ax, y0 = Math.round(oy2) - ay, fr = on ? (Math.floor(now / 520) % 2) : 2;
         lx = x0 + row.lens[0]; ly = y0 + row.lens[1];
         if (it.k === 'cam') { ctx.drawImage(sheets.camera, fr * cw, row.row * ch, cw, ch, x0, y0, cw, ch);
-          if (on) { const gg = ctx.createRadialGradient(lx, ly, 0, lx, ly, 6); gg.addColorStop(0, `rgba(255,70,52,${.5 + .25 * pulse})`); gg.addColorStop(1, 'rgba(255,40,30,0)'); ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = gg; ctx.fillRect(lx - 6, ly - 6, 12, 12); ctx.restore(); } }
+          if (on) { const gg = ctx.createRadialGradient(lx, ly, 0, lx, ly, 4); gg.addColorStop(0, `rgba(255,70,52,${.5 + .25 * pulse})`); gg.addColorStop(1, 'rgba(255,40,30,0)'); ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = gg; ctx.fillRect(lx - 4, ly - 4, 8, 8); ctx.restore(); } }
       } else {
         const sd = screenDir(DX[d], DY[d]), view = sd.view, img = camSprite(view), top = projR(m.mx, m.my, m.h), cx = Math.round(top[0]), cy = Math.round(top[1]) + (m.horiz ? 1 : 3); lx = cx + (view === 'S' ? 0 : (sd.flip ? -3 : 3)); ly = cy - 6;
         if (it.k === 'cam') { ctx.save(); ctx.globalAlpha = .35; ctx.fillStyle = '#05030c'; ctx.beginPath(); ctx.ellipse(cx + 1, cy, 5, 1.5, 0, 0, 7); ctx.fill(); ctx.restore();
@@ -495,15 +495,15 @@ function frame(t) {
       const sp = glassSprite(it.cx, it.cy); ctx.drawImage(sp.c, sp.x, sp.y);
     } else if (it.k === 'light' || it.k === 'lshaft') {
       const m = it.m, lt = L.lights[it.j], d = dgNow[lightIdx(it.j)], man = SP.light.man, row = man.rows.find(r => r.name === diagOf(DX[d], DY[d])), [cw, ch] = man.cell, [ax, ay] = man.anchor, ix = m.horiz ? 0 : (m.far ? 1 : -1), iy = m.horiz ? (m.far ? 1 : -1) : 0;
-      const [ox2, oy2] = projR(m.mx + ix * .1, m.my + iy * .1, Math.max(m.h - 8, 0)), x0 = Math.round(ox2) - ax, y0 = Math.round(oy2) - ay, lx = x0 + row.lens[0], ly = y0 + row.lens[1], ray = e.rays.find(q => q.first && q.src === lt.c && q.cells.length);
+      const [ox2, oy2] = projR(m.mx + ix * .1, m.my + iy * .1, Math.max(m.h - man.plate_top + 1, 0)), x0 = Math.round(ox2) - ax, y0 = Math.round(oy2) - ay, lx = x0 + row.lens[0], ly = y0 + row.lens[1], ray = e.rays.find(q => q.first && q.src === lt.c && q.cells.length);
       if (it.k === 'light') { ctx.drawImage(sheets.light, (Math.floor(now / 380) % 2) * cw, row.row * ch, cw, ch, x0, y0, cw, ch);
-        const gg = ctx.createRadialGradient(lx, ly, 0, lx, ly, 9); gg.addColorStop(0, `rgba(255,240,170,${.6 + .2 * pulse})`); gg.addColorStop(1, 'rgba(255,220,120,0)'); ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = gg; ctx.fillRect(lx - 9, ly - 9, 18, 18); ctx.restore(); }
+        const gg = ctx.createRadialGradient(lx, ly, 0, lx, ly, 6); gg.addColorStop(0, `rgba(255,240,170,${.55 + .2 * pulse})`); gg.addColorStop(1, 'rgba(255,220,120,0)'); ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = gg; ctx.fillRect(lx - 6, ly - 6, 12, 12); ctx.restore(); }
       else if (ray) { const sh = rayShape(ray), far = [(sh.poly[1][0] + sh.poly[2][0]) / 2, (sh.poly[1][1] + sh.poly[2][1]) / 2], g = ctx.createLinearGradient(lx, ly, far[0], far[1]);
         g.addColorStop(0, `rgba(255,236,170,${.55 + .1 * pulse})`); g.addColorStop(1, 'rgba(255,200,120,.1)');
         ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = g; ctx.beginPath(); ctx.moveTo(lx, ly); ctx.lineTo(sh.poly[1][0], sh.poly[1][1]); ctx.lineTo(sh.poly[2][0], sh.poly[2][1]); ctx.closePath(); ctx.fill(); ctx.restore(); }
     } else if (it.k === 'panel') {
       const { e: pe, d: pd } = it.pm, man = SP.panel.man, row = man.rows.find(r => r.name === diagOf(DX[pd], DY[pd])), [cw, ch] = man.cell, [ax, ay] = man.anchor, ix = pe.horiz ? 0 : (pe.far ? 1 : -1), iy = pe.horiz ? (pe.far ? 1 : -1) : 0;
-      const [ox2, oy2] = projR(pe.mx + ix * .1, pe.my + iy * .1, Math.max(pe.h - 9, 0)); ctx.drawImage(sheets.panel, (it.j % 3) * cw, row.row * ch, cw, ch, Math.round(ox2) - ax, Math.round(oy2) - ay, cw, ch);
+      const [ox2, oy2] = projR(pe.mx + ix * .1, pe.my + iy * .1, Math.max(pe.h - man.plate_top + 1, 0)); ctx.drawImage(sheets.panel, (it.j % 3) * cw, row.row * ch, cw, ch, Math.round(ox2) - ax, Math.round(oy2) - ay, cw, ch);
     } else if (it.k === 'dog') {
       const key = dogKey(), v = dface[it.j], anim = dmove[it.j] ? 'walk' : 'idle', k = dmove[it.j] ? Math.floor(ddist[it.j] * 6) % 4 : idleK(key, v), [ax, ay] = SP[key].man.anchor;
       place(charFrame(key, anim, v, k, 0), it.p[0] + .5, it.p[1] + .5, false, ax, ay, it.key);

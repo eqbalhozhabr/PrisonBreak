@@ -1,12 +1,12 @@
 {
  "file": "camera.png",
  "cell": [
-  36,
-  36
+  26,
+  26
  ],
  "anchor": [
-  18,
-  24
+  13,
+  18
  ],
  "states": [
   "on",
@@ -19,8 +19,8 @@
    "row": 0,
    "frames": 3,
    "lens": [
-    32.0,
-    28.3
+    21.4,
+    20.6
    ]
   },
   {
@@ -28,8 +28,8 @@
    "row": 1,
    "frames": 3,
    "lens": [
-    3.0,
-    27.6
+    4.0,
+    20.2
    ]
   },
   {
@@ -37,8 +37,8 @@
    "row": 2,
    "frames": 3,
    "lens": [
-    4.0,
-    7.7
+    4.6,
+    8.2
    ]
   },
   {
@@ -46,10 +46,12 @@
    "row": 3,
    "frames": 3,
    "lens": [
-    33.0,
-    8.4
+    22.0,
+    8.6
    ]
   }
  ],
+ "scale": 0.6,
+ "plate_top": 5,
  "note": "anchor = the point on the wall plane (X=Y=0, Z=0) in the cell; put it at the wall top minus 8 px and a little toward the room; lens = pixel of the lens centre in the cell"
 }

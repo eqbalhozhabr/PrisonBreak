@@ -1,0 +1,63 @@
+{
+ "file": "guard.png",
+ "cell": [
+  24,
+  36
+ ],
+ "anchor": [
+  12,
+  33
+ ],
+ "mirror_left_from": "E",
+ "note": "ground point (the feet) at the anchor; W is the mirror of E",
+ "rows": [
+  {
+   "name": "idle_S",
+   "view": "S",
+   "row": 0,
+   "frames": 4,
+   "ms": 560,
+   "loop": true
+  },
+  {
+   "name": "walk_S",
+   "view": "S",
+   "row": 1,
+   "frames": 6,
+   "ms": 110,
+   "loop": true
+  },
+  {
+   "name": "idle_N",
+   "view": "N",
+   "row": 2,
+   "frames": 4,
+   "ms": 560,
+   "loop": true
+  },
+  {
+   "name": "walk_N",
+   "view": "N",
+   "row": 3,
+   "frames": 6,
+   "ms": 110,
+   "loop": true
+  },
+  {
+   "name": "idle_E",
+   "view": "E",
+   "row": 4,
+   "frames": 4,
+   "ms": 560,
+   "loop": true
+  },
+  {
+   "name": "walk_E",
+   "view": "E",
+   "row": 5,
+   "frames": 6,
+   "ms": 110,
+   "loop": true
+  }
+ ]
+}

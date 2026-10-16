@@ -1,0 +1,408 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Blind Eye — noir lab (style study, not shipped)</title>
+<style>
+  html,body { margin:0; height:100%; background:#050706; color:#9aa59f; font:13px system-ui,sans-serif; overflow:hidden; }
+  #bar { position:fixed; top:0; left:0; right:0; z-index:2; display:flex; flex-wrap:wrap; gap:6px 14px; align-items:center; padding:8px 12px; background:rgba(5,7,6,.85); border-bottom:1px solid #1b221f; }
+  #bar .grp { display:flex; gap:4px; align-items:center; }
+  #bar b { color:#69756f; font-weight:600; margin-right:4px; }
+  button { background:#141a17; color:#b6c2bb; border:1px solid #2a3530; padding:5px 10px; font:inherit; cursor:pointer; border-radius:3px; }
+  button.on { background:#3a2a22; border-color:#a5502f; color:#ffd9c9; }
+  button:hover { background:#1c2521; }
+  #wrap { position:absolute; inset:46px 0 0 0; display:flex; align-items:center; justify-content:center; }
+  canvas { image-rendering:pixelated; image-rendering:crisp-edges; }
+  #note { position:fixed; bottom:8px; left:12px; right:12px; color:#56635d; font-size:12px; }
+</style></head><body>
+<div id="bar">
+  <span class="grp"><b>Level</b><button data-lv="8">8</button><button data-lv="9">9</button><button data-lv="10">10</button></span>
+  <span class="grp"><b>View</b><button data-view="obl">Oblique 3/4</button><button data-view="iso">True isometric</button></span>
+  <span class="grp" id="rotg"><b>Rotate</b><button id="rl">⟲</button><button id="rr">⟳</button></span>
+  <span class="grp"><b>Readability tricks</b><button id="hlp">on</button></span>
+  <span class="grp"><b>Dither</b><button id="dth">on</button></span>
+  <span class="grp"><button id="play">▶ Play solution</button><button id="step">Step ▸</button><button id="reset">Reset</button></span>
+</div>
+<div id="wrap"><canvas id="cv"></canvas></div>
+<div id="note"></div>
+<script>/*PRISON*/</script>
+<script>/*LEVELS*/</script>
+<script>
+'use strict';
+const P = window.Prison, LV = window.PRISON_LEVELS, $ = id => document.getElementById(id);
+const DX = [0, 1, 0, -1], DY = [-1, 0, 1, 0];
+const Q = new URLSearchParams(location.search);
+const st = { level: +(Q.get('level') || 8), view: Q.get('view') || 'obl', rot: +(Q.get('rot') || 0), helpers: Q.get('helpers') !== '0', dither: Q.get('dither') !== '0' };
+const cv = $('cv'), ctx = cv.getContext('2d', { willReadFrequently: true });
+const mk = (w, h) => { const c = document.createElement('canvas'); c.width = w; c.height = h; const x = c.getContext('2d'); x.imageSmoothingEnabled = false; return [c, x]; };
+const hash = (x, y, s) => { let h = (x * 374761393 + y * 668265263 + s * 2147483647) | 0; h = (h ^ (h >>> 13)) * 1274126177 | 0; return ((h ^ (h >>> 16)) >>> 0) / 4294967296; };
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const rgb = (r, g, b, a = 1) => `rgba(${r | 0},${g | 0},${b | 0},${a})`;
+
+/* ------------------------------------------------------------------------------------------------------------------ geometry */
+const G = {                                                        // projection constants per view (logical pixels)
+  obl: { T: 32, TY: 25, hFull: 11, hLow: 11 },
+  iso: { TW: 40, TH: 20, hFull: 15, hLow: 6 },
+};
+let L, cfgs, W, H, gw, gh, ox = 0, oy = 0, LW = 0, LH = 0, dgNow, gdraw, thief, thiefDir, plan, tasks, taskI, floorC, tex, flash = 0;
+const rotXY = (X, Y) => (st.rot === 0 || st.view === 'obl') ? [X, Y] : st.rot === 1 ? [H - Y, X] : st.rot === 2 ? [W - X, H - Y] : [Y, W - X];
+function proj(X, Y, z = 0) {
+  const [rx, ry] = rotXY(X, Y);
+  if (st.view === 'obl') { const g = G.obl; return [ox + rx * g.T, oy + ry * g.TY - z]; }
+  const g = G.iso; return [ox + (rx - ry) * g.TW / 2, oy + (rx + ry) * g.TH / 2 - z];
+}
+const wallH = (cx, cy) => {                                          // cutaway: the two edges nearest the viewer are low (isometric helper)
+  if (st.view !== 'iso' || !st.helpers) return G[st.view].hFull;
+  const [rx, ry] = rotXY(cx + .5, cy + .5);
+  return (rx > gw - 1 || ry > gh - 1) ? G.iso.hLow : G.iso.hFull;
+};
+function layout() {
+  W = L.w; H = L.h; gw = st.rot % 2 ? H : W; gh = st.rot % 2 ? W : H;
+  ox = oy = 0;
+  const xs = [], ys = [], hmax = G[st.view].hFull + 8;
+  for (const [X, Y] of [[0, 0], [W, 0], [0, H], [W, H]]) for (const z of [0, hmax]) { const [x, y] = proj(X, Y, z); xs.push(x); ys.push(y); }
+  const M = 16, minx = Math.min(...xs), maxx = Math.max(...xs), miny = Math.min(...ys) - 16, maxy = Math.max(...ys);
+  ox = M - minx; oy = M - miny; LW = Math.ceil(maxx - minx + 2 * M); LH = Math.ceil(maxy - miny + 2 * M);
+  cv.width = LW; cv.height = LH; ctx.imageSmoothingEnabled = false;
+  const pix = Math.max(1, Math.floor(Math.min((innerWidth - 16) / LW, (innerHeight - 70) / LH)));
+  cv.style.width = LW * pix + 'px'; cv.style.height = LH * pix + 'px';
+}
+
+/* ------------------------------------------------------------------------------------------------------------------ procedural textures (made once) */
+function makeTextures() {
+  tex = { floor: [], brick: [], top: [] };
+  for (let v = 0; v < 4; v++) {                                      // concrete floor, 24x24: noise, cracks, grime
+    const [c, x] = mk(24, 24); x.fillStyle = '#46544c'; x.fillRect(0, 0, 24, 24);
+    for (let i = 0; i < 90; i++) { const h = hash(i, v, 3); x.fillStyle = h > .5 ? rgb(96, 112, 100, .5) : rgb(22, 30, 26, .55); x.fillRect(hash(i, v, 5) * 24 | 0, hash(i, v, 7) * 24 | 0, 1 + (hash(i, v, 9) > .8), 1); }
+    x.fillStyle = rgb(10, 14, 12, .8); let cx0 = hash(v, 1, 1) * 20 | 0, cy0 = hash(v, 2, 1) * 20 | 0;
+    for (let i = 0; i < 9 + v * 3; i++) { x.fillRect(cx0, cy0, 1, 1); cx0 = clamp(cx0 + (hash(i, v, 11) > .5 ? 1 : 0), 0, 23); cy0 = clamp(cy0 + (hash(i, v, 13) > .45 ? 1 : (hash(i, v, 17) > .6 ? -1 : 0)), 0, 23); }
+    x.fillStyle = rgb(8, 12, 10, .5); x.fillRect(0, 0, 24, 1); x.fillRect(0, 0, 1, 24);                       // tile seams
+    tex.floor.push(c);
+  }
+  for (let v = 0; v < 3; v++) {                                      // brick face, 32x16, with mortar, moss and grime
+    const [c, x] = mk(32, 16); x.fillStyle = '#1c1612'; x.fillRect(0, 0, 32, 16);
+    for (let r = 0; r < 5; r++) for (let k = -1; k < 5; k++) {
+      const bx = k * 8 + (r % 2 ? 4 : 0), by = r * 3.2 | 0, h = hash(k + 9, r + v * 7, 4);
+      x.fillStyle = h < .3 ? '#7a5d44' : h < .65 ? '#6a523c' : h < .9 ? '#86664a' : '#566a48'; x.fillRect(bx + 1, by, 7, 3);
+      x.fillStyle = rgb(190, 160, 120, .22); x.fillRect(bx + 1, by, 7, 1);
+    }
+    for (let i = 0; i < 40; i++) { const yy = 6 + hash(i, v, 21) * 10 | 0; x.fillStyle = rgb(46, 66, 38, .35 + .4 * (yy / 16)); x.fillRect(hash(i, v, 23) * 32 | 0, yy, 1 + (hash(i, v, 25) > .6), 1); }
+    for (let i = 0; i < 10; i++) { x.fillStyle = rgb(8, 8, 6, .5); x.fillRect(hash(i, v, 27) * 32 | 0, 0, 1, 4 + hash(i, v, 29) * 8 | 0); }   // drip stains
+    tex.brick.push(c);
+  }
+  { const [c, x] = mk(24, 24); x.fillStyle = '#4a4640'; x.fillRect(0, 0, 24, 24);                              // wall top: dark stone
+    for (let i = 0; i < 70; i++) { x.fillStyle = hash(i, 1, 5) > .5 ? rgb(110, 104, 94, .5) : rgb(14, 14, 14, .5); x.fillRect(hash(i, 2, 5) * 24 | 0, hash(i, 3, 5) * 24 | 0, 1, 1); }
+    tex.top.push(c); }
+  topDim = shade(tex.top[0], .52, [.95, .98, 1]); topObl = shade(tex.top[0], .95, [1, .98, .94]);
+}
+const shade = (src, f, tint) => { const [c, x] = mk(src.width, src.height); x.drawImage(src, 0, 0); x.globalCompositeOperation = 'multiply'; x.fillStyle = rgb(255 * f * tint[0], 255 * f * tint[1], 255 * f * tint[2]); x.fillRect(0, 0, c.width, c.height); return c; };
+/* draw a texture so that its (0,0),(w,0),(0,h) corners land on the points a, b, c of a parallelogram */
+function para(img, a, b, c) {
+  ctx.save(); ctx.transform((b[0] - a[0]) / img.width, (b[1] - a[1]) / img.width, (c[0] - a[0]) / img.height, (c[1] - a[1]) / img.height, a[0], a[1]);
+  ctx.drawImage(img, 0, 0); ctx.restore();
+}
+
+/* ------------------------------------------------------------------------------------------------------------------ actors (small pixel sprites, drawn once) */
+const spr = new Map();
+function pr(x, col, X, Y, w, h) { x.fillStyle = col; x.fillRect(X, Y, w, h); }
+function outlineOf(c, col) {
+  const x = c.getContext('2d'), w = c.width, h = c.height, d = x.getImageData(0, 0, w, h).data, on = (X, Y) => X >= 0 && Y >= 0 && X < w && Y < h && d[(Y * w + X) * 4 + 3] > 0;
+  x.fillStyle = col; for (let Y = 0; Y < h; Y++) for (let X = 0; X < w; X++) if (!on(X, Y) && (on(X - 1, Y) || on(X + 1, Y) || on(X, Y - 1) || on(X, Y + 1))) x.fillRect(X, Y, 1, 1);
+}
+function person(kind, dir, frame) {                                  // dir: 0 away from us, 1 side (right), 2 toward us. Drawn dim: noir
+  const key = kind + dir + frame; if (spr.has(key)) return spr.get(key);
+  const [c, x] = mk(16, 24), th = kind === 'thief', side = dir === 1, back = dir === 0, bob = frame === 1 ? 1 : 0;
+  const body = th ? '#1d201f' : '#1b2740', stripe = th ? '#9a6a2c' : '#243556', pants = th ? '#161918' : '#121a2c', skin = '#a58f76', hair = '#0f1112', cap = '#0e1526';
+  x.translate(1, 1);
+  const l = frame === 2 ? 1 : 0, r = frame === 1 ? 1 : 0;
+  if (side) { pr(x, pants, 5, 16, 3, 5 - l); pr(x, pants, 8, 16, 3, 5 - r); } else { pr(x, pants, 4, 16, 3, 5 - l); pr(x, pants, 8, 16, 3, 5 - r); }
+  pr(x, body, side ? 4 : 3, 9 + bob, side ? 8 : 10, 7);
+  if (th) for (let k = 0; k < 3; k++) pr(x, stripe, side ? 4 : 3, 10 + bob + k * 2, side ? 8 : 10, 1);
+  else { pr(x, '#0a1020', side ? 4 : 3, 14 + bob, side ? 8 : 10, 1); if (!back && !side) pr(x, '#b89a4a', 8, 11 + bob, 1, 1); }
+  if (!side) { pr(x, body, 1, 10 + bob, 2, 5); pr(x, body, 13, 10 + bob, 2, 5); pr(x, skin, 1, 15 + bob, 2, 1); pr(x, skin, 13, 15 + bob, 2, 1); }
+  else pr(x, body, 7, 11 + bob, 3, 4);
+  const hx = 4, hy = 1 + bob;
+  pr(x, back ? hair : skin, hx, hy + 1, 8, 8);
+  if (!back && !side) { pr(x, '#0a0b0c', 6, hy + 4, 1, 2); pr(x, '#0a0b0c', 9, hy + 4, 1, 2); }
+  if (side) { pr(x, '#0a0b0c', 10, hy + 4, 1, 2); pr(x, skin, 12, hy + 5, 1, 1); }
+  if (th) { pr(x, hair, hx - 1, hy, 10, 3); if (side) pr(x, hair, 4, hy, 8, 4); }
+  else { pr(x, cap, hx - 1, hy, 10, 3); pr(x, '#070b14', hx - 1, hy + 3, 10, 1); if (side) pr(x, '#070b14', 12, hy + 3, 3, 1); }
+  outlineOf(c, '#040505'); spr.set(key, c); return c;
+}
+const tinted = (c, col) => { const [t, x] = mk(c.width, c.height); x.drawImage(c, 0, 0); x.globalCompositeOperation = 'source-atop'; x.fillStyle = col; x.fillRect(0, 0, t.width, t.height); return t; };
+const darkOf = c => { const k = c._dark; if (k) return k; const [t, x] = mk(c.width, c.height); x.drawImage(c, 0, 0); x.globalCompositeOperation = 'source-atop'; x.fillStyle = 'rgba(6,10,14,.28)'; x.fillRect(0, 0, t.width, t.height); return (c._dark = t); };
+const litOf = c => c._lit || (c._lit = (() => { const [t, x] = mk(c.width, c.height); x.drawImage(c, 0, 0); x.globalCompositeOperation = 'source-atop'; x.fillStyle = 'rgba(255,70,55,.42)'; x.fillRect(0, 0, t.width, t.height); return t; })());
+const ghostOf = c => c._ghost || (c._ghost = (() => { const [t, x] = mk(c.width + 2, c.height + 2); x.drawImage(tinted(c, 'rgba(200,215,205,.38)'), 1, 1); const o = mk(c.width + 2, c.height + 2); o[1].drawImage(c, 1, 1); outlineOf(o[0], 'rgb(170,196,186)'); o[1].globalCompositeOperation = 'destination-out'; o[1].drawImage(c, 1, 1); x.drawImage(o[0], 0, 0); return t; })());
+function camSprite(d) {                                              // d 0 away, 1 right, 2 toward us, 3 left (mirrored right)
+  const key = 'cam' + d; if (spr.has(key)) return spr.get(key);
+  const [c, x] = mk(16, 14); x.translate(1, 1);
+  pr(x, '#171a1c', 2, 7, 9, 2);
+  if (d === 2) { pr(x, '#1d2123', 1, 1, 10, 7); pr(x, '#0a0c0d', 4, 2, 4, 5); pr(x, '#c0302c', 5, 4, 2, 2); }
+  else if (d === 0) { pr(x, '#1b1f21', 1, 1, 10, 7); pr(x, '#2e3436', 2, 1, 8, 1); }
+  else { pr(x, '#1d2123', 1, 1, 9, 7); pr(x, '#0a0c0d', 9, 2, 2, 5); pr(x, '#c0302c', 10, 4, 1, 2); }
+  outlineOf(c, '#040505'); spr.set(key, c); return c;
+}
+
+/* ------------------------------------------------------------------------------------------------------------------ level, plan (the solver's route), animation */
+function evalAt(cfg) { return P.evalConfig(L, cfg, true); }
+function guardCell(j, cfg) { return L.guards[j].rail[cfg[L.cams.length + j] >> 1]; }
+function bfs(from, okCell, goal) {                                   // shortest walk over cells where okCell is true
+  const prev = new Map([[from, -1]]), q = [from];
+  while (q.length) {
+    const c = q.shift(); if (goal(c)) { const path = []; for (let k = c; k !== -1; k = prev.get(k)) path.push(k); return path.reverse(); }
+    const x = c % W, y = (c / W) | 0;
+    for (let d = 0; d < 4; d++) { const nx = x + DX[d], ny = y + DY[d]; if (nx < 0 || ny < 0 || nx >= W || ny >= H) continue; const n = ny * W + nx; if (!prev.has(n) && okCell(n)) { prev.set(n, c); q.push(n); } }
+  }
+  return null;
+}
+function loadLevel(id) {
+  const l = LV.find(z => z.id === id); L = P.parseLevel(l.map, l.meta); P.prepare(L);
+  const sol = P.solve(L, { maxDepth: 40 }); cfgs = [P.initialDigits(L), ...sol.configs];
+  W = L.w; H = L.h;
+  const n = cfgs.length - 1, walkable = cfgs.map(cfg => { const e = evalAt(cfg); return new Uint8Array(W * H).map((_, c) => (!L.wall[c] && !e.occ[c] && !e.lit[c]) ? 1 : 0); });
+  const flood = (k, sources) => {                                    // every cell the prisoner can walk to in configuration k from the sources
+    const seen = new Uint8Array(W * H), q = [];
+    for (const c of sources) if (walkable[k][c] && !seen[c]) { seen[c] = 1; q.push(c); }
+    while (q.length) { const c = q.pop(), x = c % W, y = (c / W) | 0; for (let d = 0; d < 4; d++) { const nx = x + DX[d], ny = y + DY[d]; if (nx < 0 || ny < 0 || nx >= W || ny >= H) continue; const m = ny * W + nx; if (walkable[k][m] && !seen[m]) { seen[m] = 1; q.push(m); } } }
+    return seen;
+  };
+  const cells = arr => { const o = []; arr.forEach((v, c) => { if (v) o.push(c); }); return o; };
+  // backward: ok[a] = where he may stand while action a happens (dark before and after, and able to go on from there)
+  const ok = new Array(n + 2), good = new Array(n + 1); ok[n + 1] = [L.E];
+  for (let a = n; a >= 0; a--) { good[a] = flood(a, ok[a + 1]); if (a > 0) ok[a] = cells(good[a]).filter(c => walkable[a - 1][c]); }
+  const feasible = good[0][L.S];
+  tasks = []; let pos = L.S; plan = { thiefAt: [pos], feasible: !!feasible };
+  const walkTo = (k, goalSet) => bfs(pos, c => walkable[k][c], c => goalSet.has(c));
+  for (let a = 1; a <= n; a++) {
+    const path = (feasible && walkTo(a - 1, new Set(ok[a]))) || [pos];
+    if (path.length > 1) tasks.push({ kind: 'walk', path }); pos = path[path.length - 1];
+    tasks.push({ kind: 'act', k: a }); plan.thiefAt.push(pos);
+  }
+  const fin = (feasible && walkTo(n, new Set([L.E]))) || [pos]; if (fin.length > 1) tasks.push({ kind: 'walk', path: fin }); tasks.push({ kind: 'win' });
+  plan.exit = fin;
+  jump(0);
+}
+function jump(k) {                                                    // show state k at once (no animation)
+  dgNow = cfgs[k].slice(); gdraw = L.guards.map((g, j) => { const c = guardCell(j, dgNow); return [c % W, (c / W) | 0]; });
+  const c = plan.thiefAt[k]; thief = [c % W, (c / W) | 0]; thiefDir = 2; taskI = 0; run = null; flash = 0; K = k; won = false;
+}
+let run = null, K = 0, won = false, auto = false, now = 0, last = 0;
+function startNext() {
+  while (taskI < tasks.length) { const t = tasks[taskI++]; if (t.kind === 'win') { won = true; return; } run = Object.assign({ t0: now }, t); return; }
+}
+function advance(dt) {
+  for (let j = 0; j < L.guards.length; j++) { const c = guardCell(j, dgNow), tx = c % W, ty = (c / W) | 0, g = gdraw[j], k = 1 - Math.pow(.001, dt / 450); g[0] += (tx - g[0]) * k; g[1] += (ty - g[1]) * k; }
+  if (flash > 0) flash = Math.max(0, flash - dt / 260);
+  if (!run) { if (auto && !won) startNext(); return; }
+  if (run.kind === 'walk') {
+    const per = 190, p = (now - run.t0) / per, i = Math.min(run.path.length - 1, Math.floor(p)), f = Math.min(1, p - i);
+    const a = run.path[i], b = run.path[Math.min(run.path.length - 1, i + 1)], ax = a % W, ay = (a / W) | 0, bx = b % W, by = (b / W) | 0;
+    thief = [ax + (bx - ax) * f, ay + (by - ay) * f];
+    if (bx !== ax || by !== ay) thiefDir = bx !== ax ? 1 : (by > ay ? 2 : 0), thiefFlip = bx < ax;
+    if (p >= run.path.length - 1) { thief = [bx, by]; run = null; }
+  } else if (run.kind === 'act') {
+    if (!run.done) { dgNow = cfgs[run.k].slice(); flash = 1; K = run.k; run.done = true; run.t0 = now; }
+    if (now - run.t0 > 650) run = null;
+  }
+}
+let thiefFlip = false;
+
+/* ------------------------------------------------------------------------------------------------------------------ drawing */
+function cellPoly(cx, cy, z = 0) {                                    // the four corners of a cell as screen points (z = height)
+  return [proj(cx, cy, z), proj(cx + 1, cy, z), proj(cx + 1, cy + 1, z), proj(cx, cy + 1, z)];
+}
+function buildFloor() {
+  const [c, x] = mk(LW, LH); const saved = ctx; floorC = c;
+  const iso = st.view === 'iso';
+  for (let y = 0; y < H; y++) for (let X = 0; X < W; X++) if (!L.wall[y * W + X]) {
+    const t = tex.floor[(hash(X, y, 2) * 4) | 0], p = cellPoly(X, y);
+    // map the 24x24 texture onto the cell: rotated grid axes become (b - a) and (d - a)
+    const a = p[0], b = p[1], d = p[3];
+    x.save(); x.transform((b[0] - a[0]) / 24, (b[1] - a[1]) / 24, (d[0] - a[0]) / 24, (d[1] - a[1]) / 24, a[0], a[1]);
+    x.beginPath(); x.rect(0, 0, 24, 24); x.clip(); x.drawImage(t, 0, 0); x.restore();
+    if (st.helpers) { x.strokeStyle = 'rgba(130,160,148,.10)'; x.lineWidth = 1; x.beginPath(); p.forEach((q, i) => i ? x.lineTo(q[0], q[1]) : x.moveTo(q[0], q[1])); x.closePath(); x.stroke(); }
+  }
+  void saved; void iso;
+}
+function wallFaces(cx, cy) {                                          // returns [{img,a,b,c}...] to draw in order
+  const h = wallH(cx, cy), p = cellPoly(cx, cy), top = cellPoly(cx, cy, h), v = (hash(cx, cy, 6) * 3) | 0;
+  if (st.view === 'obl') {
+    // oblique: the rotation only reorders cells; the screen y of the top-left is the smallest
+    const xs = p.map(q => q[0]), ys = p.map(q => q[1]), x0 = Math.min(...xs), x1 = Math.max(...xs), y1 = Math.max(...ys);
+    return [{ img: shade(tex.brick[v], .66, [.95, .98, 1]), a: [x0, y1 - h], b: [x1, y1 - h], c: [x0, y1] }, { img: topObl, a: [x0, y1 - h - (y1 - Math.min(...ys))], b: [x1, y1 - h - (y1 - Math.min(...ys))], c: [x0, y1 - h] }];
+  }
+  // isometric: two visible side faces (the ones under the bottom-left and bottom-right edges of the diamond) and the top; found from the projected corners so rotation works
+  const ys = p.map(q => q[1]), xs = p.map(q => q[0]), Bt = p[ys.indexOf(Math.max(...ys))], Lf = p[xs.indexOf(Math.min(...xs))], Rt = p[xs.indexOf(Math.max(...xs))];
+  const left = { img: shade(tex.brick[v], .40, [.9, .96, 1]), a: [Lf[0], Lf[1] - h], b: [Bt[0], Bt[1] - h], c: Lf };
+  const right = { img: shade(tex.brick[(v + 1) % 3], .60, [.98, .97, 1]), a: [Bt[0], Bt[1] - h], b: [Rt[0], Rt[1] - h], c: Bt };
+  return [left, right, { top: top }];
+}
+let topDim, topObl;
+function drawWall(cx, cy, litAdj) {
+  const faces = wallFaces(cx, cy), h = wallH(cx, cy);
+  for (const f of faces) {
+    if (f.top) {
+      const t = f.top, a = t[0], b = t[1], d = t[3]; ctx.save();
+      ctx.beginPath(); t.forEach((q, i) => i ? ctx.lineTo(q[0], q[1]) : ctx.moveTo(q[0], q[1])); ctx.closePath(); ctx.clip();
+      ctx.transform((b[0] - a[0]) / 24, (b[1] - a[1]) / 24, (d[0] - a[0]) / 24, (d[1] - a[1]) / 24, a[0], a[1]); ctx.drawImage(topDim, 0, 0); ctx.restore();
+      ctx.strokeStyle = 'rgba(150,146,130,.42)'; ctx.lineWidth = 1; ctx.beginPath(); t.forEach((q, i) => i ? ctx.lineTo(q[0], q[1]) : ctx.moveTo(q[0], q[1])); ctx.closePath(); ctx.stroke();
+      continue;
+    }
+    ctx.save(); const [a, b, c] = [f.a, f.b, f.c];
+    // clip to the face parallelogram, then paint the brick texture stretched onto it
+    const d4 = [b[0] + c[0] - a[0], b[1] + c[1] - a[1]];
+    ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.lineTo(d4[0], d4[1]); ctx.lineTo(c[0], c[1]); ctx.closePath(); ctx.clip();
+    para(f.img, a, b, c); ctx.restore();
+    if (st.view === 'obl' && f.img !== topObl) { ctx.fillStyle = 'rgba(165,155,135,.38)'; ctx.fillRect(Math.round(a[0]), Math.round(a[1]), Math.round(b[0] - a[0]), 1); }
+    if (litAdj && f.img !== topObl && f.img !== topDim) { ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = 'rgba(120,20,16,.16)'; ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.lineTo(d4[0], d4[1]); ctx.lineTo(c[0], c[1]); ctx.closePath(); ctx.fill(); ctx.restore(); }
+  }
+  void h;
+}
+function rayPoly(r) {                                                   // a sight line as a polygon on the floor plane, and its two end points
+  const sx = r.src % W + .5, sy = ((r.src / W) | 0) + .5, d = r.d, n = r.cells.length, dx = DX[d], dy = DY[d], px = -dy, py = dx, end = n + (r.mirror != null ? 1 : .5);
+  const pt = (t, w) => [sx + dx * t + px * w, sy + dy * t + py * w];
+  const w0 = r.first ? .1 : .5, t0 = r.first ? .5 : 0;
+  const poly = [pt(t0, -w0), pt(end, -.5), pt(end, .5), pt(t0, w0)];
+  return { poly: poly.map(q => proj(q[0], q[1], 0)), a: proj(...pt(t0, 0), 0), f: proj(...pt(end, 0), 0) };
+}
+const bayer = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
+const dust = Array.from({ length: 34 }, (_, i) => ({ x: hash(i, 1, 1), y: hash(i, 2, 1), s: .4 + hash(i, 3, 1), a: .15 + hash(i, 4, 1) * .35 }));
+let lightC, lightX;
+function frame(t) {
+  now = t; const dt = Math.min(60, t - last); last = t; advance(dt);
+  ctx.clearRect(0, 0, LW, LH); ctx.fillStyle = '#050706'; ctx.fillRect(0, 0, LW, LH);
+  const e = evalAt(dgNow);
+  // 1. the floor, with its lighting multiplied in
+  ctx.drawImage(floorC, 0, 0);
+  if (!lightC || lightC.width !== LW || lightC.height !== LH) [lightC, lightX] = mk(LW, LH);
+  lightX.globalCompositeOperation = 'source-over'; lightX.fillStyle = rgb(120, 138, 152); lightX.fillRect(0, 0, LW, LH);
+  lightX.globalCompositeOperation = 'lighter';
+  const pulse = .5 + .5 * Math.sin(t / 380);
+  { const ep = proj(L.E % W + .5, ((L.E / W) | 0) + .5, 0), rad = G[st.view].TW ? G.iso.TW * .9 : G.obl.T * 1.1;          // the exit sign glows green
+    const g = lightX.createRadialGradient(ep[0], ep[1], 2, ep[0], ep[1], rad); g.addColorStop(0, rgb(40, 150, 80, .75 + .1 * pulse)); g.addColorStop(1, rgb(0, 0, 0, 0)); lightX.fillStyle = g; lightX.fillRect(ep[0] - rad, ep[1] - rad, rad * 2, rad * 2); }
+  { const q = proj(.3 * W, .25 * H, 0), rad = LW * .5, g = lightX.createRadialGradient(q[0], q[1], 4, q[0], q[1], rad);      // a cool pool of moonlight
+    g.addColorStop(0, rgb(34, 46, 58, .55)); g.addColorStop(1, rgb(0, 0, 0, 0)); lightX.fillStyle = g; lightX.fillRect(0, 0, LW, LH); }
+  const rays = e.rays.filter(r => r.cells.length || r.mirror != null).map(rayPoly);
+  for (const r of rays) {
+    const g = lightX.createLinearGradient(r.a[0], r.a[1], r.f[0], r.f[1]); g.addColorStop(0, rgb(255, 150, 130, .95 + .05 * pulse)); g.addColorStop(1, rgb(255, 105, 95, .55));
+    lightX.fillStyle = g; lightX.beginPath(); r.poly.forEach((q, i) => i ? lightX.lineTo(q[0], q[1]) : lightX.moveTo(q[0], q[1])); lightX.closePath(); lightX.fill();
+  }
+  ctx.globalCompositeOperation = 'multiply'; ctx.drawImage(lightC, 0, 0);
+  ctx.globalCompositeOperation = 'lighter';                                                // the beams also add red light, so lit floor glows
+  for (const r of rays) {
+    const g = ctx.createLinearGradient(r.a[0], r.a[1], r.f[0], r.f[1]); g.addColorStop(0, rgb(190, 34, 26, .62 + .06 * pulse)); g.addColorStop(1, rgb(150, 24, 20, .34));
+    ctx.fillStyle = g; ctx.beginPath(); r.poly.forEach((q, i) => i ? ctx.lineTo(q[0], q[1]) : ctx.moveTo(q[0], q[1])); ctx.closePath(); ctx.fill();
+  }
+  for (const r of rays) {                                                                    // a soft halo: the same shape, wider, faint
+    const mid = [(r.poly[1][0] + r.poly[2][0]) / 2, (r.poly[1][1] + r.poly[2][1]) / 2];
+    ctx.fillStyle = 'rgba(150,26,22,.10)'; ctx.beginPath();
+    r.poly.forEach((q, i) => { const k = 1.18, X = mid[0] + (q[0] - mid[0]) * (i === 0 || i === 3 ? 1.4 : k), Y = mid[1] + (q[1] - mid[1]) * (i === 0 || i === 3 ? 1.4 : k); i ? ctx.lineTo(X, Y) : ctx.moveTo(X, Y); }); ctx.closePath(); ctx.fill();
+  }
+  ctx.globalCompositeOperation = 'source-over';
+  // shadow cast by a guard: the part of a beam he swallows (lit when guards are see-through, dark now)
+  { const Gh = P.ghostOf(L); P.prepare(Gh); const eg = P.evalConfig(Gh, dgNow, false); P.prepare(L);
+    ctx.fillStyle = 'rgba(0,0,0,.38)'; ctx.strokeStyle = 'rgba(210,60,50,.35)'; ctx.lineWidth = 1;
+    for (let c = 0; c < W * H; c++) if (eg.lit[c] && !e.lit[c] && !L.wall[c]) { const p = cellPoly(c % W, (c / W) | 0); ctx.beginPath(); p.forEach((q, i) => i ? ctx.lineTo(q[0], q[1]) : ctx.moveTo(q[0], q[1])); ctx.closePath(); ctx.fill(); ctx.setLineDash([2, 2]); ctx.stroke(); ctx.setLineDash([]); } }
+  // the guards' rails: a few faint dots
+  L.guards.forEach(g => g.rail.forEach(c => { const q = proj(c % W + .5, ((c / W) | 0) + .5, 0); ctx.fillStyle = 'rgba(190,200,170,.22)'; ctx.fillRect(Math.round(q[0]) - 1, Math.round(q[1]), 2, 1); }));
+  // 2. walls, cameras and actors in depth order
+  const items = [];
+  const litCell = c => e.lit[c];
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) if (L.wall[y * W + x]) { const [rx, ry] = rotXY(x + .5, y + .5); items.push({ k: 'wall', x, y, d: st.view === 'iso' ? rx + ry : ry + rx * .001 }); }
+  L.guards.forEach((g, j) => { const [rx, ry] = rotXY(gdraw[j][0] + .5, gdraw[j][1] + .5); items.push({ k: 'guard', j, d: (st.view === 'iso' ? rx + ry : ry + rx * .001) + .002 }); });
+  { const [rx, ry] = rotXY(thief[0] + .5, thief[1] + .5); items.push({ k: 'thief', d: (st.view === 'iso' ? rx + ry : ry + rx * .001) + .002 }); }
+  { const [rx, ry] = rotXY(L.E % W + .5, ((L.E / W) | 0) + .5); items.push({ k: 'exit', d: (st.view === 'iso' ? rx + ry : ry + rx * .001) + .003 }); }
+  items.sort((a, b) => a.d - b.d);
+  const wallBoxes = [], actorBoxes = [];
+  const sprAt = (img, X, Y, flip, glow) => {                           // feet at world (X,Y)
+    const p = proj(X, Y, 0), x = Math.round(p[0]), y = Math.round(p[1]) - 1;
+    // soft shadow on the floor, a little to the lower right
+    ctx.fillStyle = 'rgba(0,0,0,.42)'; ctx.beginPath(); ctx.ellipse(x + 2, y + 1, 6, 2.6, 0, 0, 7); ctx.fill();
+    ctx.save(); ctx.translate(x, y); if (flip) ctx.scale(-1, 1); ctx.drawImage(img, -img.width / 2, -img.height + 1); ctx.restore();
+    return { x: x - img.width / 2, y: y - img.height + 1, w: img.width, h: img.height, img, flip, cx: x, cy: y };
+  };
+  for (const it of items) {
+    if (it.k === 'wall') {
+      const c = it.y * W + it.x, adj = [0, 1, 2, 3].some(d => { const nx = it.x + DX[d], ny = it.y + DY[d]; return nx >= 0 && ny >= 0 && nx < W && ny < H && litCell(ny * W + nx); });
+      drawWall(it.x, it.y, adj);
+      const h = wallH(it.x, it.y), p = cellPoly(it.x, it.y, h), xs = [...p.map(q => q[0])], ys = [...p.map(q => q[1])], pb = cellPoly(it.x, it.y, 0);
+      wallBoxes.push({ x0: Math.min(...xs), x1: Math.max(...xs), y0: Math.min(...ys), y1: Math.max(...pb.map(q => q[1])), d: it.d });
+      const ci = L.cams.findIndex(q => q.c === c);
+      if (ci >= 0) {                                                    // a camera on top of the block
+        const d = dgNow[ci], top = proj(it.x + .5, it.y + .5, h), img = camSprite(d === 3 ? 1 : d), x = Math.round(top[0]), y = Math.round(top[1]) + (st.view === 'iso' ? 3 : 4);
+        ctx.fillStyle = 'rgba(0,0,0,.35)'; ctx.beginPath(); ctx.ellipse(x + 2, y, 6, 2.4, 0, 0, 7); ctx.fill();
+        ctx.save(); ctx.translate(x, y); if (d === 3) ctx.scale(-1, 1); ctx.drawImage(img, -img.width / 2, -img.height + 1); ctx.restore();
+        const lx = x + (d === 1 ? 5 : d === 3 ? -5 : d === 2 ? 0 : 0), ly = y - 8;                                   // the lens: red glow
+        const gg = ctx.createRadialGradient(lx, ly, 0, lx, ly, 9); gg.addColorStop(0, rgb(255, 60, 50, .55 + .25 * pulse)); gg.addColorStop(1, rgb(255, 40, 30, 0));
+        ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = gg; ctx.fillRect(lx - 9, ly - 9, 18, 18); ctx.restore();
+        if (flash > 0 && run && run.kind === 'act') { ctx.fillStyle = `rgba(255,120,100,${.5 * flash})`; ctx.fillRect(lx - 1, ly - 1, 3, 3); }
+      }
+    } else if (it.k === 'exit') {                                           // the green exit sign hanging over the door cell
+      const q = proj(L.E % W + .5, ((L.E / W) | 0) + .5, G[st.view].hFull + 9), x = Math.round(q[0]), y = Math.round(q[1]);
+      ctx.save(); ctx.globalCompositeOperation = 'lighter'; const g = ctx.createRadialGradient(x, y, 1, x, y, 20); g.addColorStop(0, 'rgba(60,200,110,.55)'); g.addColorStop(1, 'rgba(0,0,0,0)'); ctx.fillStyle = g; ctx.fillRect(x - 20, y - 20, 40, 40); ctx.restore();
+      ctx.fillStyle = '#04120a'; ctx.fillRect(x - 8, y - 4, 16, 8); ctx.fillStyle = '#35c070'; ctx.fillRect(x - 7, y - 3, 14, 6);
+      ctx.fillStyle = '#d8ffe6'; ctx.fillRect(x - 1, y - 1, 5, 1); ctx.fillRect(x + 2, y - 2, 1, 3); ctx.fillRect(x - 5, y - 2, 2, 1); ctx.fillRect(x - 5, y, 1, 2); ctx.fillRect(x - 3, y, 1, 1);
+    } else if (it.k === 'guard') {
+      const j = it.j, g = L.guards[j], gx = gdraw[j][0] + .5, gy = gdraw[j][1] + .5, fd = P.guardFacingDir(g, dgNow[L.cams.length + j] & 1);
+      // which way does he look on screen? rotate his direction with the view
+      const rd = (fd + st.rot) % 4, dirSprite = rd === 3 ? 1 : rd, flip = rd === 3;
+      const cell = g.rail[dgNow[L.cams.length + j] >> 1];
+      const inBeam = e.rays.some(r => { if (!r.cells.length) return false; const lc = r.cells[r.cells.length - 1], nx = lc % W + DX[r.d], ny = ((lc / W) | 0) + DY[r.d]; return ny * W + nx === cell; }) || e.rays.some(r => !r.cells.length && r.mirror == null && r.src + DX[r.d] + DY[r.d] * W === cell);
+      const base = person('guard', dirSprite, 0), img = inBeam ? litOf(base) : darkOf(base);
+      actorBoxes.push(Object.assign(sprAt(img, gx, gy, flip), { d: it.d, ghost: ghostOf(base) }));
+    } else {
+      const base = person('thief', thiefDir === 3 ? 1 : thiefDir, run && run.kind === 'walk' ? 1 + (Math.floor(now / 110) % 2) : 0);
+      const fl = thiefFlip, dir = (thiefDir + (thiefDir === 1 ? 0 : 0));
+      void dir;
+      actorBoxes.push(Object.assign(sprAt(darkOf(base), thief[0] + .5, thief[1] + .5, fl), { d: it.d, ghost: ghostOf(base), thief: true }));
+    }
+  }
+  // 3. readability helpers (iso): x-ray beams over the walls and ghost silhouettes of hidden actors
+  if (st.helpers) {
+    ctx.save(); ctx.strokeStyle = 'rgba(255,80,66,.55)'; ctx.lineWidth = 1; ctx.setLineDash([2, 2]);
+    for (const r of rays) { ctx.beginPath(); r.poly.forEach((q, i) => i ? ctx.lineTo(q[0], q[1]) : ctx.moveTo(q[0], q[1])); ctx.closePath(); ctx.stroke(); }
+    ctx.restore();
+    for (const a of actorBoxes) {
+      const hidden = wallBoxes.some(w => { if (!(w.d > a.d)) return false; const ow = Math.min(w.x1, a.x + a.w) - Math.max(w.x0, a.x), oh = Math.min(w.y1, a.y + a.h) - Math.max(w.y0, a.y); return ow > 0 && oh > 0 && (ow * oh) / (a.w * a.h) > .22; });
+      if (!hidden) continue;
+      ctx.save(); ctx.globalAlpha = .9; ctx.translate(a.cx, a.cy); if (a.flip) ctx.scale(-1, 1); ctx.drawImage(a.ghost, -a.ghost.width / 2, -a.ghost.height + 2); ctx.restore();
+    }
+  }
+  // 4. atmosphere: dust, vignette, grain, dither
+  for (const d of dust) { const x = (d.x * LW + t * .004 * d.s) % LW, y = (d.y * LH + Math.sin(t / 1400 + d.x * 9) * 3 + t * .002 * d.s) % LH; ctx.fillStyle = `rgba(190,200,185,${d.a * .5})`; ctx.fillRect(x | 0, y | 0, 1, 1); }
+  const vg = ctx.createRadialGradient(LW / 2, LH / 2, Math.min(LW, LH) * .28, LW / 2, LH / 2, Math.max(LW, LH) * .75); vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,0,.72)');
+  ctx.fillStyle = vg; ctx.fillRect(0, 0, LW, LH);
+  if (flash > 0) { ctx.fillStyle = `rgba(255,80,60,${.08 * flash})`; ctx.fillRect(0, 0, LW, LH); }
+  if (st.dither) {
+    const id = ctx.getImageData(0, 0, LW, LH), d = id.data, lv = 14, step = 255 / (lv - 1);
+    for (let y = 0, i = 0; y < LH; y++) for (let x = 0; x < LW; x++, i += 4) {
+      const lum = .3 * d[i] + .59 * d[i + 1] + .11 * d[i + 2]; if (lum < 3) continue;
+      const bias = (bayer[(x & 3) + ((y & 3) << 2)] / 16 - .5) * step * clamp((lum - 18) / 50, 0, 1), q = Math.max(0, Math.round((lum + bias) / step) * step), k = Math.min(3, q / lum);
+      d[i] = Math.min(255, d[i] * k); d[i + 1] = Math.min(255, d[i + 1] * k); d[i + 2] = Math.min(255, d[i + 2] * k);
+    }
+    ctx.putImageData(id, 0, 0);
+  }
+  if (!freeze) requestAnimationFrame(frame);
+}
+
+/* ------------------------------------------------------------------------------------------------------------------ controls */
+let freeze = Q.has('freeze');
+function rebuild() { layout(); buildFloor(); syncUI(); }
+function syncUI() {
+  document.querySelectorAll('[data-lv]').forEach(b => b.classList.toggle('on', +b.dataset.lv === st.level));
+  document.querySelectorAll('[data-view]').forEach(b => b.classList.toggle('on', b.dataset.view === st.view));
+  $('hlp').textContent = st.helpers ? 'on' : 'off'; $('hlp').classList.toggle('on', st.helpers); $('dth').textContent = st.dither ? 'on' : 'off'; $('dth').classList.toggle('on', st.dither);
+  $('rotg').style.display = st.view === 'iso' ? '' : 'none'; $('play').textContent = auto ? '❚❚ Pause' : '▶ Play solution';
+  $('note').textContent = st.view === 'iso'
+    ? 'Isometric tricks: low walls, near walls cut away, beams and hidden figures drawn through walls, tile seams, and rotate in quarter turns.'
+    : 'Oblique 3/4: the same view as the game today, with noir lighting. Light = danger (red); a guard casts a shadow into the beam.';
+}
+document.querySelectorAll('[data-lv]').forEach(b => b.onclick = () => { st.level = +b.dataset.lv; auto = false; loadLevel(st.level); rebuild(); });
+document.querySelectorAll('[data-view]').forEach(b => b.onclick = () => { st.view = b.dataset.view; rebuild(); });
+$('rl').onclick = () => { st.rot = (st.rot + 3) % 4; rebuild(); }; $('rr').onclick = () => { st.rot = (st.rot + 1) % 4; rebuild(); };
+$('hlp').onclick = () => { st.helpers = !st.helpers; rebuild(); }; $('dth').onclick = () => { st.dither = !st.dither; syncUI(); };
+$('play').onclick = () => { auto = !auto; if (auto && won) jump(0); syncUI(); }; $('reset').onclick = () => { auto = false; jump(0); syncUI(); };
+$('step').onclick = () => { auto = false; if (!run) { if (won) jump(0); else startNext(); } };
+addEventListener('resize', () => { layout(); buildFloor(); });
+makeTextures(); loadLevel(st.level); rebuild();
+window.lab = { st, rebuild, jump: k => { jump(k); }, load: id => { st.level = id; loadLevel(id); rebuild(); }, frame, steps: () => cfgs.length, exitPose: () => { const c = L.E; thief = [c % W, (c / W) | 0]; thiefDir = 0; }, setFreeze: v => { freeze = v; }, setAuto: v => { auto = v; if (v && won) jump(0); }, canvas: () => cv.toDataURL(), done: () => won && !run, planInfo: () => JSON.stringify({ feasible: plan.feasible, tasks: tasks.map(t => t.kind + (t.path ? t.path.length : t.k || '')).join(',') }) };
+if (!freeze) requestAnimationFrame(frame); else frame(1000);
+</script></body></html>

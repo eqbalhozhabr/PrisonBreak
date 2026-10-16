@@ -1,0 +1,54 @@
+{
+ "file": "searchlight.png",
+ "cell": [
+  36,
+  36
+ ],
+ "anchor": [
+  18,
+  24
+ ],
+ "states": [
+  "on",
+  "dim"
+ ],
+ "rows": [
+  {
+   "name": "SE",
+   "row": 0,
+   "frames": 2,
+   "lens": [
+    30.0,
+    26.9
+   ]
+  },
+  {
+   "name": "SW",
+   "row": 1,
+   "frames": 2,
+   "lens": [
+    5.0,
+    26.2
+   ]
+  },
+  {
+   "name": "NW",
+   "row": 2,
+   "frames": 2,
+   "lens": [
+    6.0,
+    9.1
+   ]
+  },
+  {
+   "name": "NE",
+   "row": 3,
+   "frames": 2,
+   "lens": [
+    31.0,
+    9.8
+   ]
+  }
+ ],
+ "note": "anchor = the point on the wall plane (X=Y=0, Z=0) in the cell; put it at the wall top minus 8 px and a little toward the room; lens = pixel of the lens centre in the cell"
+}

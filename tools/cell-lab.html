@@ -11,7 +11,7 @@
   canvas { image-rendering:pixelated; image-rendering:crisp-edges; }
 </style></head><body>
 <div id="bar">
-  <span class="grp"><b>Level</b><button data-lv="8">8</button><button data-lv="9">9</button><button data-lv="10">10</button><button data-lv="97">97 dog+door</button></span>
+  <span class="grp"><b>Level</b><button data-lv="8">8</button><button data-lv="9">9</button><button data-lv="10">10</button><button data-lv="97">97 dog+door</button><button data-lv="57">57 mirror</button><button data-lv="157">157 glass</button><button data-lv="117">117 light</button><button data-lv="137">137 panel</button></span>
   <span class="grp"><b>View</b><button data-view="obl">Oblique 3/4</button><button data-view="iso">Isometric</button></span>
   <span class="grp" id="rotg"><b>Rotate</b><button id="rl">⟲</button><button id="rr">⟳</button><button id="aut">auto</button></span>
   <span class="grp"><b>Cut-away of near walls</b><button id="hlp">on</button></span>
@@ -121,7 +121,7 @@ function loadLevel(id) {
 }
 const faceOf = d => screenDir(DX[d], DY[d]);
 const diagOf = (dx, dy) => { const a = proj(0, 0), b = proj(dx, dy), vx = b[0] - a[0], vy = b[1] - a[1]; return (vy < 0 ? 'N' : 'S') + (vx < 0 ? 'W' : 'E'); };      // SE / SW / NE / NW: the four isometric directions
-let ddraw = [], dface = [], ddist = [], dmove = [], doorO = [];
+let ddraw = [], dface = [], ddist = [], dmove = [], doorO = [], mirA = [];
 const dogKey = () => Q.get('dog') === 'full' ? 'dogfull' : 'dog';
 const nCam = () => L.cams.length, nGd = () => L.guards.length, nTg = () => (L.toggles || []).length;
 const dogDigit = (j, cfg = dgNow) => cfg[nCam() + nGd() + nTg() + j];
@@ -132,7 +132,7 @@ function jump(k) {
   gface = L.guards.map((g, j) => Object.assign(faceOf(P.guardFacingDir(g, dgNow[L.cams.length + j] & 1)), { moving: false }));
   ddraw = (L.dogs || []).map((d, j) => dogDigit(j)); ddist = (L.dogs || []).map(() => 0); dmove = (L.dogs || []).map(() => false);
   dface = (L.dogs || []).map((d, j) => { const i = dogDigit(j), a = d.rail[Math.min(i + 1, d.rail.length - 1)], b = d.rail[i]; const dx = (a % W) - (b % W) || ((b % W) - (d.rail[Math.max(i - 1, 0)] % W)), dy = ((a / W) | 0) - ((b / W) | 0) || (((b / W) | 0) - ((d.rail[Math.max(i - 1, 0)] / W) | 0)); return diagOf(dx || 1, dy); });
-  doorO = (L.toggles || []).map((t, j) => t.kind === 'door' ? (doorDigit(j) === 1 ? 0 : 1) : 0);
+  doorO = (L.toggles || []).map((t, j) => t.kind === 'door' ? (doorDigit(j) === 1 ? 0 : 1) : 0); mirA = (L.toggles || []).map((t, j) => t.kind === 'mirror' ? doorDigit(j) : 0);
   const c = plan.thiefAt[k]; thief = [c % W, (c / W) | 0]; thiefView = { view: 'S', flip: false }; taskI = 0; run = null; flash = 0; K = k; won = false; thiefDist = 0; doorOpen = 0; thiefAlpha = 1;
 }
 function startNext() { while (taskI < tasks.length) { const t = tasks[taskI++]; if (t.kind === 'win') { won = true; return; } run = Object.assign({ t0: now }, t); return; } }
@@ -151,6 +151,7 @@ function advance(dt) {
   (L.dogs || []).forEach((d, j) => { const t = dogDigit(j), cur = ddraw[j]; dmove[j] = false;
     if (Math.abs(t - cur) > .01) { const step = Math.min(Math.abs(t - cur), dt / 1000 * 4.5), dir = Math.sign(t - cur), a = railXY(d, cur); ddraw[j] = cur + dir * step; const b = railXY(d, ddraw[j]); ddist[j] += step; dmove[j] = true;
       if (Math.hypot(b[0] - a[0], b[1] - a[1]) > 1e-4) dface[j] = diagOf(b[0] - a[0], b[1] - a[1]); } });
+  (L.toggles || []).forEach((t, j) => { if (t.kind === 'mirror') mirA[j] += Math.sign(doorDigit(j) - mirA[j]) * Math.min(Math.abs(doorDigit(j) - mirA[j]), dt / 260); });
   (L.toggles || []).forEach((t, j) => { if (t.kind !== 'door') return; const want = doorDigit(j) === 1 ? 0 : 1; doorO[j] += Math.sign(want - doorO[j]) * Math.min(Math.abs(want - doorO[j]), dt / 320); });
   if (flash > 0) flash = Math.max(0, flash - dt / 260);
   thiefMoving = false;
@@ -344,6 +345,43 @@ function gateObl(e, o, key) {                                                   
   const out = { c, x: Math.round(px - w / 2), y: Math.round(py - GH - 2 - (e.horiz ? TKY / 2 : 0)) + (e.horiz ? 0 : 0) }; frameCache.set(key, out); return out;
 }
 const idleK = (kind, view) => { const r = SP[kind].man.rows.find(q => q.name === `idle_${view}`); return Math.floor(now / r.ms) % r.frames; };
+
+/* ------------------------------------------------------------------------------------------------------------------ mirrors (a double-sided mirror on a stand, turning between '/' and '\') and glass cases */
+const MIR_H = 13, MIR_HL = .46, MIR_T = .075;
+function mirrorSprite(cx, cy, q) {                                                            // q: 0 = '/', 6 = '\', in between while it turns
+  const key = `mir${cx},${cy},${q},${st.rot},${st.view}`; if (frameCache.has(key)) return frameCache.get(key);
+  const th = (-45 + q * 15) * Math.PI / 180, dx = Math.cos(th), dy = Math.sin(th), ccx = cx + .5, ccy = cy + .5, h = MIR_H;
+  const pts = []; for (const [u, w] of [[-MIR_HL, -MIR_T], [MIR_HL, -MIR_T], [-MIR_HL, MIR_T], [MIR_HL, MIR_T]]) for (const z of [0, h]) pts.push(proj(ccx + dx * u - dy * w, ccy + dy * u + dx * w, z));
+  const x0 = Math.floor(Math.min(...pts.map(p => p[0]))) - 1, x1 = Math.ceil(Math.max(...pts.map(p => p[0]))) + 1, y0 = Math.floor(Math.min(...pts.map(p => p[1]))) - 1, y1 = Math.ceil(Math.max(...pts.map(p => p[1]))) + 1;
+  const w = x1 - x0, hgt = y1 - y0, [c, x] = mk(w, hgt), img = x.createImageData(w, hgt), dd = img.data;
+  for (let Y = 0; Y < hgt; Y++) for (let X = 0; X < w; X++) {
+    const sx = x0 + X + .5, sy = y0 + Y + .5, a = (sx - ox) / (TW / 2);
+    for (let z = h; z >= 0; z -= .5) {
+      const b = (sy + z - oy) / (TH / 2), rx = (a + b) / 2, ry = (b - a) / 2, [wx, wy] = unrot(rx, ry), px = wx - ccx, py = wy - ccy, u = px * dx + py * dy, ww = -px * dy + py * dx;
+      if (Math.abs(u) <= MIR_HL && Math.abs(ww) <= MIR_T) {
+        let col; const top = z > h - .6, base = z < 1.8, post = Math.abs(u) > MIR_HL - .07;
+        if (top) col = [196, 204, 220]; else if (base) col = [84, 90, 108]; else if (post) col = [150, 158, 178];
+        else { const t = z / h, front = ww > 0; col = front ? [118 + 70 * t, 168 + 56 * t, 214 + 36 * t] : [96 + 56 * t, 134 + 52 * t, 178 + 44 * t]; if (((u * 15 + z * .8) % 6 + 6) % 6 < 1.2) col = col.map(q => Math.min(255, q + 46)); }
+        const i = (Y * w + X) * 4; dd[i] = col[0]; dd[i + 1] = col[1]; dd[i + 2] = col[2]; dd[i + 3] = 255; break; } } }
+  x.putImageData(img, 0, 0);
+  // a small stand on the floor
+  const out = { c, x: x0, y: y0 }; frameCache.set(key, out); return out;
+}
+function glassSprite(cx, cy) {                                                                // a cell-sized case of glass: opaque frame, see-through faces
+  const key = `gls${cx},${cy},${st.rot},${st.view}`; if (frameCache.has(key)) return frameCache.get(key);
+  const a0 = rotXY(cx + .06, cy + .06), a1 = rotXY(cx + .94, cy + .94), xa = Math.min(a0[0], a1[0]), xb = Math.max(a0[0], a1[0]), ya = Math.min(a0[1], a1[1]), yb = Math.max(a0[1], a1[1]), h = 10, eps = 1e-6, fw = .09;
+  const pts = []; for (const [p, q] of [[xa, ya], [xb, ya], [xa, yb], [xb, yb]]) for (const z of [0, h]) pts.push(projR(p, q, z));
+  const x0 = Math.floor(Math.min(...pts.map(p => p[0]))), x1 = Math.ceil(Math.max(...pts.map(p => p[0]))), y0 = Math.floor(Math.min(...pts.map(p => p[1]))), y1 = Math.ceil(Math.max(...pts.map(p => p[1])));
+  const w = x1 - x0, hgt = y1 - y0, [c, x] = mk(w, hgt), img = x.createImageData(w, hgt), dd = img.data, put = (X, Y, col, al) => { const i = (Y * w + X) * 4; dd[i] = col[0]; dd[i + 1] = col[1]; dd[i + 2] = col[2]; dd[i + 3] = al; };
+  const frameCol = [170, 180, 200];
+  for (let Y = 0; Y < hgt; Y++) for (let X = 0; X < w; X++) {
+    const sx = x0 + X + .5, sy = y0 + Y + .5, a = (sx - ox) / (TW / 2);
+    { const b = (sy + h - oy) / (TH / 2), rx = (a + b) / 2, ry = (b - a) / 2; if (rx >= xa - eps && rx <= xb + eps && ry >= ya - eps && ry <= yb + eps) { const edge = rx - xa < fw || xb - rx < fw || ry - ya < fw || yb - ry < fw; put(X, Y, edge ? [214, 222, 238] : [150, 200, 236], edge ? 255 : 46); continue; } }
+    { const rx = yb + a, z = (rx + yb) * TH / 2 + oy - sy; if (rx >= xa - eps && rx <= xb + eps && z >= -eps && z <= h + eps) { const edge = rx - xa < fw || xb - rx < fw || z < 1 || z > h - 1; const streak = (((rx * 9 + z * .5) % 3) + 3) % 3 < .35; put(X, Y, edge ? frameCol : streak ? [220, 240, 255] : [130, 186, 228], edge ? 255 : streak ? 96 : 54); continue; } }
+    { const ry = xb - a, z = (xb + ry) * TH / 2 + oy - sy; if (ry >= ya - eps && ry <= yb + eps && z >= -eps && z <= h + eps) { const edge = ry - ya < fw || yb - ry < fw || z < 1 || z > h - 1; put(X, Y, edge ? sc(frameCol, .72) : [110, 170, 220], edge ? 255 : 64); continue; } }
+  }
+  x.putImageData(img, 0, 0); const out = { c, x: x0, y: y0 }; frameCache.set(key, out); return out;
+}
 const alphaCache = new Map();
 const alphaOf = c => { let a = alphaCache.get(c); if (!a) { a = c.getContext('2d').getImageData(0, 0, c.width, c.height).data; alphaCache.set(c, a); } return a; };
 const outlineOf = c => { const k = alphaCache.get('o' + c.width + ':' + [...frameCache.entries()].find(e => e[1] === c)?.[0]); if (k) return k; const [t, x] = mk(c.width, c.height), a = alphaOf(c), on = (X, Y) => X >= 0 && Y >= 0 && X < c.width && Y < c.height && a[(Y * c.width + X) * 4 + 3] > 0, id = x.createImageData(c.width, c.height);
@@ -359,6 +397,16 @@ function rayShape(r) {
 }
 const path = (c, pts) => { c.beginPath(); pts.forEach((q, i) => i ? c.lineTo(q[0], q[1]) : c.moveTo(q[0], q[1])); c.closePath(); };
 const cellPoly = (cx, cy) => [proj(cx, cy), proj(cx + 1, cy), proj(cx + 1, cy + 1), proj(cx, cy + 1)];
+function wallMount(c, d0) {                                                                      // the wall edge a gadget hangs on: the one it looks through, else any edge that has floor on its other side
+  const cx = c % W, cy = (c / W) | 0, order = [d0, (d0 + 1) % 4, (d0 + 3) % 4, (d0 + 2) % 4];
+  for (const d of order) { const nx = cx + DX[d], ny = cy + DY[d]; if (!isWall(nx, ny)) { const e = edgeAt.get(`${nx},${ny},${(d + 2) % 4}`); if (e) return e; } }
+  return null;
+}
+function panelMount(c) {                                                                         // a panel prefers a wall that faces us
+  const cx = c % W, cy = (c / W) | 0, opts = [];
+  for (let d = 0; d < 4; d++) { const nx = cx + DX[d], ny = cy + DY[d]; if (!isWall(nx, ny)) { const e = edgeAt.get(`${nx},${ny},${(d + 2) % 4}`); if (e) opts.push({ e, d }); } }
+  return opts.sort((a, b) => (b.e.far - a.e.far))[0] || null;
+}
 function camMount(cam, ci) {                                                                     // the wall edge a camera hangs on: the one it looks through, else any edge that has floor on its other side
   const c = cam.c, cx = c % W, cy = (c / W) | 0, d0 = dgNow[ci], order = [d0, (d0 + 1) % 4, (d0 + 3) % 4, (d0 + 2) % 4];
   for (const d of order) { const nx = cx + DX[d], ny = cy + DY[d]; if (!isWall(nx, ny)) { const e = edgeAt.get(`${nx},${ny},${(d + 2) % 4}`); if (e) return e; } }
@@ -377,11 +425,22 @@ function frame(t) {
   { const Gh = P.ghostOf(L); P.prepare(Gh); const eg = P.evalConfig(Gh, dgNow, false); P.prepare(L);
     ctx.fillStyle = 'rgba(0,0,0,.4)'; ctx.strokeStyle = 'rgba(220,60,48,.42)'; ctx.lineWidth = 1;
     for (let c = 0; c < W * H; c++) if (eg.lit[c] && !e.lit[c] && !L.wall[c]) { path(ctx, cellPoly(c % W, (c / W) | 0)); ctx.fill(); ctx.setLineDash([2, 2]); ctx.stroke(); ctx.setLineDash([]); } }
+  if (isIso()) (L.toggles || []).forEach((t, j) => { if (t.kind !== 'mirror') return;              // the mirror's slash on its tile: a mirror seen edge-on is only a pole, the line says which way it faces
+    const th = (-45 + mirA[j] * 90) * Math.PI / 180, dx = Math.cos(th), dy = Math.sin(th), cx = t.c % W + .5, cy = ((t.c / W) | 0) + .5, a = proj(cx - dx * .42, cy - dy * .42), b = proj(cx + dx * .42, cy + dy * .42);
+    let x0 = Math.round(a[0]), y0 = Math.round(a[1]); const x1 = Math.round(b[0]), y1 = Math.round(b[1]), n = Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0), 1); ctx.fillStyle = 'rgba(150,205,255,.75)';
+    for (let i = 0; i <= n; i++) ctx.fillRect(Math.round(x0 + (x1 - x0) * i / n), Math.round(y0 + (y1 - y0) * i / n), 1, 1); });
   // things in depth order
   const items = [], litCell = (cx, cy) => cx >= 0 && cy >= 0 && cx < W && cy < H && e.lit[cy * W + cx];
   const depthOf = (X, Y) => { const [rx, ry] = rotXY(X, Y); return isIso() ? rx + ry : projR(0, ry)[1]; };
   for (const ed of edges) items.push({ k: 'wall', ed, s: wallSprite(ed), key: ed.key });
   if (door) items.push({ k: 'gate', key: door.key + .01 });
+  const lightIdx = j => nCam() + nGd() + nTg() + (L.dogs || []).length + j;
+  if (isIso()) {
+    (L.toggles || []).forEach((t, j) => { if (t.kind === 'mirror') { const cx = t.c % W, cy = (t.c / W) | 0, [rx, ry] = rotXY(cx + .5, cy + .5); items.push({ k: 'mirror', j, t, cx, cy, key: rx + ry + .03 }); } });
+    for (let c = 0; c < W * H; c++) if (L.glass && L.glass[c]) { const cx = c % W, cy = (c / W) | 0, [rx, ry] = rotXY(cx + .5, cy + .5); items.push({ k: 'glass', cx, cy, key: rx + ry + .03 }); }
+    (L.lights || []).forEach((lt, j) => { const m = wallMount(lt.c, dgNow[lightIdx(j)]); if (m) { items.push({ k: 'light', j, m, key: m.key + .02 }); items.push({ k: 'lshaft', j, m, key: m.key + .025 }); } });
+    (L.panels || []).forEach((pn, j) => { const pm = panelMount(pn.c); if (pm) items.push({ k: 'panel', j, pm, key: pm.e.key + .02 }); });
+  }
   for (const sd of steel) { const o = doorO[sd.j], key = sd.mx + sd.my + (sd.horiz ? .06 : .04), hP = Math.round(HI * (1 - o)), lamp = o > .5 ? 'open' : 'shut', mk2 = (extra) => Object.assign({ cx: sd.cx, cy: sd.cy, d: 9, far: true, seed: sd.cx * 7 + sd.cy, mx: sd.mx, my: sd.my, horiz: sd.horiz }, extra);
     const len = .15, pst = (a0, a1) => sd.horiz ? { rx0: a0, rx1: a1, ry0: sd.ry0, ry1: sd.ry1 } : { rx0: sd.rx0, rx1: sd.rx1, ry0: a0, ry1: a1 };
     if (isIso()) {
@@ -429,6 +488,22 @@ function frame(t) {
         ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = g; ctx.beginPath(); ctx.moveTo(lx, ly); ctx.lineTo(sh.poly[1][0], sh.poly[1][1]); ctx.lineTo(sh.poly[2][0], sh.poly[2][1]); ctx.closePath(); ctx.fill();
         ctx.strokeStyle = 'rgba(255,170,150,.45)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(lx, ly); ctx.lineTo(far[0], far[1]); ctx.stroke(); ctx.restore();
       }
+    } else if (it.k === 'mirror') {
+      const sp = mirrorSprite(it.cx, it.cy, Math.round(mirA[it.j] * 6)); ctx.drawImage(sp.c, sp.x, sp.y); drawn.push({ s: sp, key: it.key });
+      if (e.rays.some(r => r.mirror === it.t.c)) { const pc = proj(it.cx + .5, it.cy + .5, 7), gg = ctx.createRadialGradient(pc[0], pc[1], 0, pc[0], pc[1], 9); gg.addColorStop(0, `rgba(255,120,100,${.6 + .2 * pulse})`); gg.addColorStop(1, 'rgba(255,60,50,0)'); ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = gg; ctx.fillRect(pc[0] - 9, pc[1] - 9, 18, 18); ctx.restore(); }
+    } else if (it.k === 'glass') {
+      const sp = glassSprite(it.cx, it.cy); ctx.drawImage(sp.c, sp.x, sp.y);
+    } else if (it.k === 'light' || it.k === 'lshaft') {
+      const m = it.m, lt = L.lights[it.j], d = dgNow[lightIdx(it.j)], man = SP.light.man, row = man.rows.find(r => r.name === diagOf(DX[d], DY[d])), [cw, ch] = man.cell, [ax, ay] = man.anchor, ix = m.horiz ? 0 : (m.far ? 1 : -1), iy = m.horiz ? (m.far ? 1 : -1) : 0;
+      const [ox2, oy2] = projR(m.mx + ix * .1, m.my + iy * .1, Math.max(m.h - 8, 0)), x0 = Math.round(ox2) - ax, y0 = Math.round(oy2) - ay, lx = x0 + row.lens[0], ly = y0 + row.lens[1], ray = e.rays.find(q => q.first && q.src === lt.c && q.cells.length);
+      if (it.k === 'light') { ctx.drawImage(sheets.light, (Math.floor(now / 380) % 2) * cw, row.row * ch, cw, ch, x0, y0, cw, ch);
+        const gg = ctx.createRadialGradient(lx, ly, 0, lx, ly, 9); gg.addColorStop(0, `rgba(255,240,170,${.6 + .2 * pulse})`); gg.addColorStop(1, 'rgba(255,220,120,0)'); ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = gg; ctx.fillRect(lx - 9, ly - 9, 18, 18); ctx.restore(); }
+      else if (ray) { const sh = rayShape(ray), far = [(sh.poly[1][0] + sh.poly[2][0]) / 2, (sh.poly[1][1] + sh.poly[2][1]) / 2], g = ctx.createLinearGradient(lx, ly, far[0], far[1]);
+        g.addColorStop(0, `rgba(255,236,170,${.55 + .1 * pulse})`); g.addColorStop(1, 'rgba(255,200,120,.1)');
+        ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = g; ctx.beginPath(); ctx.moveTo(lx, ly); ctx.lineTo(sh.poly[1][0], sh.poly[1][1]); ctx.lineTo(sh.poly[2][0], sh.poly[2][1]); ctx.closePath(); ctx.fill(); ctx.restore(); }
+    } else if (it.k === 'panel') {
+      const { e: pe, d: pd } = it.pm, man = SP.panel.man, row = man.rows.find(r => r.name === diagOf(DX[pd], DY[pd])), [cw, ch] = man.cell, [ax, ay] = man.anchor, ix = pe.horiz ? 0 : (pe.far ? 1 : -1), iy = pe.horiz ? (pe.far ? 1 : -1) : 0;
+      const [ox2, oy2] = projR(pe.mx + ix * .1, pe.my + iy * .1, Math.max(pe.h - 9, 0)); ctx.drawImage(sheets.panel, (it.j % 3) * cw, row.row * ch, cw, ch, Math.round(ox2) - ax, Math.round(oy2) - ay, cw, ch);
     } else if (it.k === 'dog') {
       const key = dogKey(), v = dface[it.j], anim = dmove[it.j] ? 'walk' : 'idle', k = dmove[it.j] ? Math.floor(ddist[it.j] * 6) % 4 : idleK(key, v), [ax, ay] = SP[key].man.anchor;
       place(charFrame(key, anim, v, k, 0), it.p[0] + .5, it.p[1] + .5, false, ax, ay, it.key);
@@ -442,6 +517,12 @@ function frame(t) {
       place(charFrame('thief', anim, thiefView.view, k, 0), thief[0] + .5, thief[1] + .5, thiefView.flip, ax, ay, it.key, thiefAlpha);
     }
   }
+  if (isIso() && (L.panels || []).length) {                                                      // the panels' colour tags on the items they switch
+    const CHIP = ['#ffb43a', '#40d8f0', '#e868e8'], nc = nCam(), ng = nGd(), chip = (p, ci) => { const x = Math.round(p[0]), y = Math.round(p[1]); ctx.fillStyle = '#14102a'; ctx.fillRect(x - 3, y - 2, 6, 5); ctx.fillStyle = CHIP[ci % 3]; ctx.fillRect(x - 2, y - 1, 4, 3); };
+    L.panels.forEach((pn, ci) => pn.links.forEach(li => {
+      if (li < nc) { const m = camMount(L.cams[li], li); if (m) chip(projR(m.mx, m.my, m.h + 12), ci); }
+      else { const j = li - nc - ng, t = (L.toggles || [])[j]; if (!t) return; const cx = t.c % W, cy = (t.c / W) | 0; chip(proj(cx + .5, cy + .5, t.kind === 'mirror' ? 20 : HI + 6), ci); }
+    })); }
   for (const a of actors) {                                                                       // an actor hidden behind a wall is shown by a thin outline (a few pixels of its silhouette under the wall)
     const al = alphaOf(a.img), w = a.img.width; let hid = 0;
     for (const wl of drawn) { if (!(wl.key > a.key)) continue; const sc2 = wl.s, wa = alphaOf(sc2.c), x0 = Math.max(a.x, sc2.x), x1 = Math.min(a.x + w, sc2.x + sc2.c.width), y0 = Math.max(a.y, sc2.y), y1 = Math.min(a.y + a.img.height, sc2.y + sc2.c.height);

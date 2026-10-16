@@ -51,5 +51,5 @@
    ]
   }
  ],
- "note": "anchor = the point on the wall plane (X=Y=0, Z=0) in the cell; put it at the wall top minus 7 px and a little toward the room; lens = pixel of the lens centre in the cell"
+ "note": "anchor = the point on the wall plane (X=Y=0, Z=0) in the cell; put it at the wall top minus 8 px and a little toward the room; lens = pixel of the lens centre in the cell"
 }

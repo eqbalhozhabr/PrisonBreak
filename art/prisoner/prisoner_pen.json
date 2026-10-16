@@ -1,0 +1,24 @@
+{
+ "file": "prisoner_pen.png",
+ "cell": [
+  220,
+  304
+ ],
+ "frames": {
+  "idle": [
+   0,
+   4
+  ],
+  "walk": [
+   4,
+   6
+  ]
+ },
+ "ms": {
+  "idle": 330,
+  "walk": 110
+ },
+ "source": "art/reference/15.webp",
+ "height": 304,
+ "note": "high-resolution 1-bit master; feet on the last row, torso centre on the middle column"
+}

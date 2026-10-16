@@ -201,11 +201,11 @@
   /* ---- the optional "lcd" look (see the theme layer in the script): steel frame, olive screen, pink for danger ---- */
   body.lcd { --bg:#4b5f6b; --panel:#9fb2bd; --panel2:#b6c6cf; --edge:#1a2229; --hi:#dbe6eb; --lo:#6c8290; --ink:#141a20; --mute:#2b3b48; --red:#e8547c; --red-hi:#f7a0b7; --red-lo:#a22a4f; --gold:#8a5f0a; --ok:#1d7a60; --line:#7f95a2; }
   body.lcd button.primary { color:#fff; }
-  body.lcd canvas#cv { background:#9ba05a; }
+  body.lcd canvas#cv { background:#979d86; }
   body.lcd #menu .tag, body.lcd .keylist .kr, body.lcd #keys .kr { color:#1a2229; text-shadow:none; }
   body.desk.lcd .mpanel { background:rgba(150,170,181,.97); }
   body.lcd #menuProg { color:#1a2229; text-shadow:none; }
-  body.lcd #stage { background:#9ea35c; box-shadow:inset 0 0 0 4px #1a2229; }
+  body.lcd #stage { background:#979d86; box-shadow:inset 0 0 0 4px #1a2229; }
   body.lcd #stage::before { content:''; position:absolute; inset:-6px; pointer-events:none; z-index:3; box-shadow:0 0 0 3px #1a2229, inset 0 0 0 6px #8aa0ad, inset 0 0 0 9px #1a2229, inset 0 0 40px 6px rgba(20,26,14,.45); }
   body.lcd #stage::after { content:''; position:absolute; inset:0; pointer-events:none; z-index:2; background:repeating-linear-gradient(0deg, rgba(20,26,14,.10) 0 1px, transparent 1px 3px); }
   body.lcd .hud { border-top:6px solid var(--red); }
@@ -1169,10 +1169,10 @@ const DX = [0, 1, 0, -1], DY = [-1, 0, 1, 0];
    pink, amber and teal. Alpha is kept. */
 const STYLE_DEFAULT = 'classic';
 const LCD = /[?&]style=lcd/.test(location.search) || STYLE_DEFAULT === 'lcd';
-let spriteInk = false;                                       // true while a sprite is being painted (it uses the sprite mapping, not the world mapping)
+let spriteInk = false, spriteFlat = false;                                       // true while a sprite is being painted (it uses the sprite mapping, not the world mapping)
 if (LCD) {
-  const RAMP = [[22, 26, 14], [56, 64, 38], [98, 108, 60], [141, 150, 88], [182, 188, 122], [219, 222, 164]];
-  const PINK = [232, 84, 124], AMBER = [222, 170, 64], TEAL = [56, 170, 140];
+  const RAMP = [[20, 22, 20], [92, 100, 90], [118, 128, 110], [134, 145, 124], [151, 157, 134], [172, 178, 152]];     // ink, line, three greys of green, paper (the reference screens' background is 151,157,134)
+  const PINK = [214, 92, 112], AMBER = [208, 166, 84], TEAL = [110, 170, 140];
   const lerp = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
   const cache = new Map();
   const parse = c => {
@@ -1191,10 +1191,11 @@ if (LCD) {
     const L = (.299 * r + .587 * g + .114 * b) / 255; if (L < .1) return RAMP[0];
     const v = Math.pow(1 - Math.min(1, (L - .1) / .85), 1.7), f = v * 4, i = Math.min(3, f | 0); return lerp(RAMP[i + 1], RAMP[i + 2], f - i);
   };
-  const sprite = (r, g, b) => {                               // keeps light as light, crisp tones
-    const a = accent(r, g, b); if (a) return a;
-    const L = (.299 * r + .587 * g + .114 * b) / 255; if (L < .12) return RAMP[0];
-    return RAMP[Math.max(1, Math.min(5, Math.round(Math.min(1, (L - .12) / .85) * 4) + 1))];
+  const sprite = (r, g, b) => {                               // things that move: black, with pale skin / lens highlights and pink or teal lights
+    const mx = Math.max(r, g, b), mn = Math.min(r, g, b), L = (.299 * r + .587 * g + .114 * b) / 255, sat = mx ? (mx - mn) / mx : 0;
+    const a = accent(r, g, b); if (a === PINK || a === TEAL) return a;
+    if (L > .93 || (L > .74 && sat > .2)) return RAMP[5];
+    return RAMP[0];
   };
   const mapCol = c => {
     if (c.length === 4 && c.startsWith('lcd')) { const o = RAMP[+c[3]]; return `rgb(${o[0]},${o[1]},${o[2]})`; }       // 'lcd0'..'lcd5': a tone of the ramp, as is
@@ -2381,7 +2382,7 @@ $('accLogout').onclick = async () => { try { await api('/api/auth/logout', { met
 /* ------------------------------------------------- statistics and reports */
 /* Anonymous play statistics (random id kept in this browser, never linked to an account) help tune the levels: how many start, win, get caught,
    take hints, leave. Only on the game's own site (and localhost, flagged as test traffic). Players can switch them off in Settings. */
-const BUILD = "2026-10-16-6c80e45";
+const BUILD = "2026-10-16-097633e";
 const TEST_HOST = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
 const STATS_HOST = !PORTAL && (new RegExp('^(www\\.)?luckylion\\.games$').test(location.hostname) || TEST_HOST);
 const rid = n => Array.from(crypto.getRandomValues(new Uint8Array(n)), b => b.toString(16).padStart(2, '0')).join('');
@@ -2487,11 +2488,11 @@ document.addEventListener('click', e => { const b = e.target.closest && e.target
 /* Characters are painted from rectangles on a small canvas, outlined automatically and scaled up without smoothing.
    They stand in for the real sprite sheets (docs/art-spec.md). The left profile is the right profile mirrored. */
 const sprites = new Map();
-function pxr(c, col, x, y, w, h) { spriteInk = true; c.fillStyle = col; spriteInk = false; c.fillRect(x, y, w, h); }
+function pxr(c, col, x, y, w, h) { spriteInk = !spriteFlat; c.fillStyle = col; spriteInk = false; c.fillRect(x, y, w, h); }
 function outline(cnv, col) {
   const c = cnv.getContext('2d'), w = cnv.width, h = cnv.height, id = c.getImageData(0, 0, w, h), d = id.data, src = new Uint8Array(d.length / 4);
   for (let i = 0; i < src.length; i++) src[i] = d[i * 4 + 3] > 0 ? 1 : 0;
-  spriteInk = true; c.fillStyle = col; spriteInk = false;
+  spriteInk = !spriteFlat; c.fillStyle = col; spriteInk = false;
   for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) if (!src[y * w + x]) {
     if ((x > 0 && src[y * w + x - 1]) || (x < w - 1 && src[y * w + x + 1]) || (y > 0 && src[(y - 1) * w + x]) || (y < h - 1 && src[(y + 1) * w + x])) c.fillRect(x, y, 1, 1);
   }
@@ -2507,6 +2508,7 @@ function person(kind, dir, frame) {
   if (side) { pxr(c, shirt, 4, 9 + bob, 8, 7); pxr(c, shirtD, 4, 9 + bob, 2, 7); pxr(c, shirt, 7, 10 + bob, 3, 5); pxr(c, skin, 7, 14 + bob, 3, 2); }
   else { pxr(c, shirt, 3, 9 + bob, 10, 7); pxr(c, shirtD, 3, 9 + bob, 1, 7); pxr(c, shirt, 1, 10 + bob, 2, 5); pxr(c, shirt, 13, 10 + bob, 2, 5); pxr(c, skin, 1, 14 + bob, 2, 2); pxr(c, skin, 13, 14 + bob, 2, 2);
     if (!th) pxr(c, '#111827', 3, 14 + bob, 10, 1); else pxr(c, '#ffd9a0', 7, 11 + bob, 2, 1); }
+  if (LCD && th) for (let k = 0; k < 3; k++) pxr(c, skin, side ? 4 : 3, 10 + bob + k * 2, side ? 8 : 10, 1);          // look 'lcd': black shirt, pale stripes
   const hx = 4, hy = 1 + bob;
   pxr(c, skin, hx, hy + 1, 8, 8);
   if (back) pxr(c, hair, hx, hy + 1, 8, 6);
@@ -2531,11 +2533,11 @@ function camSprite(dir) {
 }
 function panelSprite(col) {                             // a fuse box on the wall with lamps in its wire colour
   const key = 'panel' + col; if (sprites.has(key)) return sprites.get(key);
-  const cnv = document.createElement('canvas'); cnv.width = 14; cnv.height = 12; const c = cnv.getContext('2d'); c.translate(1, 1);
+  const cnv = document.createElement('canvas'); cnv.width = 14; cnv.height = 12; const c = cnv.getContext('2d'); c.translate(1, 1); cnv._flat = true; spriteFlat = true;
   pxr(c, '#8892a6', 1, 0, 10, 10); pxr(c, '#aeb8cc', 1, 0, 10, 1); pxr(c, '#5c6679', 1, 9, 10, 1); pxr(c, '#2a303d', 2, 1, 8, 8);
   pxr(c, col, 3, 2, 2, 2); pxr(c, col, 7, 2, 2, 2); pxr(c, col, 3, 5, 2, 2);
   pxr(c, '#ffd24a', 7, 5, 2, 1); pxr(c, '#ffd24a', 6, 6, 2, 1); pxr(c, '#ffd24a', 7, 7, 1, 1);
-  outline(cnv, '#16101f'); sprites.set(key, cnv); return cnv;
+  outline(cnv, '#16101f'); spriteFlat = false; sprites.set(key, cnv); return cnv;
 }
 function lampSprite(dir) {                              // a wall searchlight: gold housing, big pale lens
   const key = 'lamp' + dir; if (sprites.has(key)) return sprites.get(key);
@@ -2567,7 +2569,18 @@ function glowOf(cnv, col) {
   c.globalCompositeOperation = 'source-in'; c.fillStyle = col; c.fillRect(0, 0, g.width, g.height);
   glows.set(key, g); return g;
 }
+const sils = new Map();
+function silOf(cnv) {                                           // look 'lcd': the sprite's shape in one dark colour
+  if (sils.has(cnv)) return sils.get(cnv);
+  const g = document.createElement('canvas'); g.width = cnv.width; g.height = cnv.height; const c = g.getContext('2d'); c.drawImage(cnv, 0, 0);
+  c.globalCompositeOperation = 'source-in'; c.fillStyle = 'rgb(20,22,20)'; c.fillRect(0, 0, g.width, g.height); sils.set(cnv, g); return g;
+}
 function drawSprite(cnv, cx, footY, scale, flip, glow) {
+  if (LCD && !cnv._flat) {                                      // the shadow falls a little to the lower right, onto the flat layer beneath
+    const g = silOf(cnv), a0 = ctx.globalAlpha;
+    ctx.imageSmoothingEnabled = false; ctx.save(); ctx.translate(cx + scale * 2.2, footY + scale * 1.6); if (flip) ctx.scale(-1, 1); ctx.globalAlpha = a0 * .28;
+    ctx.drawImage(g, -g.width * scale / 2, -(g.height - 1) * scale, g.width * scale, g.height * scale); ctx.restore();
+  }
   ctx.imageSmoothingEnabled = false; ctx.save(); ctx.translate(cx, footY);
   if (flip) ctx.scale(-1, 1);
   if (glow) {                                                      // the selection highlight follows the sprite's own outline and breathes
@@ -2577,20 +2590,20 @@ function drawSprite(cnv, cx, footY, scale, flip, glow) {
   }
   ctx.drawImage(cnv, -cnv.width * scale / 2, -(cnv.height - 1) * scale, cnv.width * scale, cnv.height * scale); ctx.restore();
 }
-function shadow(cx, cy, rx) { ctx.fillStyle = 'rgba(0,0,0,.35)'; ctx.beginPath(); ctx.ellipse(cx, cy, rx, rx * .38, 0, 0, 7); ctx.fill(); }
+function shadow(cx, cy, rx) { if (LCD) return; ctx.fillStyle = 'rgba(0,0,0,.35)'; ctx.beginPath(); ctx.ellipse(cx, cy, rx, rx * .38, 0, 0, 7); ctx.fill(); }
 const glowFor = (k, pulse) => sel === k ? { col: hintWho === k ? '#ffc54a' : '#ffffff', pulse } : null;
 
 /* ----------------------------------------------------------------- draw */
 const hash = (x, y, s) => { let h = (x * 374761393 + y * 668265263 + s * 2147483647) | 0; h = (h ^ (h >>> 13)) * 1274126177 | 0; return ((h ^ (h >>> 16)) >>> 0) / 4294967296; };
 function drawFloor(x, y) {
   const px = FX(x), py = FY(y);
-  ctx.fillStyle = LCD ? 'lcd5' : (x + y) % 2 ? '#3b4252' : '#363d4d'; ctx.fillRect(px, py, cs, cellH);
+  ctx.fillStyle = LCD ? 'lcd4' : (x + y) % 2 ? '#3b4252' : '#363d4d'; ctx.fillRect(px, py, cs, cellH);
   ctx.fillStyle = 'rgba(255,255,255,.04)'; ctx.fillRect(px, py, cs, 1); ctx.fillRect(px, py, 1, cellH);
   for (let i = 0; i < 3; i++) { const h = hash(x, y, i + 1); ctx.fillStyle = h > .5 ? 'rgba(255,255,255,.05)' : 'rgba(0,0,0,.12)'; ctx.fillRect(px + hash(x, y, i + 9) * (cs - 3), py + hash(x, y, i + 17) * (cellH - 3), 2, 2); }
 }
-const LCD_BLOCK = { '#b4604a': ['lcd3', 'lcd1'], '#a3adbd': ['lcd3', 'lcd1'], '#7f8a9d': ['lcd4', 'lcd2'], '#6fa8d6': ['lcd4', 'lcd3'] };     // look 'lcd': wall, door, mirror
+const LCD_BLOCK = { '#b4604a': ['lcd2', 'lcd1'], '#a3adbd': ['lcd2', 'lcd1'], '#7f8a9d': ['lcd5', 'lcd3'], '#6fa8d6': ['lcd5', 'lcd3'] };     // look 'lcd': wall, door, mirror
 function block(x, y, topC, frontC, lineC, brick) {
-  if (LCD) { const t = LCD_BLOCK[topC]; if (t) { topC = t[0]; frontC = t[1]; } lineC = 'lcd0'; }
+  if (LCD) { const t = LCD_BLOCK[topC]; if (t) { topC = t[0]; frontC = t[1]; } lineC = 'lcd1'; }
   const px = FX(x), py = FY(y) - wallH;
   ctx.fillStyle = frontC; ctx.fillRect(px, py + cellH, cs, wallH);
   ctx.strokeStyle = lineC; ctx.lineWidth = 1;
@@ -2600,15 +2613,17 @@ function block(x, y, topC, frontC, lineC, brick) {
       for (let k = 0; k < 3; k++) { const xx = px + k * cs / 3 + (r % 2 ? cs / 6 : 0); ctx.beginPath(); ctx.moveTo(xx + .5, yy); ctx.lineTo(xx + .5, yy + rh); ctx.stroke(); } }
   } else {
     ctx.beginPath(); ctx.moveTo(px, py + cellH + wallH * .5); ctx.lineTo(px + cs, py + cellH + wallH * .5); ctx.stroke();
-    ctx.fillStyle = 'rgba(255,255,255,.08)'; ctx.fillRect(px + cs * .15, py + cellH + wallH * .15, cs * .12, wallH * .2);
+    if (!LCD) ctx.fillStyle = 'rgba(255,255,255,.08)'; if (!LCD) ctx.fillRect(px + cs * .15, py + cellH + wallH * .15, cs * .12, wallH * .2);
   }
   ctx.fillStyle = topC; ctx.fillRect(px, py, cs, cellH);
-  ctx.fillStyle = 'rgba(255,255,255,.18)'; ctx.fillRect(px, py, cs, 2);
-  ctx.fillStyle = 'rgba(0,0,0,.18)'; ctx.fillRect(px, py + cellH - 1, cs, 1);
-  ctx.fillStyle = 'rgba(0,0,0,.28)'; ctx.fillRect(px, py + cellH + wallH - 2, cs, 2);
+  if (!LCD) {                                                                    // (look 'lcd': the fixed layer is flat, no shading)
+    ctx.fillStyle = 'rgba(255,255,255,.18)'; ctx.fillRect(px, py, cs, 2);
+    ctx.fillStyle = 'rgba(0,0,0,.18)'; ctx.fillRect(px, py + cellH - 1, cs, 1);
+    ctx.fillStyle = 'rgba(0,0,0,.28)'; ctx.fillRect(px, py + cellH + wallH - 2, cs, 2);
+  }
   if (LCD) {                                                                    // ink lines only where a block meets open floor, plus the edge between its top and its front
     const open = (cx, cy) => cx >= 0 && cy >= 0 && cx < L.w && cy < L.h && !L.wall[cy * L.w + cx], lw = Math.max(2, cs * .035), h2 = cellH + wallH;
-    ctx.strokeStyle = '#16101f'; ctx.lineWidth = lw; ctx.lineCap = 'square'; ctx.beginPath();
+    ctx.strokeStyle = 'lcd1'; ctx.lineWidth = lw; ctx.lineCap = 'square'; ctx.beginPath();
     ctx.moveTo(px, py + cellH); ctx.lineTo(px + cs, py + cellH);
     if (open(x - 1, y)) { ctx.moveTo(px + lw / 2, py); ctx.lineTo(px + lw / 2, py + h2); }
     if (open(x + 1, y)) { ctx.moveTo(px + cs - lw / 2, py); ctx.lineTo(px + cs - lw / 2, py + h2); }

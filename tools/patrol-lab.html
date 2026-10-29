@@ -6,18 +6,21 @@
   :root { --bg:#1a2229; --panel:#222d36; --line:#3b4b57; --txt:#d5dcc4; --dim:#8c9a8f; --acc:#d03038; --ok:#8fbf6a; --paper:#a3a98a; color-scheme:dark; }
   * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
   html, body { margin:0; height:100%; background:var(--bg); color:var(--txt); font:14px/1.35 system-ui, "Segoe UI", sans-serif; overflow:hidden; touch-action:manipulation; user-select:none; -webkit-user-select:none; }
-  #app { position:fixed; inset:0; display:flex; flex-direction:column; padding:env(safe-area-inset-top, 0px) max(16px, env(safe-area-inset-right, 0px)) env(safe-area-inset-bottom, 0px) max(16px, env(safe-area-inset-left, 0px)); gap:6px; }
-  header { display:flex; align-items:center; gap:8px; padding-top:8px; border-top:5px solid var(--acc); }
-  header .lv { flex:1; min-width:0; } header .lv b { display:block; font-size:15px; } header .lv small { color:var(--dim); font-size:11px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; display:block; }
-  .stat { text-align:center; min-width:54px; } .stat .k { display:block; font-size:10px; color:var(--dim); text-transform:uppercase; letter-spacing:.06em; } .stat b { font-size:20px; font-variant-numeric:tabular-nums; } .stat b.over { color:#ff7a80; }
-  button { font:inherit; color:var(--txt); background:var(--panel); border:2px solid var(--line); border-radius:6px; padding:9px 10px; cursor:pointer; min-height:44px; }
+  #app { position:fixed; inset:0; display:grid; grid-template-columns:minmax(0, 1fr) clamp(158px, 24vw, 240px); gap:8px; padding:max(6px, env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px)) max(6px, env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px)); }
+  #side { display:flex; flex-direction:column; gap:6px; min-height:0; min-width:0; border-top:5px solid var(--acc); padding-top:6px; }
+  #head { display:flex; align-items:center; gap:8px; min-width:0; } #head .lv { flex:1; min-width:0; } #head .lv b { display:block; font-size:14px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; } #head .lv small { color:var(--dim); font-size:10.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; display:block; }
+  #stats { display:grid; grid-template-columns:1fr 1fr; gap:6px; } .stat { text-align:center; background:var(--panel); border:1px solid var(--line); border-radius:6px; padding:2px 0; } .stat .k { display:block; font-size:10px; color:var(--dim); text-transform:uppercase; letter-spacing:.06em; } .stat b { font-size:20px; font-variant-numeric:tabular-nums; line-height:1.15; } .stat b.over { color:#ff7a80; }
+  button { font:inherit; color:var(--txt); background:var(--panel); border:2px solid var(--line); border-radius:6px; padding:6px 8px; cursor:pointer; min-height:44px; }
+  #btnLevels { min-height:40px; min-width:40px; padding:0; }
   button:active { background:#2c3a45; } button:disabled { opacity:.35; } button.on { border-color:var(--acc); color:#fff; background:#3a2428; } button.primary { border-color:var(--ok); }
-  #tip { height:56px; overflow:hidden; padding:6px 10px; background:var(--panel); border:1px solid var(--line); border-radius:6px; font-size:12.5px; display:flex; align-items:center; }
+  #tip { flex:1; min-height:0; overflow:auto; padding:6px 8px; background:var(--panel); border:1px solid var(--line); border-radius:6px; font-size:12px; line-height:1.35; }
   #tip.warn { color:#ff9ea3; border-color:var(--acc); }
-  #stage { position:relative; flex:1; min-height:0; border:3px solid #8aa0ad; border-radius:4px; background:var(--paper); overflow:hidden; box-shadow:0 0 0 3px #11171c; }
+  #stage { position:relative; min-height:0; min-width:0; border:3px solid #8aa0ad; border-radius:4px; background:var(--paper); overflow:hidden; box-shadow:0 0 0 3px #11171c; }
   canvas { position:absolute; inset:0; width:100%; height:100%; touch-action:none; }
-  #bar { display:grid; grid-template-columns:repeat(4, 1fr); gap:6px; } #bar button { padding:8px 2px; font-size:12px; min-width:0; } #bar button b { display:block; font-size:16px; line-height:1.1; }
-  #chips { display:grid; grid-template-columns:repeat(4, 1fr); gap:6px; padding-bottom:8px; } #chips button { min-height:36px; padding:4px 2px; font-size:11.5px; }
+  #bar, #chips { display:grid; grid-template-columns:1fr 1fr; gap:6px; } #bar button { font-size:12px; padding:4px 2px; min-height:44px; } #bar button b { display:block; font-size:15px; line-height:1.1; }
+  #chips button { min-height:34px; padding:2px; font-size:11.5px; }
+  #rot { position:fixed; inset:0; z-index:50; display:none; align-items:center; justify-content:center; flex-direction:column; gap:10px; background:var(--bg); text-align:center; padding:24px; font-size:16px; } #rot b { font-size:44px; }
+  @media (orientation: portrait) and (max-width: 760px) { #rot { display:flex; } }
   .ov { position:fixed; inset:0; display:none; align-items:center; justify-content:center; background:rgba(14,19,23,.88); z-index:10; padding:12px; } .ov.on { display:flex; }
   .card { background:var(--panel); border:2px solid var(--line); border-radius:10px; padding:14px; width:min(520px, 100%); max-height:100%; overflow:auto; }
   .card h2 { margin:0 0 8px; font-size:17px; } .card p { margin:6px 0; color:var(--dim); font-size:13px; }
@@ -27,24 +30,23 @@
   .legend .n::before { background:rgba(208,48,56,.55); } .legend .f::before { background:repeating-linear-gradient(45deg, rgba(208,48,56,.35) 0 2px, rgba(208,48,56,.1) 2px 4px); }
 </style></head><body>
 <div id="app">
-  <header>
-    <button id="btnLevels">☰</button>
-    <div class="lv"><b id="lvTitle"></b><small id="lvSub"></small></div>
-    <div class="stat"><span class="k">time</span><b id="ticks">0</b></div>
-    <div class="stat"><span class="k">par</span><b id="par">0</b></div>
-  </header>
-  <div id="tip"></div>
   <div id="stage"><canvas id="cv"></canvas></div>
-  <div id="bar">
-    <button id="bStance"><b>▼</b>Crawl</button>
-    <button id="bWait"><b>…</b>Wait</button>
-    <button id="bThrow"><b id="thN">0</b>Stone</button>
-    <button id="bUndo"><b>↶</b>Undo</button>
-  </div>
-  <div id="chips">
-    <button id="cRoutes">Routes</button><button id="cPreview">Preview</button><button id="cSafe">Safety</button><button id="bSolve">Solve</button>
+  <div id="side">
+    <div id="head"><button id="btnLevels">☰</button><div class="lv"><b id="lvTitle"></b><small id="lvSub"></small></div></div>
+    <div id="stats"><div class="stat"><span class="k">time</span><b id="ticks">0</b></div><div class="stat"><span class="k">par</span><b id="par">0</b></div></div>
+    <div id="tip"></div>
+    <div id="bar">
+      <button id="bStance"><b>▼</b>Crawl</button>
+      <button id="bWait"><b>…</b>Wait</button>
+      <button id="bThrow"><b id="thN">0</b>Stone</button>
+      <button id="bUndo"><b>↶</b>Undo</button>
+    </div>
+    <div id="chips">
+      <button id="cRoutes">Routes</button><button id="cPreview">Preview</button><button id="cSafe">Safety</button><button id="bSolve">Solve</button>
+    </div>
   </div>
 </div>
+<div id="rot"><b>↻</b>Turn your phone sideways to play</div>
 <div class="ov" id="ovLevels"><div class="card">
   <h2>Patrol Lab</h2>
   <div class="legend"><span class="n">near: seen in any stance</span><span class="f">far: seen only standing, after 2 ticks</span></div>
@@ -66,7 +68,7 @@ const cv = $('cv'), ctx = cv.getContext('2d'), LV = window.PATROL_LEVELS;
 const store = { get(k, d) { try { const v = localStorage.getItem(k); return v === null ? d : JSON.parse(v); } catch (e) { return d; } }, set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { } } };
 let doneSet = store.get('pl_done', {});
 let li = 0, L = null, rec = null, st = null, hist = [], par = 0, plan = null, play = null, route = [], throwMode = false, throwT = -1, caughtInfo = null, won = false, solving = false, onIdle = null;
-let opts = Object.assign({ routes: false, preview: true, safety: true }, store.get('pl_opts', {}));
+let opts = Object.assign({ routes: false, preview: true, safety: true }, store.get('pl_opts2', {}));
 let cs = 26, cellH = 20, wallH = 9, ox = 0, oy = 0, W = 0, H = 0, floorCv = null, alertFx = null, stoneFx = null, ripples = [], dust = [], lastDust = 0, lastFace = 1, proneAmt = 0;
 const TICK = 250, CRAWL = 300;
 const ease = k => k <= 0 ? 0 : k >= 1 ? 1 : k * k * (3 - 2 * k);
@@ -74,7 +76,7 @@ const ease = k => k <= 0 ? 0 : k >= 1 ? 1 : k * k * (3 - 2 * k);
 function load(i) {
   clearTimeout(endTimer); li = i; rec = LV[li]; L = Pt.parse(rec.spec); st = Pt.initial(L); hist = []; plan = null; play = null; route = []; throwMode = false; throwT = -1; caughtInfo = null; won = false; solving = false; onIdle = null;
   alertFx = null; stoneFx = null; ripples = []; dust = []; proneAmt = 0; par = rec.par || 0;
-  layout(); syncUI(); setTip(rec.tip || 'Tap the floor to walk there. Stay out of the red; crawl (▼) to pass through the hatched far part of a cone, and keep away from guards when walking: they hear you.');
+  layout(); syncUI(); setTip(rec.tip || 'Tap the floor to walk. Stay out of the red. Crawl (▼) to pass the hatched far part of a cone; walking near a guard is heard.');
   store.set('pl_last', i); $('ovEnd').classList.remove('on');
 }
 function setTip(t, warn) { const e = $('tip'); e.textContent = t || ''; e.className = warn ? 'warn' : ''; }
@@ -174,9 +176,9 @@ $('bWait').onclick = () => { route = []; doAction({ t: 'wait' }); };
 $('bThrow').onclick = () => { route = []; throwMode = !throwMode; throwT = -1; setTip(throwMode ? 'Pick a spot within reach (the dashed circle) and tap it twice to throw.' : ''); syncUI(); };
 $('bUndo').onclick = undo; $('eUndo').onclick = undo; $('eRetry').onclick = () => load(li); $('eNext').onclick = () => load(Math.min(LV.length - 1, li + 1));
 $('bSolve').onclick = () => solveAndPlay(false);
-$('cRoutes').onclick = () => { opts.routes = !opts.routes; store.set('pl_opts', opts); syncUI(); };
-$('cPreview').onclick = () => { opts.preview = !opts.preview; store.set('pl_opts', opts); syncUI(); };
-$('cSafe').onclick = () => { opts.safety = !opts.safety; store.set('pl_opts', opts); syncUI(); setTip(opts.safety ? 'Safety on: a move that would get him caught is refused.' : 'Safety off: you can walk into trouble and get caught.'); };
+$('cRoutes').onclick = () => { opts.routes = !opts.routes; store.set('pl_opts2', opts); syncUI(); };
+$('cPreview').onclick = () => { opts.preview = !opts.preview; store.set('pl_opts2', opts); syncUI(); };
+$('cSafe').onclick = () => { opts.safety = !opts.safety; store.set('pl_opts2', opts); syncUI(); setTip(opts.safety ? 'Safety on: a move that would get him caught is refused.' : 'Safety off: you can walk into trouble and get caught.'); };
 $('btnLevels').onclick = () => { const g = $('grid'); g.innerHTML = ''; LV.forEach((t, i) => { const b = document.createElement('button'), s = doneSet[t.id]; b.innerHTML = `${t.id}<br><small>${t.name}${s ? ' ' + '★'.repeat(s) : ''}</small>`; b.className = (i === li ? 'cur ' : '') + (s ? 'done' : ''); b.onclick = () => { $('ovLevels').classList.remove('on'); load(i); }; g.appendChild(b); }); $('ovLevels').classList.add('on'); };
 $('bClose').onclick = () => $('ovLevels').classList.remove('on');
 addEventListener('resize', () => { if (L) layout(); }); if (window.ResizeObserver) new ResizeObserver(() => { if (L) layout(); }).observe($('stage'));

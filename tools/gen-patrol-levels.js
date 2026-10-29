@@ -3,7 +3,7 @@
 'use strict';
 const Pt = require('../src/patrol.js');
 const base = require('./patrol-levels.js');
-const id = +process.argv[2] || 1, secs = +process.argv[3] || 40, B = base.find(s => s.id === id);
+const id = +process.argv[2] || 1, secs = +process.argv[3] || 40, B = Object.assign({}, base.find(s => s.id === id), JSON.parse(process.env.GEN_FLAGS || '{}'));
 let seed = id * 7919 + 13; const rnd = () => { seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
 const pick = a => a[(rnd() * a.length) | 0];
 const L0 = Pt.parse(Object.assign({}, B, { guards: [], cams: [] }));
@@ -20,7 +20,7 @@ function legTo(x, y) {                                                    // ano
 }
 const holdSpec = () => [(rnd() * 4) | 0, rnd() < .5 ? [(rnd() * 8) | 0, (rnd() * 8) | 0] : null];
 while (Date.now() - t0 < secs * 1000) {
-  const guards = [], ng = B.id >= 3 ? 1 + ((rnd() * 2) | 0) : 1, cams = [];
+  const guards = [], ng = B.nGuards || 1, cams = [];
   if (!B.keepGuards) for (let g = 0; g < ng; g++) {
     const [x, y] = cell(pick(floor)), way = [[x, y, ...holdSpec()]], p1 = legTo(x, y); if (!p1) continue; way.push([p1[0], p1[1], ...holdSpec()]);
     if (rnd() < .5) { const p2 = legTo(p1[0], p1[1]); if (p2) { way.push([p2[0], p2[1], ...holdSpec()]); const p3 = [x, p2[1]]; if (p3[1] !== y && !L0.wall[p3[1] * L0.w + p3[0]] && lineFree(p2[0], p2[1], p3[0], p3[1]) && lineFree(p3[0], p3[1], x, y)) way.push([p3[0], p3[1], ...holdSpec()]); } }

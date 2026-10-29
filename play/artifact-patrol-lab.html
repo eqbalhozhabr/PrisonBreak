@@ -1,0 +1,498 @@
+<title>Blind Eye Patrol Lab</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+  :root { --bg:#1a2229; --panel:#222d36; --line:#3b4b57; --txt:#d5dcc4; --dim:#8c9a8f; --acc:#d03038; --ok:#8fbf6a; --paper:#a3a98a; color-scheme:dark; }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html, body { margin:0; height:100%; background:var(--bg); color:var(--txt); font:14px/1.35 system-ui, "Segoe UI", sans-serif; overflow:hidden; touch-action:manipulation; user-select:none; -webkit-user-select:none; }
+  #app { position:fixed; inset:0; display:flex; flex-direction:column; padding:env(safe-area-inset-top, 0px) max(16px, env(safe-area-inset-right, 0px)) env(safe-area-inset-bottom, 0px) max(16px, env(safe-area-inset-left, 0px)); gap:6px; }
+  header { display:flex; align-items:center; gap:8px; padding-top:8px; border-top:5px solid var(--acc); }
+  header .lv { flex:1; min-width:0; } header .lv b { display:block; font-size:15px; } header .lv small { color:var(--dim); font-size:11px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; display:block; }
+  .stat { text-align:center; min-width:54px; } .stat .k { display:block; font-size:10px; color:var(--dim); text-transform:uppercase; letter-spacing:.06em; } .stat b { font-size:20px; font-variant-numeric:tabular-nums; } .stat b.over { color:#ff7a80; }
+  button { font:inherit; color:var(--txt); background:var(--panel); border:2px solid var(--line); border-radius:6px; padding:9px 10px; cursor:pointer; min-height:44px; }
+  button:active { background:#2c3a45; } button:disabled { opacity:.35; } button.on { border-color:var(--acc); color:#fff; background:#3a2428; } button.primary { border-color:var(--ok); }
+  #tip { height:56px; overflow:hidden; padding:6px 10px; background:var(--panel); border:1px solid var(--line); border-radius:6px; font-size:12.5px; display:flex; align-items:center; }
+  #tip.warn { color:#ff9ea3; border-color:var(--acc); }
+  #stage { position:relative; flex:1; min-height:0; border:3px solid #8aa0ad; border-radius:4px; background:var(--paper); overflow:hidden; box-shadow:0 0 0 3px #11171c; }
+  canvas { position:absolute; inset:0; width:100%; height:100%; touch-action:none; }
+  #bar { display:grid; grid-template-columns:repeat(4, 1fr); gap:6px; } #bar button { padding:8px 2px; font-size:12px; min-width:0; } #bar button b { display:block; font-size:16px; line-height:1.1; }
+  #chips { display:grid; grid-template-columns:repeat(4, 1fr); gap:6px; padding-bottom:8px; } #chips button { min-height:36px; padding:4px 2px; font-size:11.5px; }
+  .ov { position:fixed; inset:0; display:none; align-items:center; justify-content:center; background:rgba(14,19,23,.88); z-index:10; padding:12px; } .ov.on { display:flex; }
+  .card { background:var(--panel); border:2px solid var(--line); border-radius:10px; padding:14px; width:min(520px, 100%); max-height:100%; overflow:auto; }
+  .card h2 { margin:0 0 8px; font-size:17px; } .card p { margin:6px 0; color:var(--dim); font-size:13px; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(70px, 1fr)); gap:6px; margin:8px 0; } .grid button { padding:6px 2px; font-size:12px; min-height:50px; } .grid button.cur { border-color:var(--acc); } .grid button.done { background:#2a3b2d; }
+  .row { display:flex; gap:8px; margin-top:8px; } .row button { flex:1; }
+  .legend { display:flex; gap:10px; flex-wrap:wrap; font-size:12px; color:var(--dim); } .legend span::before { content:''; display:inline-block; width:12px; height:12px; margin-right:5px; vertical-align:-2px; border:1px solid #333; }
+  .legend .n::before { background:rgba(208,48,56,.55); } .legend .f::before { background:repeating-linear-gradient(45deg, rgba(208,48,56,.35) 0 2px, rgba(208,48,56,.1) 2px 4px); }
+</style>
+
+<div id="app">
+  <header>
+    <button id="btnLevels">☰</button>
+    <div class="lv"><b id="lvTitle"></b><small id="lvSub"></small></div>
+    <div class="stat"><span class="k">time</span><b id="ticks">0</b></div>
+    <div class="stat"><span class="k">par</span><b id="par">0</b></div>
+  </header>
+  <div id="tip"></div>
+  <div id="stage"><canvas id="cv"></canvas></div>
+  <div id="bar">
+    <button id="bStance"><b>▼</b>Crawl</button>
+    <button id="bWait"><b>…</b>Wait</button>
+    <button id="bThrow"><b id="thN">0</b>Stone</button>
+    <button id="bUndo"><b>↶</b>Undo</button>
+  </div>
+  <div id="chips">
+    <button id="cRoutes">Routes</button><button id="cPreview">Preview</button><button id="cSafe">Safety</button><button id="bSolve">Solve</button>
+  </div>
+</div>
+<div class="ov" id="ovLevels"><div class="card">
+  <h2>Patrol Lab</h2>
+  <div class="legend"><span class="n">near: seen in any stance</span><span class="f">far: seen only standing, after 2 ticks</span></div>
+  <p>No grid, no moving the guards. Everybody moves on their own, one step per tick; you get one action per turn. Time is the score.</p>
+  <div class="grid" id="grid"></div>
+  <div class="row"><button id="bClose" class="primary">Close</button></div>
+</div></div>
+<div class="ov" id="ovEnd"><div class="card" style="text-align:center">
+  <h2 id="endTitle"></h2><div id="endStars" style="font-size:30px;color:#ffcf6b;letter-spacing:.2em"></div><p id="endInfo"></p>
+  <div class="row"><button id="eRetry">Retry</button><button id="eUndo">Undo</button><button id="eNext" class="primary">Next</button></div>
+</div></div>
+
+<script>/* Blind Eye, "Patrol" prototype: the same prisoner-and-guards idea without the visible grid and without the player moving the guards.
+ *
+ *  - The world is still a hidden grid of small cells (the picture hides it), but time runs in TICKS and everyone moves on their own:
+ *    guards walk a fixed patrol loop (one cell per tick, with holds and look-arounds), cameras pan on a fixed schedule.
+ *  - The prisoner acts once per turn: walk one cell (8 directions, no corner cutting), crawl one cell (two ticks), get down / stand up, wait, or throw a stone.
+ *    Every action lets the world advance by its number of ticks. The player's score is the time (ticks) it takes.
+ *  - Sight is a true cone: a facing (8 directions), a half angle, a NEAR range and a FAR range, blocked by walls. Inside NEAR he is seen in any stance. In the FAR part
+ *    he is seen only while standing, and only after `delay` ticks in a row (the guard "makes up his mind"). Guards also hear: a prisoner who walks (not crawls)
+ *    within `hear` cells of a guard is caught whatever the cone says.
+ *  - A thrown stone makes a noise at its landing cell. A guard within `noiseR` cells who is on patrol (or looking around) walks there by the shortest way,
+ *    looks around for `linger` ticks, walks back to the patrol point he left and carries on. The thrower has `throws` stones in a level.
+ *  - Detection ends the attempt. The exact solver (Dijkstra over ticks) gives the fastest safe plan = par.
+ */
+(function () {
+'use strict';
+const DX = [0, 1, 1, 1, 0, -1, -1, -1], DY = [-1, -1, 0, 1, 1, 1, 0, -1];          // 0 = north, clockwise in steps of 45 degrees
+const DEFAULTS = { gNear: 3, gFar: 6, gHalf: 38, cNear: 3.5, cFar: 8, cHalf: 26, hear: 1.6, noiseR: 5, throwR: 5, linger: 4, delay: 2 };
+const vec = f => { const a = f * Math.PI / 4; return [Math.sin(a), -Math.cos(a)]; };
+const dirOf = (dx, dy) => { for (let d = 0; d < 8; d++) if (DX[d] === Math.sign(dx) && DY[d] === Math.sign(dy)) return d; return 0; };
+
+/* spec: { w, h, map:[rows with # . S E], guards:[{way:[[x,y,hold,look[]],...], f?, start?}], cams:[{x,y,pan:[f..],dwell}], throws, p:{overrides} } */
+function parse(spec) {
+  const h = spec.map.length, w = spec.map[0].length, wall = new Uint8Array(w * h), L = { w, h, wall, S: -1, E: -1, guards: [], cams: [], throws: spec.throws || 0, p: Object.assign({}, DEFAULTS, spec.p || {}), name: spec.name, id: spec.id, dist: new Map() };
+  spec.map.forEach((row, y) => { if (row.length !== w) throw new Error('ragged row ' + y); [...row].forEach((ch, x) => { const c = y * w + x; if (ch === '#') wall[c] = 1; else if (ch === 'S') L.S = c; else if (ch === 'E') L.E = c; }); });
+  for (const g of spec.guards || []) L.guards.push(expandGuard(L, g));
+  for (const q of spec.cams || []) { const F = []; for (const f of q.pan) for (let k = 0; k < (q.dwell || 3); k++) F.push(f); L.cams.push({ c: q.y * w + q.x, F, start: q.start || 0 }); }
+  L.camPeriod = L.cams.reduce((m, q) => lcm(m, q.F.length), 1);
+  return L;
+}
+const gcd = (a, b) => b ? gcd(b, a % b) : a, lcm = (a, b) => a / gcd(a, b) * b;
+const free = (L, x, y) => x >= 0 && y >= 0 && x < L.w && y < L.h && !L.wall[y * L.w + x];
+/* may a body step from cell c in direction d? (no corner cutting) */
+function canStep(L, c, d) {
+  const x = c % L.w, y = (c / L.w) | 0, nx = x + DX[d], ny = y + DY[d];
+  if (!free(L, nx, ny)) return false;
+  if (DX[d] && DY[d] && (!free(L, nx, y) || !free(L, x, ny))) return false;
+  return true;
+}
+const stepTo = (L, c, d) => c + DY[d] * L.w + DX[d];
+/* BFS distance from `target` over walkable cells (8 directions, no corner cutting); cached per level */
+function distFrom(L, target) {
+  let D = L.dist.get(target); if (D) return D;
+  D = new Int16Array(L.w * L.h).fill(-1); D[target] = 0; const q = [target];
+  for (let i = 0; i < q.length; i++) { const c = q[i]; for (let d = 0; d < 8; d++) { const n = stepTo(L, c, d); if (!canStep(L, c, d) || D[n] >= 0) continue; D[n] = D[c] + 1; q.push(n); } }
+  L.dist.set(target, D); return D;
+}
+/* the neighbour of c that is closest to the target (ties: lowest direction); returns the direction or -1 */
+function nextDir(L, c, target) {
+  const D = distFrom(L, target); let best = -1, bd = D[c];
+  for (let d = 0; d < 8; d++) if (canStep(L, c, d)) { const n = stepTo(L, c, d); if (D[n] >= 0 && D[n] < bd) { bd = D[n]; best = d; } }
+  return best;
+}
+function expandGuard(L, g) {
+  const way = g.way.map(([x, y, hold, look]) => ({ c: y * L.w + x, hold: hold || 0, look: look || null })), P = [];
+  let f = g.f != null ? g.f : 0, c = way[0].c;
+  for (let i = 0; i < way.length; i++) {
+    const wp = way[i]; for (let k = 0; k < wp.hold; k++) { if (wp.look) f = wp.look[k % wp.look.length]; P.push({ c: wp.c, f }); }
+    const to = way[(i + 1) % way.length].c; let cur = wp.c;
+    while (cur !== to) { const d = nextDir(L, cur, to); if (d < 0) throw new Error('patrol leg has no way'); cur = stepTo(L, cur, d); f = d; P.push({ c: cur, f }); }
+  }
+  if (!P.length) throw new Error('empty patrol');
+  const near = g.near != null ? g.near : L.p.gNear, far = g.far != null ? g.far : L.p.gFar, half = g.half != null ? g.half : L.p.gHalf;
+  return { P, start: g.start || 0, near, far, half: Math.cos(half * Math.PI / 180), halfDeg: half, hear: g.hear != null ? g.hear : L.p.hear };
+}
+
+/* ------------------------------------------------------------------ sight */
+function los(L, ax, ay, bx, by, skipA, skipB) {                                            // ax.. are cell centres in cell units
+  const dx = bx - ax, dy = by - ay, d = Math.hypot(dx, dy), n = Math.max(1, Math.ceil(d * 5));
+  for (let i = 1; i < n; i++) { const x = ax + dx * i / n, y = ay + dy * i / n, cx = Math.floor(x), cy = Math.floor(y), c = cy * L.w + cx; if (c !== skipA && c !== skipB && !free(L, cx, cy)) return false; }
+  return true;
+}
+/* 0 unseen, 1 far (standing only), 2 near */
+function look(L, src, c, f, tc, stance) {
+  const sx = c % L.w, sy = (c / L.w) | 0, tx = tc % L.w, ty = (tc / L.w) | 0, dx = tx - sx, dy = ty - sy, d = Math.hypot(dx, dy);
+  if (d < 0.01) return 2;
+  if (d > src.far) return 0;
+  const [fx, fy] = vec(f); if ((dx * fx + dy * fy) / d < src.half - 1e-9) return 0;
+  if (!los(L, sx + .5, sy + .5, tx + .5, ty + .5, c, tc)) return 0;
+  if (d <= src.near) return 2;
+  return stance === 1 ? 0 : 1;
+}
+
+/* ------------------------------------------------------------------ state */
+/* st = { p, s (0 stand, 1 prone), th (stones left), t (camera phase), g:[{pi,c,f,m,tg,cn,hm,sus}], cs:[sus] }  m: 0 patrol, 1 go to noise, 2 look around, 3 go back */
+function initial(L) {
+  return { p: L.S, s: 0, th: L.throws, t: 0, tk: 0, g: L.guards.map(g => { const e = g.P[g.start % g.P.length]; return { pi: g.start % g.P.length, c: e.c, f: e.f, m: 0, tg: -1, cn: 0, hm: 0, sus: 0 }; }), cs: L.cams.map(() => 0) };
+}
+const clone = st => ({ p: st.p, s: st.s, th: st.th, t: st.t, tk: st.tk, g: st.g.map(q => Object.assign({}, q)), cs: st.cs.slice() });
+const key = st => st.p + ',' + st.s + ',' + st.th + ',' + st.t + '|' + st.g.map(q => q.pi + ':' + q.c + ':' + q.f + ':' + q.m + ':' + q.tg + ':' + q.cn + ':' + q.hm + ':' + q.sus).join(';') + '|' + st.cs.join('');
+const camFacing = (L, st, k) => { const q = L.cams[k]; return q.F[(st.t + q.start) % q.F.length]; };
+
+/* one tick of the world. noise: landing cell of a stone this tick (or -1); moved: the prisoner walked this tick (footsteps). Returns { st, caught } */
+function tick(L, st0, noise, moved) {
+  const st = clone(st0); st.tk++;
+  L.guards.forEach((G, i) => {
+    const g = st.g[i];
+    if (noise >= 0 && (g.m === 0 || g.m === 2)) {
+      const dx = (g.c % L.w) - (noise % L.w), dy = ((g.c / L.w) | 0) - ((noise / L.w) | 0);
+      if (Math.hypot(dx, dy) <= L.p.noiseR) { if (g.m === 0) g.hm = g.pi; g.m = 1; g.tg = noise; }
+    }
+    if (g.m === 0) { g.pi = (g.pi + 1) % G.P.length; g.c = G.P[g.pi].c; g.f = G.P[g.pi].f; }
+    else if (g.m === 1) {
+      if (g.c === g.tg) { g.m = 2; g.cn = L.p.linger; }
+      else { const d = nextDir(L, g.c, g.tg); if (d >= 0) { g.c = stepTo(L, g.c, d); g.f = d; } if (g.c === g.tg) { g.m = 2; g.cn = L.p.linger; } }
+    } else if (g.m === 2) { g.f = (g.f + 2) % 8; if (--g.cn <= 0) g.m = 3; }
+    else if (g.m === 3) {
+      const home = G.P[g.hm].c;
+      if (g.c === home) { g.m = 0; g.pi = g.hm; g.f = G.P[g.hm].f; }
+      else { const d = nextDir(L, g.c, home); if (d >= 0) { g.c = stepTo(L, g.c, d); g.f = d; } if (g.c === home) { g.m = 0; g.pi = g.hm; g.f = G.P[g.hm].f; } }
+    }
+  });
+  if (L.cams.length) st.t = (st.t + 1) % L.camPeriod;
+  // who sees him now
+  let caught = null;
+  const seeing = (lv, src, k, kind, sus, set) => {
+    if (lv === 2) { caught = caught || { src: kind + k, lvl: 2 }; set(0); return; }
+    if (lv === 1) { const v = sus + 1; set(v); if (v >= L.p.delay) caught = caught || { src: kind + k, lvl: 1 }; return; }
+    set(0);
+  };
+  L.guards.forEach((G, i) => {
+    const g = st.g[i]; let lv = look(L, G, g.c, g.f, st.p, st.s);
+    if (moved && st.s === 0 && lv < 2) { const dx = (g.c % L.w) - (st.p % L.w), dy = ((g.c / L.w) | 0) - ((st.p / L.w) | 0); if (Math.hypot(dx, dy) <= G.hear) lv = 2; }
+    seeing(lv, G, i, 'g', g.sus, v => { g.sus = v; });
+  });
+  L.cams.forEach((q, k) => {
+    const src = { near: L.p.cNear, far: L.p.cFar, half: Math.cos(L.p.cHalf * Math.PI / 180) };
+    seeing(look(L, src, q.c, camFacing(L, st, k), st.p, st.s), src, k, 'c', st.cs[k], v => { st.cs[k] = v; });
+  });
+  return { st, caught };
+}
+
+/* the prisoner's possible actions from a state: { t:'move', d } | { t:'stance' } | { t:'wait' } | { t:'throw', T } */
+function actions(L, st) {
+  const out = [], occ = new Set(st.g.map(g => g.c));
+  for (let d = 0; d < 8; d++) if (canStep(L, st.p, d) && !occ.has(stepTo(L, st.p, d))) out.push({ t: 'move', d });
+  out.push({ t: 'stance' }, { t: 'wait' });
+  if (st.th > 0) {
+    const px = st.p % L.w, py = (st.p / L.w) | 0, R = L.p.throwR;
+    for (let y = Math.max(0, py - R); y <= Math.min(L.h - 1, py + R); y++) for (let x = Math.max(0, px - R); x <= Math.min(L.w - 1, px + R); x++) {
+      const c = y * L.w + x; if (L.wall[c] || c === st.p) continue;
+      if (Math.hypot(x - px, y - py) > R) continue;
+      if (st.g.some(g => g.m === 0 || g.m === 2 ? Math.hypot((g.c % L.w) - x, ((g.c / L.w) | 0) - y) <= L.p.noiseR : false)) out.push({ t: 'throw', T: c });   // only stones somebody can hear
+    }
+  }
+  return out;
+}
+/* apply an action: returns { frames:[state after each tick], caught, ticks } (frames stop at the tick he is caught) */
+function step(L, st0, act) {
+  let st = clone(st0), ticks = 1, noise = -1, moved = false;
+  if (act.t === 'move') { st.p = stepTo(L, st.p, act.d); ticks = st.s === 1 ? 2 : 1; moved = st.s === 0; }
+  else if (act.t === 'stance') st.s = 1 - st.s;
+  else if (act.t === 'throw') { st.th--; noise = act.T; }
+  const frames = []; let caught = null;
+  for (let i = 0; i < ticks && !caught; i++) { const r = tick(L, st, i === 0 ? noise : -1, i === 0 && moved); st = r.st; caught = r.caught; frames.push(st); }
+  return { frames, caught, ticks, last: st };
+}
+const won = (L, st) => st.p === L.E;
+
+/* exact search: fewest ticks to stand on the exit unseen. opts: { st, maxTicks, maxStates } */
+function solve(L, opts) {
+  opts = opts || {}; const st0 = opts.st || initial(L), maxT = opts.maxTicks || 80, maxS = opts.maxStates || 2e6;
+  const dist = new Map(), par = new Map(), buckets = [[st0]]; dist.set(key(st0), 0);
+  let goal = null;
+  for (let d = 0; d <= maxT && !goal; d++) {
+    const q = buckets[d]; if (!q) continue;
+    for (let i = 0; i < q.length && !goal; i++) {
+      const st = q[i], k = key(st); if (dist.get(k) < d) continue;
+      if (won(L, st)) { goal = k; break; }
+      if (dist.size > maxS) return { solvable: false, capped: true, explored: dist.size };
+      for (const a of actions(L, st)) {
+        const r = step(L, st, a); if (r.caught) continue;
+        const ns = r.last, nd = d + r.ticks, nk = key(ns), old = dist.get(nk);
+        if (old !== undefined && old <= nd) continue;
+        dist.set(nk, nd); par.set(nk, [k, a]); (buckets[nd] = buckets[nd] || []).push(ns);
+      }
+    }
+  }
+  if (!goal) return { solvable: false, explored: dist.size };
+  const plan = []; let kk = goal; while (par.has(kk)) { const [p, a] = par.get(kk); plan.push(a); kk = p; } plan.reverse();
+  return { solvable: true, par: dist.get(goal), plan, explored: dist.size };
+}
+/* the shortest walk with no guards at all, in ticks (for judging how much the patrols matter) */
+const freeWalk = L => { const D = distFrom(L, L.E); return D[L.S]; };
+
+const api = { DX, DY, DEFAULTS, parse, initial, clone, key, tick, actions, step, won, solve, look, distFrom, nextDir, canStep, stepTo, vec, freeWalk, camFacing, los };
+if (typeof module !== 'undefined' && module.exports) module.exports = api;
+if (typeof window !== 'undefined') window.Patrol = api;
+})();
+</script>
+<script>window.PATROL_LEVELS = [{"id":1,"name":"Night shift","par":19,"free":10,"spec":{"id":1,"name":"Night shift","throws":0,"map":["#############","#S..........#","#...........#","#...........#","#...........#","#..........E#","#############"],"guards":[{"way":[[11,3,0],[11,5,3]],"f":1,"start":1}]}},{"id":2,"name":"Spotlight","par":15,"free":10,"spec":{"id":2,"name":"Spotlight","throws":0,"map":["#############","#S..........#","#...#...#...#","#...........#","#...#...#...#","#...........#","#...#...#..E#","#...........#","#############"],"guards":[],"cams":[{"x":10,"y":8,"pan":[7,0,1,0],"dwell":5}]}},{"id":3,"name":"Two patrols","par":23,"free":14,"spec":{"id":3,"name":"Two patrols","throws":0,"map":["#############","#S..........#","#...........#","#...........#","#...........#","#....###....#","#....###....#","#....###....#","#...........#","#...........#","#...........#","#..........E#","#############"],"guards":[{"way":[[1,3,3],[9,3,2],[9,10,1,[0,2]],[1,10,3]],"f":7,"start":3},{"way":[[11,10,1],[11,8,3,[6,5]],[4,8,1,[7,0]],[11,8,2]],"f":4,"start":4}]}},{"id":4,"name":"The doorman","par":11,"free":10,"spec":{"id":4,"name":"The doorman","throws":1,"map":["#############","#...#.......#","#...#.......#","#...#.......#","#S.........E#","#...#.......#","#...#.......#","#...#.......#","#############"],"guards":[{"way":[[6,4,60,[6]]],"f":6}]}},{"id":5,"name":"Courtyard","par":13,"free":12,"spec":{"id":5,"name":"Courtyard","throws":1,"map":["#############","#S..........#","#...###.....#","#...###..#..#","#.........#.#","#.....#...#.#","#.....#.....#","#..#..#..#..#","#..#.....#.E#","#############"],"guards":[{"way":[[2,8,0],[2,6,1],[2,3,3,[3,4]],[2,3,3,[2,5]]],"f":6,"start":0}],"cams":[{"x":6,"y":2,"pan":[2,3,4,3],"dwell":3}]}}];</script>
+<script>
+'use strict';
+const Pt = window.Patrol, $ = id => document.getElementById(id), KY = .78, KW = .34, INK = '#14160f', PINK = '#d9708a';
+const cv = $('cv'), ctx = cv.getContext('2d'), LV = window.PATROL_LEVELS;
+const store = { get(k, d) { try { const v = localStorage.getItem(k); return v === null ? d : JSON.parse(v); } catch (e) { return d; } }, set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { } } };
+let doneSet = store.get('pl_done', {});
+let li = 0, L = null, rec = null, st = null, hist = [], par = 0, plan = null, play = null, route = [], throwMode = false, throwT = -1, caughtInfo = null, won = false, solving = false, onIdle = null;
+let opts = Object.assign({ routes: false, preview: true, safety: true }, store.get('pl_opts', {}));
+let cs = 26, cellH = 20, wallH = 9, ox = 0, oy = 0, W = 0, H = 0, floorCv = null, alertFx = null, stoneFx = null, ripples = [], dust = [], lastDust = 0, lastFace = 1, proneAmt = 0;
+const TICK = 250, CRAWL = 300;
+const ease = k => k <= 0 ? 0 : k >= 1 ? 1 : k * k * (3 - 2 * k);
+/* ------------------------------------------------------------------ level */
+function load(i) {
+  clearTimeout(endTimer); li = i; rec = LV[li]; L = Pt.parse(rec.spec); st = Pt.initial(L); hist = []; plan = null; play = null; route = []; throwMode = false; throwT = -1; caughtInfo = null; won = false; solving = false; onIdle = null;
+  alertFx = null; stoneFx = null; ripples = []; dust = []; proneAmt = 0; par = rec.par || 0;
+  layout(); syncUI(); setTip(rec.tip || 'Tap the floor to walk there. Stay out of the red; crawl (▼) to pass through the hatched far part of a cone, and keep away from guards when walking: they hear you.');
+  store.set('pl_last', i); $('ovEnd').classList.remove('on');
+}
+function setTip(t, warn) { const e = $('tip'); e.textContent = t || ''; e.className = warn ? 'warn' : ''; }
+const busy = () => !!play;
+function syncUI() {
+  $('lvTitle').textContent = `${rec.id}. ${rec.name}`; $('lvSub').textContent = `${L.guards.length} guard${L.guards.length === 1 ? '' : 's'} · ${L.cams.length} camera${L.cams.length === 1 ? '' : 's'} · ${rec.spec.throws || 0} stone${rec.spec.throws === 1 ? '' : 's'} · free walk ${Pt.freeWalk(L)}`;
+  const t = $('ticks'); t.textContent = st.tk; t.className = par && st.tk > par ? 'over' : ''; $('par').textContent = par || '–';
+  $('bStance').innerHTML = st.s ? '<b>▲</b>Stand' : '<b>▼</b>Crawl'; $('thN').textContent = st.th;
+  $('bThrow').disabled = st.th < 1 || busy() || solving; $('bThrow').classList.toggle('on', throwMode);
+  $('bWait').disabled = busy() || solving; $('bStance').disabled = busy() || solving; $('bUndo').disabled = !hist.length || busy() || solving; $('bSolve').disabled = busy() || solving || won;
+  $('cRoutes').classList.toggle('on', opts.routes); $('cPreview').classList.toggle('on', opts.preview); $('cSafe').classList.toggle('on', opts.safety); $('cSafe').textContent = opts.safety ? 'Safety on' : 'Safety off';
+}
+/* ------------------------------------------------------------------ geometry */
+function layout() {
+  const dpr = window.devicePixelRatio || 1; W = cv.clientWidth; H = cv.clientHeight; cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr); ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  cs = Math.max(14, Math.floor(Math.min((W - 6) / L.w, (H - 6) / (L.h * KY + KW)))); cellH = cs * KY; wallH = cs * KW;
+  ox = (W - cs * L.w) / 2; oy = (H - (L.h * cellH + wallH)) / 2 + wallH; floorCv = null;
+}
+const SX = wx => ox + wx * cs, SY = wy => oy + wy * cellH;
+const cellCenter = c => [(c % L.w) + .5, ((c / L.w) | 0) + .5];
+/* ------------------------------------------------------------------ actions */
+function doAction(act, instant) {
+  if (busy() || won || caughtInfo) return false;
+  const r = Pt.step(L, st, act);
+  if (r.caught && opts.safety && !instant) { alertFx = { src: r.caught.src, t: performance.now(), st: r.frames[r.frames.length - 1] }; setTip(whoText(r.caught) + ' Move somewhere else, wait, or try another way.', true); route = []; return false; }
+  hist.push(st);
+  if (instant) { st = r.last; if (r.caught) caughtInfo = r.caught; syncUI(); if (Pt.won(L, st) && !caughtInfo) win(); return true; }
+  if (act.t === 'throw') { stoneFx = { from: st.p, to: act.T, t: performance.now() }; ripples.push({ c: act.T, t: performance.now() + 120 }); }
+  play = { from: st, frames: r.frames, act, caught: r.caught, t0: performance.now() }; throwMode = false; throwT = -1; syncUI(); return true;
+}
+function whoText(c) { const k = c.src[0] === 'g' ? 'A guard' : 'A camera'; return c.lvl === 2 ? `${k} would spot or hear him there.` : `${k} would notice him after a moment.`; }
+function finishPlay() {
+  const p = play; play = null; st = p.frames[p.frames.length - 1];
+  if (p.caught) { caughtInfo = p.caught; alertFx = { src: p.caught.src, t: performance.now(), st }; end(false); syncUI(); return; }
+  syncUI();
+  if (Pt.won(L, st)) { win(); return; }
+  if (onIdle) { const f = onIdle; onIdle = null; f(); return; }
+  nextRoute();
+}
+function nextRoute() {
+  if (!route.length) return;
+  const d = route.shift(); const act = { t: 'move', d };
+  if (!doAction(act)) route = [];
+}
+function planRoute(target) {
+  const D = Pt.distFrom(L, target), occ = new Set(st.g.map(g => g.c)); let c = st.p; const out = [];
+  for (let n = 0; n < 60 && c !== target; n++) {
+    let best = -1, bd = D[c];
+    for (let d = 0; d < 8; d++) if (Pt.canStep(L, c, d)) { const q = Pt.stepTo(L, c, d); if (D[q] >= 0 && D[q] < bd && !occ.has(q)) { bd = D[q]; best = d; } }
+    if (best < 0) break; out.push(best); c = Pt.stepTo(L, c, best);
+  }
+  return out;
+}
+function onTapCell(c) {
+  if (busy() || won || caughtInfo || solving) return;
+  if (c < 0 || L.wall[c]) return;
+  if (throwMode) {
+    const px = st.p % L.w, py = (st.p / L.w) | 0, x = c % L.w, y = (c / L.w) | 0;
+    if (Math.hypot(x - px, y - py) > L.p.throwR) { throwMode = false; throwT = -1; setTip('Too far to throw.', true); syncUI(); return; }
+    if (throwT === c) { doAction({ t: 'throw', T: c }); } else { throwT = c; setTip('Tap the same spot again to throw. The blue circle is how far the noise carries.'); }
+    return;
+  }
+  if (c === st.p) return;
+  route = planRoute(c); if (!route.length) { setTip('No way there.', true); return; }
+  nextRoute();
+}
+function undo() { if (!hist.length || busy() || solving) return; clearTimeout(endTimer); st = hist.pop(); won = false; caughtInfo = null; route = []; throwMode = false; $('ovEnd').classList.remove('on'); alertFx = null; setTip(''); syncUI(); }
+function win() {
+  won = true; route = []; const stars = par && st.tk <= par ? 3 : par && st.tk <= par + 3 ? 2 : 1; doneSet[rec.id] = Math.max(doneSet[rec.id] || 0, stars); store.set('pl_done', doneSet);
+  end(true, stars);
+}
+let endTimer = 0;
+function end(ok, stars) {
+  clearTimeout(endTimer); endTimer = setTimeout(() => {
+    $('endTitle').textContent = ok ? (st.tk <= par ? 'Escaped at par' : 'Escaped') : 'Caught'; $('endStars').textContent = ok ? '★'.repeat(stars) + '☆'.repeat(3 - stars) : '';
+    $('endInfo').textContent = ok ? `${st.tk} ticks (par ${par}).` : 'A guard or a camera saw him. Undo the last move, or try again.'; $('eNext').style.display = ok ? '' : 'none'; $('ovEnd').classList.add('on');
+  }, ok ? 500 : 900);
+}
+/* ------------------------------------------------------------------ solve playback */
+function solveAndPlay(instant) {
+  const r = Pt.solve(L, { st, maxTicks: 90, maxStates: 3e6 });
+  if (!r || !r.solvable) { setTip('No safe plan from here. Undo or restart.', true); return null; }
+  const acts = r.plan.slice(); solving = !instant; setTip(`Fastest safe plan from here: ${r.par} ticks.`);
+  if (instant) { for (const a of acts) { const rr = Pt.step(L, st, a); hist.push(st); st = rr.last; } syncUI(); if (Pt.won(L, st)) win(); return r; }
+  syncUI();
+  const run = () => { const a = acts.shift(); if (!a) { solving = false; syncUI(); return; } solving = false; onIdle = acts.length ? () => { solving = true; run(); } : null; if (!doAction(a)) { solving = false; return; } solving = true; };
+  run(); return r;
+}
+/* ------------------------------------------------------------------ input */
+cv.addEventListener('pointerdown', e => {
+  const r = cv.getBoundingClientRect(), px = e.clientX - r.left, py = e.clientY - r.top, x = Math.floor((px - ox) / cs), y = Math.floor((py - oy) / cellH);
+  if (route.length && !busy()) route = [];
+  if (x < 0 || y < 0 || x >= L.w || y >= L.h) return; onTapCell(y * L.w + x);
+});
+$('bStance').onclick = () => { route = []; doAction({ t: 'stance' }); };
+$('bWait').onclick = () => { route = []; doAction({ t: 'wait' }); };
+$('bThrow').onclick = () => { route = []; throwMode = !throwMode; throwT = -1; setTip(throwMode ? 'Pick a spot within reach (the dashed circle) and tap it twice to throw.' : ''); syncUI(); };
+$('bUndo').onclick = undo; $('eUndo').onclick = undo; $('eRetry').onclick = () => load(li); $('eNext').onclick = () => load(Math.min(LV.length - 1, li + 1));
+$('bSolve').onclick = () => solveAndPlay(false);
+$('cRoutes').onclick = () => { opts.routes = !opts.routes; store.set('pl_opts', opts); syncUI(); };
+$('cPreview').onclick = () => { opts.preview = !opts.preview; store.set('pl_opts', opts); syncUI(); };
+$('cSafe').onclick = () => { opts.safety = !opts.safety; store.set('pl_opts', opts); syncUI(); setTip(opts.safety ? 'Safety on: a move that would get him caught is refused.' : 'Safety off: you can walk into trouble and get caught.'); };
+$('btnLevels').onclick = () => { const g = $('grid'); g.innerHTML = ''; LV.forEach((t, i) => { const b = document.createElement('button'), s = doneSet[t.id]; b.innerHTML = `${t.id}<br><small>${t.name}${s ? ' ' + '★'.repeat(s) : ''}</small>`; b.className = (i === li ? 'cur ' : '') + (s ? 'done' : ''); b.onclick = () => { $('ovLevels').classList.remove('on'); load(i); }; g.appendChild(b); }); $('ovLevels').classList.add('on'); };
+$('bClose').onclick = () => $('ovLevels').classList.remove('on');
+addEventListener('resize', () => { if (L) layout(); }); if (window.ResizeObserver) new ResizeObserver(() => { if (L) layout(); }).observe($('stage'));
+/* ------------------------------------------------------------------ the picture */
+function visual(t) {
+  // everything that moves, interpolated between two ticks
+  let a = st, b = st, k = 1, moving = false, seg = 0, from = st;
+  if (play) {
+    const per = play.act.t === 'move' && play.from.s === 1 ? CRAWL : TICK, n = play.frames.length, e = Math.max(0, (t - play.t0) / per); seg = Math.min(n - 1, Math.floor(e)); k = Math.min(1, e - seg);
+    a = seg === 0 ? play.from : play.frames[seg - 1]; b = play.frames[seg]; moving = true; if (e >= n) { finishPlay(); return visual(t); }
+  }
+  const lerp = (u, v) => u + (v - u) * ease(k), cc = c => cellCenter(c);
+  const ang = (f0, f1) => { const d = ((((f1 - f0) * 45) % 360) + 540) % 360 - 180; return (f0 * 45 + d * ease(k)) * Math.PI / 180; };
+  const pa = cc(a.p), pb = cc(b.p), man = moving && play.act.t === 'move' && seg === 0;
+  const V = { p: [lerp(pa[0], pb[0]), lerp(pa[1], pb[1])], stance: b.s, walking: man, g: [], c: [], st: b };
+  L.guards.forEach((G, i) => { const ga = a.g[i], gb = b.g[i], ca = cc(ga.c), cb = cc(gb.c); V.g.push({ x: lerp(ca[0], cb[0]), y: lerp(ca[1], cb[1]), ang: ang(ga.f, gb.f), moving: ga.c !== gb.c, st: gb, G }); });
+  L.cams.forEach((q, i) => V.c.push({ c: q.c, ang: ang(Pt.camFacing(L, a, i), Pt.camFacing(L, b, i)), sus: b.cs[i] }));
+  return V;
+}
+function coneRays(x, y, a, halfDeg, far) {
+  const out = [], n = Math.max(6, Math.ceil(halfDeg * 2 / 3));
+  for (let i = 0; i <= n; i++) {
+    const th = a + (-halfDeg + halfDeg * 2 * i / n) * Math.PI / 180, dx = Math.sin(th), dy = -Math.cos(th); let d = 0;
+    for (; d < far; d += .08) { const cx = Math.floor(x + dx * d), cy = Math.floor(y + dy * d); if (cx < 0 || cy < 0 || cx >= L.w || cy >= L.h || L.wall[cy * L.w + cx]) break; }
+    out.push([dx, dy, Math.min(far, d)]);
+  }
+  return out;
+}
+function drawCone(x, y, a, halfDeg, near, far, alpha) {
+  const R = coneRays(x, y, a, halfDeg, far); ctx.save(); ctx.globalAlpha = alpha;
+  const poly = (lim) => { ctx.beginPath(); ctx.moveTo(SX(x), SY(y)); for (const [dx, dy, d] of R) { const dd = Math.min(d, lim); ctx.lineTo(SX(x + dx * dd), SY(y + dy * dd)); } ctx.closePath(); };
+  poly(far); ctx.fillStyle = 'rgba(208,48,56,.14)'; ctx.fill(); ctx.save(); ctx.clip(); ctx.strokeStyle = 'rgba(150,25,35,.45)'; ctx.lineWidth = 1; const st2 = Math.max(5, cs * .2);
+  for (let k = -H; k < W; k += st2) { ctx.beginPath(); ctx.moveTo(k, H); ctx.lineTo(k + H, 0); ctx.stroke(); } ctx.restore();
+  poly(near); ctx.fillStyle = 'rgba(208,48,56,.40)'; ctx.fill();
+  poly(far); ctx.strokeStyle = 'rgba(150,25,35,.5)'; ctx.lineWidth = 1.2; ctx.stroke(); ctx.restore();
+}
+function drawFloor() {
+  if (!floorCv) {
+    floorCv = document.createElement('canvas'); const dpr = window.devicePixelRatio || 1; floorCv.width = cv.width; floorCv.height = cv.height; const g = floorCv.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    g.fillStyle = '#8e947a'; g.fillRect(0, 0, W, H); g.fillStyle = '#a5ab8c';
+    for (let y = 0; y < L.h; y++) for (let x = 0; x < L.w; x++) if (!L.wall[y * L.w + x]) g.fillRect(Math.floor(SX(x)), Math.floor(SY(y)), Math.ceil(cs) + 1, Math.ceil(cellH) + 1);
+    let seed = 12345; const rnd = () => { seed = (seed * 1664525 + 1013904223) | 0; return ((seed >>> 8) & 0xffff) / 65535; };
+    for (let n = 0; n < L.w * L.h * 3; n++) { const x = rnd() * L.w, y = rnd() * L.h, c = Math.floor(y) * L.w + Math.floor(x); if (L.wall[c]) continue; g.fillStyle = rnd() < .5 ? 'rgba(80,90,60,.16)' : 'rgba(255,255,230,.12)'; g.fillRect(SX(x), SY(y), 2, 2); }
+  }
+  ctx.drawImage(floorCv, 0, 0, W, H);
+}
+function drawWalls() {
+  const w = (x, y) => x >= 0 && y >= 0 && x < L.w && y < L.h && L.wall[y * L.w + x];
+  for (let y = 0; y < L.h; y++) for (let x = 0; x < L.w; x++) {
+    if (!w(x, y)) continue; const px = SX(x), py = SY(y) - wallH;
+    ctx.fillStyle = '#566050'; if (!w(x, y + 1)) ctx.fillRect(px, py + cellH, cs + .5, wallH + .5);
+    ctx.fillStyle = '#7a8470'; ctx.fillRect(px, py, cs + .5, cellH + .5);
+  }
+  ctx.strokeStyle = '#2d3428'; ctx.lineWidth = 1.6; ctx.lineCap = 'square'; ctx.beginPath();
+  for (let y = 0; y < L.h; y++) for (let x = 0; x < L.w; x++) {
+    if (!w(x, y)) continue; const px = SX(x), py = SY(y) - wallH, below = !w(x, y + 1);
+    if (!w(x, y - 1)) { ctx.moveTo(px, py); ctx.lineTo(px + cs, py); }
+    if (!w(x - 1, y)) { ctx.moveTo(px, py); ctx.lineTo(px, py + cellH + (below ? wallH : 0)); }
+    if (!w(x + 1, y)) { ctx.moveTo(px + cs, py); ctx.lineTo(px + cs, py + cellH + (below ? wallH : 0)); }
+    if (below) { ctx.moveTo(px, py + cellH); ctx.lineTo(px + cs, py + cellH); ctx.moveTo(px, py + cellH + wallH); ctx.lineTo(px + cs, py + cellH + wallH); }
+  }
+  ctx.stroke();
+}
+function figure(x, y, kind, ang, prone, t, moving) {                                    // x, y: feet in screen px; height about 1.8 cells
+  const s = cs * 1.8, uni = kind === 'guard', pa = uni ? 0 : proneAmt, bob = moving ? Math.abs(Math.sin(t / 95)) * s * .03 : Math.sin(t / 520 + x) * s * .008;
+  ctx.save(); ctx.translate(x, y); ctx.lineWidth = Math.max(1.4, s * .045); ctx.strokeStyle = INK; ctx.lineJoin = 'round';
+  if (!uni && pa > .8) {
+    const d = lastFace, sw = moving ? Math.sin(t / 120) : 0;
+    ctx.beginPath(); ctx.moveTo(-s * .28 * d, -s * .09); ctx.lineTo((-s * .4 + sw * s * .05) * d, -s * .03); ctx.moveTo(s * .1 * d, -s * .05); ctx.lineTo((s * .24 - sw * s * .05) * d, 0); ctx.stroke();
+    ctx.fillStyle = '#e8ead2'; ctx.beginPath(); ctx.ellipse(0, -s * .1 + bob, s * .3, s * .09, 0, 0, 7); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = INK; for (let i = -1; i <= 1; i++) ctx.fillRect(i * s * .12 - s * .02, -s * .18 + bob, s * .04, s * .15);
+    ctx.fillStyle = PINK; ctx.beginPath(); ctx.arc(s * .32 * d, -s * .12 + bob, s * .08, 0, 7); ctx.fill(); ctx.stroke(); ctx.restore(); return;
+  }
+  if (pa > .02) ctx.scale(1 + .3 * pa, 1 - .6 * pa);
+  ctx.fillStyle = uni ? '#3a4a5a' : '#e8ead2'; ctx.fillRect(-s * .14, -s * .6 + bob, s * .28, s * .44); ctx.strokeRect(-s * .14, -s * .6 + bob, s * .28, s * .44);
+  if (!uni) { ctx.fillStyle = INK; for (let i = 0; i < 3; i++) ctx.fillRect(-s * .14, -s * .53 + bob + i * s * .125, s * .28, s * .045); }
+  ctx.fillStyle = '#e8ead2'; ctx.beginPath(); ctx.arc(0, -s * .72 + bob, s * .115, 0, 7); ctx.fill(); ctx.stroke();
+  if (uni) { ctx.fillStyle = INK; ctx.fillRect(-s * .15, -s * .87 + bob, s * .3, s * .075); } else { ctx.fillStyle = PINK; ctx.beginPath(); ctx.arc(0, -s * .75 + bob, s * .115, Math.PI, 0); ctx.fill(); ctx.stroke(); }
+  const sw = moving ? Math.sin(t / 95) * s * .09 : 0; ctx.beginPath(); ctx.moveTo(-s * .07, -s * .16); ctx.lineTo(-s * .07 + sw, 0); ctx.moveTo(s * .07, -s * .16); ctx.lineTo(s * .07 - sw, 0); ctx.stroke();
+  if (uni) { ctx.restore(); ctx.save(); ctx.translate(x, y - s * .38); const dx = Math.sin(ang) * s * .24, dy = -Math.cos(ang) * s * .24 * KY; ctx.fillStyle = '#d03038'; ctx.beginPath(); ctx.arc(dx, dy, s * .05, 0, 7); ctx.fill(); }
+  ctx.restore();
+}
+function bubble(x, y, txt, col, fill) {
+  const r = cs * .42; ctx.fillStyle = '#f4f1dc'; ctx.strokeStyle = INK; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.fill();
+  if (fill != null) { ctx.save(); ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.clip(); ctx.fillStyle = 'rgba(230,170,50,.7)'; ctx.fillRect(x - r, y + r - 2 * r * fill, 2 * r, 2 * r * fill); ctx.restore(); }
+  ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.stroke(); ctx.fillStyle = col; ctx.font = '800 ' + cs * .62 + 'px system-ui'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(txt, x, y + 1); ctx.textBaseline = 'alphabetic';
+}
+function draw(t) {
+  const V = visual(t); ctx.clearRect(0, 0, W, H); drawFloor();
+  // exit and start markers
+  { const [ex, ey] = cellCenter(L.E), [sx, sy] = cellCenter(L.S); ctx.fillStyle = 'rgba(60,120,70,.4)'; ctx.fillRect(SX(ex - .5), SY(ey - .5), cs, cellH); ctx.fillStyle = INK; ctx.font = '700 ' + cs * .38 + 'px system-ui'; ctx.textAlign = 'center'; ctx.fillText('EXIT', SX(ex), SY(ey) + cs * .12);
+    ctx.strokeStyle = 'rgba(40,50,35,.55)'; ctx.lineWidth = 2; ctx.setLineDash([4, 3]); ctx.beginPath(); ctx.ellipse(SX(sx), SY(sy), cs * .4, cellH * .35, 0, 0, 7); ctx.stroke(); ctx.setLineDash([]); }
+  if (opts.routes) { ctx.strokeStyle = 'rgba(30,40,30,.28)'; ctx.setLineDash([2, 5]); ctx.lineWidth = 1.5; for (const G of L.guards) { ctx.beginPath(); G.P.forEach((e, i) => { const [x, y] = cellCenter(e.c); i ? ctx.lineTo(SX(x), SY(y)) : ctx.moveTo(SX(x), SY(y)); }); ctx.closePath(); ctx.stroke(); } ctx.setLineDash([]); }
+  // preview: where each guard will be during the next three ticks
+  if (opts.preview && !play && !won) { let s2 = st; for (let n = 1; n <= 3; n++) { s2 = Pt.tick(L, s2, -1, false).st; s2.g.forEach((g, i) => { const [x, y] = cellCenter(g.c); ctx.fillStyle = `rgba(20,24,20,${.5 - n * .12})`; ctx.beginPath(); ctx.arc(SX(x), SY(y), cs * (.2 - n * .03), 0, 7); ctx.fill(); }); } }
+  // cones
+  V.g.forEach(g => drawCone(g.x, g.y, g.ang, g.G.halfDeg, g.G.near, g.G.far, 1));
+  V.c.forEach(q => { const [x, y] = cellCenter(q.c); drawCone(x, y, q.ang, L.p.cHalf, L.p.cNear, L.p.cFar, 1); });
+  // hearing ring around guards (faint) and the prisoner's noise when he walks upright
+  ctx.strokeStyle = 'rgba(40,60,100,.22)'; ctx.lineWidth = 1.2; ctx.setLineDash([3, 4]); V.g.forEach(g => { ctx.beginPath(); ctx.ellipse(SX(g.x), SY(g.y), g.G.hear * cs, g.G.hear * cellH, 0, 0, 7); ctx.stroke(); }); ctx.setLineDash([]);
+  // throw preview
+  if (throwMode) {
+    const [px, py] = cellCenter(st.p); ctx.strokeStyle = 'rgba(20,30,20,.6)'; ctx.setLineDash([4, 4]); ctx.lineWidth = 1.6; ctx.beginPath(); ctx.ellipse(SX(px), SY(py), L.p.throwR * cs, L.p.throwR * cellH, 0, 0, 7); ctx.stroke(); ctx.setLineDash([]);
+    if (throwT >= 0) { const [tx, ty] = cellCenter(throwT); ctx.fillStyle = 'rgba(40,80,160,.14)'; ctx.beginPath(); ctx.ellipse(SX(tx), SY(ty), L.p.noiseR * cs, L.p.noiseR * cellH, 0, 0, 7); ctx.fill(); ctx.strokeStyle = '#2a50a0'; ctx.lineWidth = 2.5; ctx.stroke(); ctx.beginPath(); ctx.arc(SX(tx), SY(ty), cs * .22, 0, 7); ctx.stroke();
+      V.g.forEach(g => { if ((g.st.m === 0 || g.st.m === 2) && Math.hypot(g.x - tx, g.y - ty) <= L.p.noiseR) bubble(SX(g.x), SY(g.y) - cs * 2.3, '?', '#2a50a0'); }); }
+  }
+  // figures, back to front
+  const items = [], late = [];
+  V.g.forEach((g, i) => items.push({ y: g.y, fn: () => { figure(SX(g.x), SY(g.y) + cellH * .35, 'guard', g.ang, false, t, g.moving); const m = g.st.m; if (m === 1 || m === 2) late.push(() => bubble(SX(g.x), SY(g.y) - cs * 2.3, '?', '#2a50a0')); else if (g.st.sus > 0) late.push(() => bubble(SX(g.x), SY(g.y) - cs * 2.3, '?', '#b07a10', g.st.sus / L.p.delay)); } }));
+  const pf = V.p; proneAmt += ((V.stance ? 1 : 0) - proneAmt) * .22; if (Math.abs(proneAmt - V.stance) < .01) proneAmt = V.stance;
+  if (V.walking && V.stance && t - lastDust > 150) { lastDust = t; dust.push({ x: SX(pf[0]) - lastFace * cs * .4, y: SY(pf[1]) + cellH * .3, t }); }
+  if (play && play.act.t === 'move') { const dx = DXs(play.act.d); if (dx) lastFace = dx; }
+  items.push({ y: pf[1], fn: () => figure(SX(pf[0]), SY(pf[1]) + cellH * .35, 'thief', 0, V.stance, t, V.walking) });
+  items.sort((a, b) => a.y - b.y).forEach(o => o.fn());
+  drawWalls(); late.forEach(f => f());
+  // cameras sit on the wall
+  V.c.forEach(q => { const [x, y] = cellCenter(q.c), mx = SX(x), my = SY(y) - wallH * .6; ctx.save(); ctx.translate(mx, my); ctx.fillStyle = INK; ctx.fillRect(-cs * .32, -cs * .18, cs * .64, cs * .36); ctx.rotate(q.ang); ctx.fillStyle = '#d03038'; ctx.beginPath(); ctx.moveTo(0, -cs * .5); ctx.lineTo(-cs * .16, -cs * .2); ctx.lineTo(cs * .16, -cs * .2); ctx.fill(); ctx.restore(); if (q.sus > 0) bubble(mx, my - cs * 1.1, '?', '#b07a10', q.sus / L.p.delay); });
+  drawFX(t, V);
+}
+const DXs = d => Pt.DX[d];
+function srcPos(src, stt) { const k = +src.slice(1); if (src[0] === 'g') { const g = stt.g[k]; return cellCenter(g.c); } return cellCenter(L.cams[k].c); }
+function drawFX(t, V) {
+  dust = dust.filter(d => t - d.t < 520); for (const d of dust) { const k = Math.max(0, (t - d.t) / 520); ctx.fillStyle = `rgba(90,88,60,${.45 * (1 - k)})`; ctx.beginPath(); ctx.arc(d.x, d.y - k * cs * .2, cs * (.1 + .22 * k), 0, 7); ctx.fill(); }
+  ripples = ripples.filter(r => t - r.t < 900); for (const r of ripples) { const k = Math.max(0, (t - r.t) / 900), [x, y] = cellCenter(r.c); ctx.strokeStyle = `rgba(30,70,150,${.65 * (1 - k)})`; ctx.lineWidth = 3; ctx.beginPath(); ctx.ellipse(SX(x), SY(y), cs * (.2 + k * L.p.noiseR * .8), cellH * (.2 + k * L.p.noiseR * .8), 0, 0, 7); ctx.stroke(); }
+  if (stoneFx && t - stoneFx.t < 450) { const k = Math.max(0, (t - stoneFx.t) / 450), [ax, ay] = cellCenter(stoneFx.from), [bx, by] = cellCenter(stoneFx.to); ctx.fillStyle = INK; ctx.beginPath(); ctx.arc(SX(ax + (bx - ax) * k), SY(ay + (by - ay) * k) - cs * .9 - Math.sin(k * Math.PI) * cs * 1.2, cs * .13, 0, 7); ctx.fill(); }
+  if (alertFx && t - alertFx.t < 1300) { const k = (t - alertFx.t) / 1300, [x, y] = srcPos(alertFx.src, alertFx.st || V.st); ctx.save(); ctx.globalAlpha = 1 - k * k; bubble(SX(x), SY(y) - cs * (alertFx.src[0] === 'c' ? 1.3 : 2.3), '!', '#d03038'); ctx.restore(); }
+}
+function frame(t) { if (L) { try { draw(t); } catch (e) { console.error(e); } } requestAnimationFrame(frame); }
+function boot() { const q = new URLSearchParams(location.search), w = +q.get('level'); let i = store.get('pl_last', 0); if (w) i = Math.max(0, LV.findIndex(l => l.id === w)); load(Math.min(i, LV.length - 1)); requestAnimationFrame(frame); }
+window.lab = { load, doAction, onTapCell, solveAndPlay, undo, Pt, L: () => L, state: () => ({ li, st, ticks: st.tk, par, won, caught: !!caughtInfo, busy: busy() || solving, throwMode, cs, ox, oy, cellH, w: L.w, h: L.h }), cellXY: c => [SX((c % L.w) + .5), SY(((c / L.w) | 0) + .5)] };
+boot();
+</script>

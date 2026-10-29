@@ -1,0 +1,311 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>Blind Eye Patrol Lab</title>
+<style>
+  :root { --bg:#1a2229; --panel:#222d36; --line:#3b4b57; --txt:#d5dcc4; --dim:#8c9a8f; --acc:#d03038; --ok:#8fbf6a; --paper:#a3a98a; color-scheme:dark; }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html, body { margin:0; height:100%; background:var(--bg); color:var(--txt); font:14px/1.35 system-ui, "Segoe UI", sans-serif; overflow:hidden; touch-action:manipulation; user-select:none; -webkit-user-select:none; }
+  #app { position:fixed; inset:0; display:flex; flex-direction:column; padding:env(safe-area-inset-top, 0px) max(16px, env(safe-area-inset-right, 0px)) env(safe-area-inset-bottom, 0px) max(16px, env(safe-area-inset-left, 0px)); gap:6px; }
+  header { display:flex; align-items:center; gap:8px; padding-top:8px; border-top:5px solid var(--acc); }
+  header .lv { flex:1; min-width:0; } header .lv b { display:block; font-size:15px; } header .lv small { color:var(--dim); font-size:11px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; display:block; }
+  .stat { text-align:center; min-width:54px; } .stat .k { display:block; font-size:10px; color:var(--dim); text-transform:uppercase; letter-spacing:.06em; } .stat b { font-size:20px; font-variant-numeric:tabular-nums; } .stat b.over { color:#ff7a80; }
+  button { font:inherit; color:var(--txt); background:var(--panel); border:2px solid var(--line); border-radius:6px; padding:9px 10px; cursor:pointer; min-height:44px; }
+  button:active { background:#2c3a45; } button:disabled { opacity:.35; } button.on { border-color:var(--acc); color:#fff; background:#3a2428; } button.primary { border-color:var(--ok); }
+  #tip { height:56px; overflow:hidden; padding:6px 10px; background:var(--panel); border:1px solid var(--line); border-radius:6px; font-size:12.5px; display:flex; align-items:center; }
+  #tip.warn { color:#ff9ea3; border-color:var(--acc); }
+  #stage { position:relative; flex:1; min-height:0; border:3px solid #8aa0ad; border-radius:4px; background:var(--paper); overflow:hidden; box-shadow:0 0 0 3px #11171c; }
+  canvas { position:absolute; inset:0; width:100%; height:100%; touch-action:none; }
+  #bar { display:grid; grid-template-columns:repeat(4, 1fr); gap:6px; } #bar button { padding:8px 2px; font-size:12px; min-width:0; } #bar button b { display:block; font-size:16px; line-height:1.1; }
+  #chips { display:grid; grid-template-columns:repeat(4, 1fr); gap:6px; padding-bottom:8px; } #chips button { min-height:36px; padding:4px 2px; font-size:11.5px; }
+  .ov { position:fixed; inset:0; display:none; align-items:center; justify-content:center; background:rgba(14,19,23,.88); z-index:10; padding:12px; } .ov.on { display:flex; }
+  .card { background:var(--panel); border:2px solid var(--line); border-radius:10px; padding:14px; width:min(520px, 100%); max-height:100%; overflow:auto; }
+  .card h2 { margin:0 0 8px; font-size:17px; } .card p { margin:6px 0; color:var(--dim); font-size:13px; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(70px, 1fr)); gap:6px; margin:8px 0; } .grid button { padding:6px 2px; font-size:12px; min-height:50px; } .grid button.cur { border-color:var(--acc); } .grid button.done { background:#2a3b2d; }
+  .row { display:flex; gap:8px; margin-top:8px; } .row button { flex:1; }
+  .legend { display:flex; gap:10px; flex-wrap:wrap; font-size:12px; color:var(--dim); } .legend span::before { content:''; display:inline-block; width:12px; height:12px; margin-right:5px; vertical-align:-2px; border:1px solid #333; }
+  .legend .n::before { background:rgba(208,48,56,.55); } .legend .f::before { background:repeating-linear-gradient(45deg, rgba(208,48,56,.35) 0 2px, rgba(208,48,56,.1) 2px 4px); }
+</style></head><body>
+<div id="app">
+  <header>
+    <button id="btnLevels">☰</button>
+    <div class="lv"><b id="lvTitle"></b><small id="lvSub"></small></div>
+    <div class="stat"><span class="k">time</span><b id="ticks">0</b></div>
+    <div class="stat"><span class="k">par</span><b id="par">0</b></div>
+  </header>
+  <div id="tip"></div>
+  <div id="stage"><canvas id="cv"></canvas></div>
+  <div id="bar">
+    <button id="bStance"><b>▼</b>Crawl</button>
+    <button id="bWait"><b>…</b>Wait</button>
+    <button id="bThrow"><b id="thN">0</b>Stone</button>
+    <button id="bUndo"><b>↶</b>Undo</button>
+  </div>
+  <div id="chips">
+    <button id="cRoutes">Routes</button><button id="cPreview">Preview</button><button id="cSafe">Safety</button><button id="bSolve">Solve</button>
+  </div>
+</div>
+<div class="ov" id="ovLevels"><div class="card">
+  <h2>Patrol Lab</h2>
+  <div class="legend"><span class="n">near: seen in any stance</span><span class="f">far: seen only standing, after 2 ticks</span></div>
+  <p>No grid, no moving the guards. Everybody moves on their own, one step per tick; you get one action per turn. Time is the score.</p>
+  <div class="grid" id="grid"></div>
+  <div class="row"><button id="bClose" class="primary">Close</button></div>
+</div></div>
+<div class="ov" id="ovEnd"><div class="card" style="text-align:center">
+  <h2 id="endTitle"></h2><div id="endStars" style="font-size:30px;color:#ffcf6b;letter-spacing:.2em"></div><p id="endInfo"></p>
+  <div class="row"><button id="eRetry">Retry</button><button id="eUndo">Undo</button><button id="eNext" class="primary">Next</button></div>
+</div></div>
+
+<script>/*PATROL*/</script>
+<script>window.PATROL_LEVELS = /*LEVELS*/;</script>
+<script>
+'use strict';
+const Pt = window.Patrol, $ = id => document.getElementById(id), KY = .78, KW = .34, INK = '#14160f', PINK = '#d9708a';
+const cv = $('cv'), ctx = cv.getContext('2d'), LV = window.PATROL_LEVELS;
+const store = { get(k, d) { try { const v = localStorage.getItem(k); return v === null ? d : JSON.parse(v); } catch (e) { return d; } }, set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { } } };
+let doneSet = store.get('pl_done', {});
+let li = 0, L = null, rec = null, st = null, hist = [], par = 0, plan = null, play = null, route = [], throwMode = false, throwT = -1, caughtInfo = null, won = false, solving = false, onIdle = null;
+let opts = Object.assign({ routes: false, preview: true, safety: true }, store.get('pl_opts', {}));
+let cs = 26, cellH = 20, wallH = 9, ox = 0, oy = 0, W = 0, H = 0, floorCv = null, alertFx = null, stoneFx = null, ripples = [], dust = [], lastDust = 0, lastFace = 1, proneAmt = 0;
+const TICK = 250, CRAWL = 300;
+const ease = k => k <= 0 ? 0 : k >= 1 ? 1 : k * k * (3 - 2 * k);
+/* ------------------------------------------------------------------ level */
+function load(i) {
+  clearTimeout(endTimer); li = i; rec = LV[li]; L = Pt.parse(rec.spec); st = Pt.initial(L); hist = []; plan = null; play = null; route = []; throwMode = false; throwT = -1; caughtInfo = null; won = false; solving = false; onIdle = null;
+  alertFx = null; stoneFx = null; ripples = []; dust = []; proneAmt = 0; par = rec.par || 0;
+  layout(); syncUI(); setTip(rec.tip || 'Tap the floor to walk there. Stay out of the red; crawl (▼) to pass through the hatched far part of a cone, and keep away from guards when walking: they hear you.');
+  store.set('pl_last', i); $('ovEnd').classList.remove('on');
+}
+function setTip(t, warn) { const e = $('tip'); e.textContent = t || ''; e.className = warn ? 'warn' : ''; }
+const busy = () => !!play;
+function syncUI() {
+  $('lvTitle').textContent = `${rec.id}. ${rec.name}`; $('lvSub').textContent = `${L.guards.length} guard${L.guards.length === 1 ? '' : 's'} · ${L.cams.length} camera${L.cams.length === 1 ? '' : 's'} · ${rec.spec.throws || 0} stone${rec.spec.throws === 1 ? '' : 's'} · free walk ${Pt.freeWalk(L)}`;
+  const t = $('ticks'); t.textContent = st.tk; t.className = par && st.tk > par ? 'over' : ''; $('par').textContent = par || '–';
+  $('bStance').innerHTML = st.s ? '<b>▲</b>Stand' : '<b>▼</b>Crawl'; $('thN').textContent = st.th;
+  $('bThrow').disabled = st.th < 1 || busy() || solving; $('bThrow').classList.toggle('on', throwMode);
+  $('bWait').disabled = busy() || solving; $('bStance').disabled = busy() || solving; $('bUndo').disabled = !hist.length || busy() || solving; $('bSolve').disabled = busy() || solving || won;
+  $('cRoutes').classList.toggle('on', opts.routes); $('cPreview').classList.toggle('on', opts.preview); $('cSafe').classList.toggle('on', opts.safety); $('cSafe').textContent = opts.safety ? 'Safety on' : 'Safety off';
+}
+/* ------------------------------------------------------------------ geometry */
+function layout() {
+  const dpr = window.devicePixelRatio || 1; W = cv.clientWidth; H = cv.clientHeight; cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr); ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  cs = Math.max(14, Math.floor(Math.min((W - 6) / L.w, (H - 6) / (L.h * KY + KW)))); cellH = cs * KY; wallH = cs * KW;
+  ox = (W - cs * L.w) / 2; oy = (H - (L.h * cellH + wallH)) / 2 + wallH; floorCv = null;
+}
+const SX = wx => ox + wx * cs, SY = wy => oy + wy * cellH;
+const cellCenter = c => [(c % L.w) + .5, ((c / L.w) | 0) + .5];
+/* ------------------------------------------------------------------ actions */
+function doAction(act, instant) {
+  if (busy() || won || caughtInfo) return false;
+  const r = Pt.step(L, st, act);
+  if (r.caught && opts.safety && !instant) { alertFx = { src: r.caught.src, t: performance.now(), st: r.frames[r.frames.length - 1] }; setTip(whoText(r.caught) + ' Move somewhere else, wait, or try another way.', true); route = []; return false; }
+  hist.push(st);
+  if (instant) { st = r.last; if (r.caught) caughtInfo = r.caught; syncUI(); if (Pt.won(L, st) && !caughtInfo) win(); return true; }
+  if (act.t === 'throw') { stoneFx = { from: st.p, to: act.T, t: performance.now() }; ripples.push({ c: act.T, t: performance.now() + 120 }); }
+  play = { from: st, frames: r.frames, act, caught: r.caught, t0: performance.now() }; throwMode = false; throwT = -1; syncUI(); return true;
+}
+function whoText(c) { const k = c.src[0] === 'g' ? 'A guard' : 'A camera'; return c.lvl === 2 ? `${k} would spot or hear him there.` : `${k} would notice him after a moment.`; }
+function finishPlay() {
+  const p = play; play = null; st = p.frames[p.frames.length - 1];
+  if (p.caught) { caughtInfo = p.caught; alertFx = { src: p.caught.src, t: performance.now(), st }; end(false); syncUI(); return; }
+  syncUI();
+  if (Pt.won(L, st)) { win(); return; }
+  if (onIdle) { const f = onIdle; onIdle = null; f(); return; }
+  nextRoute();
+}
+function nextRoute() {
+  if (!route.length) return;
+  const d = route.shift(); const act = { t: 'move', d };
+  if (!doAction(act)) route = [];
+}
+function planRoute(target) {
+  const D = Pt.distFrom(L, target), occ = new Set(st.g.map(g => g.c)); let c = st.p; const out = [];
+  for (let n = 0; n < 60 && c !== target; n++) {
+    let best = -1, bd = D[c];
+    for (let d = 0; d < 8; d++) if (Pt.canStep(L, c, d)) { const q = Pt.stepTo(L, c, d); if (D[q] >= 0 && D[q] < bd && !occ.has(q)) { bd = D[q]; best = d; } }
+    if (best < 0) break; out.push(best); c = Pt.stepTo(L, c, best);
+  }
+  return out;
+}
+function onTapCell(c) {
+  if (busy() || won || caughtInfo || solving) return;
+  if (c < 0 || L.wall[c]) return;
+  if (throwMode) {
+    const px = st.p % L.w, py = (st.p / L.w) | 0, x = c % L.w, y = (c / L.w) | 0;
+    if (Math.hypot(x - px, y - py) > L.p.throwR) { throwMode = false; throwT = -1; setTip('Too far to throw.', true); syncUI(); return; }
+    if (throwT === c) { doAction({ t: 'throw', T: c }); } else { throwT = c; setTip('Tap the same spot again to throw. The blue circle is how far the noise carries.'); }
+    return;
+  }
+  if (c === st.p) return;
+  route = planRoute(c); if (!route.length) { setTip('No way there.', true); return; }
+  nextRoute();
+}
+function undo() { if (!hist.length || busy() || solving) return; clearTimeout(endTimer); st = hist.pop(); won = false; caughtInfo = null; route = []; throwMode = false; $('ovEnd').classList.remove('on'); alertFx = null; setTip(''); syncUI(); }
+function win() {
+  won = true; route = []; const stars = par && st.tk <= par ? 3 : par && st.tk <= par + 3 ? 2 : 1; doneSet[rec.id] = Math.max(doneSet[rec.id] || 0, stars); store.set('pl_done', doneSet);
+  end(true, stars);
+}
+let endTimer = 0;
+function end(ok, stars) {
+  clearTimeout(endTimer); endTimer = setTimeout(() => {
+    $('endTitle').textContent = ok ? (st.tk <= par ? 'Escaped at par' : 'Escaped') : 'Caught'; $('endStars').textContent = ok ? '★'.repeat(stars) + '☆'.repeat(3 - stars) : '';
+    $('endInfo').textContent = ok ? `${st.tk} ticks (par ${par}).` : 'A guard or a camera saw him. Undo the last move, or try again.'; $('eNext').style.display = ok ? '' : 'none'; $('ovEnd').classList.add('on');
+  }, ok ? 500 : 900);
+}
+/* ------------------------------------------------------------------ solve playback */
+function solveAndPlay(instant) {
+  const r = Pt.solve(L, { st, maxTicks: 90, maxStates: 3e6 });
+  if (!r || !r.solvable) { setTip('No safe plan from here. Undo or restart.', true); return null; }
+  const acts = r.plan.slice(); solving = !instant; setTip(`Fastest safe plan from here: ${r.par} ticks.`);
+  if (instant) { for (const a of acts) { const rr = Pt.step(L, st, a); hist.push(st); st = rr.last; } syncUI(); if (Pt.won(L, st)) win(); return r; }
+  syncUI();
+  const run = () => { const a = acts.shift(); if (!a) { solving = false; syncUI(); return; } solving = false; onIdle = acts.length ? () => { solving = true; run(); } : null; if (!doAction(a)) { solving = false; return; } solving = true; };
+  run(); return r;
+}
+/* ------------------------------------------------------------------ input */
+cv.addEventListener('pointerdown', e => {
+  const r = cv.getBoundingClientRect(), px = e.clientX - r.left, py = e.clientY - r.top, x = Math.floor((px - ox) / cs), y = Math.floor((py - oy) / cellH);
+  if (route.length && !busy()) route = [];
+  if (x < 0 || y < 0 || x >= L.w || y >= L.h) return; onTapCell(y * L.w + x);
+});
+$('bStance').onclick = () => { route = []; doAction({ t: 'stance' }); };
+$('bWait').onclick = () => { route = []; doAction({ t: 'wait' }); };
+$('bThrow').onclick = () => { route = []; throwMode = !throwMode; throwT = -1; setTip(throwMode ? 'Pick a spot within reach (the dashed circle) and tap it twice to throw.' : ''); syncUI(); };
+$('bUndo').onclick = undo; $('eUndo').onclick = undo; $('eRetry').onclick = () => load(li); $('eNext').onclick = () => load(Math.min(LV.length - 1, li + 1));
+$('bSolve').onclick = () => solveAndPlay(false);
+$('cRoutes').onclick = () => { opts.routes = !opts.routes; store.set('pl_opts', opts); syncUI(); };
+$('cPreview').onclick = () => { opts.preview = !opts.preview; store.set('pl_opts', opts); syncUI(); };
+$('cSafe').onclick = () => { opts.safety = !opts.safety; store.set('pl_opts', opts); syncUI(); setTip(opts.safety ? 'Safety on: a move that would get him caught is refused.' : 'Safety off: you can walk into trouble and get caught.'); };
+$('btnLevels').onclick = () => { const g = $('grid'); g.innerHTML = ''; LV.forEach((t, i) => { const b = document.createElement('button'), s = doneSet[t.id]; b.innerHTML = `${t.id}<br><small>${t.name}${s ? ' ' + '★'.repeat(s) : ''}</small>`; b.className = (i === li ? 'cur ' : '') + (s ? 'done' : ''); b.onclick = () => { $('ovLevels').classList.remove('on'); load(i); }; g.appendChild(b); }); $('ovLevels').classList.add('on'); };
+$('bClose').onclick = () => $('ovLevels').classList.remove('on');
+addEventListener('resize', () => { if (L) layout(); }); if (window.ResizeObserver) new ResizeObserver(() => { if (L) layout(); }).observe($('stage'));
+/* ------------------------------------------------------------------ the picture */
+function visual(t) {
+  // everything that moves, interpolated between two ticks
+  let a = st, b = st, k = 1, moving = false, seg = 0, from = st;
+  if (play) {
+    const per = play.act.t === 'move' && play.from.s === 1 ? CRAWL : TICK, n = play.frames.length, e = Math.max(0, (t - play.t0) / per); seg = Math.min(n - 1, Math.floor(e)); k = Math.min(1, e - seg);
+    a = seg === 0 ? play.from : play.frames[seg - 1]; b = play.frames[seg]; moving = true; if (e >= n) { finishPlay(); return visual(t); }
+  }
+  const lerp = (u, v) => u + (v - u) * ease(k), cc = c => cellCenter(c);
+  const ang = (f0, f1) => { const d = ((((f1 - f0) * 45) % 360) + 540) % 360 - 180; return (f0 * 45 + d * ease(k)) * Math.PI / 180; };
+  const pa = cc(a.p), pb = cc(b.p), man = moving && play.act.t === 'move' && seg === 0;
+  const V = { p: [lerp(pa[0], pb[0]), lerp(pa[1], pb[1])], stance: b.s, walking: man, g: [], c: [], st: b };
+  L.guards.forEach((G, i) => { const ga = a.g[i], gb = b.g[i], ca = cc(ga.c), cb = cc(gb.c); V.g.push({ x: lerp(ca[0], cb[0]), y: lerp(ca[1], cb[1]), ang: ang(ga.f, gb.f), moving: ga.c !== gb.c, st: gb, G }); });
+  L.cams.forEach((q, i) => V.c.push({ c: q.c, ang: ang(Pt.camFacing(L, a, i), Pt.camFacing(L, b, i)), sus: b.cs[i] }));
+  return V;
+}
+function coneRays(x, y, a, halfDeg, far) {
+  const out = [], n = Math.max(6, Math.ceil(halfDeg * 2 / 3));
+  for (let i = 0; i <= n; i++) {
+    const th = a + (-halfDeg + halfDeg * 2 * i / n) * Math.PI / 180, dx = Math.sin(th), dy = -Math.cos(th); let d = 0;
+    for (; d < far; d += .08) { const cx = Math.floor(x + dx * d), cy = Math.floor(y + dy * d); if (cx < 0 || cy < 0 || cx >= L.w || cy >= L.h || L.wall[cy * L.w + cx]) break; }
+    out.push([dx, dy, Math.min(far, d)]);
+  }
+  return out;
+}
+function drawCone(x, y, a, halfDeg, near, far, alpha) {
+  const R = coneRays(x, y, a, halfDeg, far); ctx.save(); ctx.globalAlpha = alpha;
+  const poly = (lim) => { ctx.beginPath(); ctx.moveTo(SX(x), SY(y)); for (const [dx, dy, d] of R) { const dd = Math.min(d, lim); ctx.lineTo(SX(x + dx * dd), SY(y + dy * dd)); } ctx.closePath(); };
+  poly(far); ctx.fillStyle = 'rgba(208,48,56,.14)'; ctx.fill(); ctx.save(); ctx.clip(); ctx.strokeStyle = 'rgba(150,25,35,.45)'; ctx.lineWidth = 1; const st2 = Math.max(5, cs * .2);
+  for (let k = -H; k < W; k += st2) { ctx.beginPath(); ctx.moveTo(k, H); ctx.lineTo(k + H, 0); ctx.stroke(); } ctx.restore();
+  poly(near); ctx.fillStyle = 'rgba(208,48,56,.40)'; ctx.fill();
+  poly(far); ctx.strokeStyle = 'rgba(150,25,35,.5)'; ctx.lineWidth = 1.2; ctx.stroke(); ctx.restore();
+}
+function drawFloor() {
+  if (!floorCv) {
+    floorCv = document.createElement('canvas'); const dpr = window.devicePixelRatio || 1; floorCv.width = cv.width; floorCv.height = cv.height; const g = floorCv.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    g.fillStyle = '#8e947a'; g.fillRect(0, 0, W, H); g.fillStyle = '#a5ab8c';
+    for (let y = 0; y < L.h; y++) for (let x = 0; x < L.w; x++) if (!L.wall[y * L.w + x]) g.fillRect(Math.floor(SX(x)), Math.floor(SY(y)), Math.ceil(cs) + 1, Math.ceil(cellH) + 1);
+    let seed = 12345; const rnd = () => { seed = (seed * 1664525 + 1013904223) | 0; return ((seed >>> 8) & 0xffff) / 65535; };
+    for (let n = 0; n < L.w * L.h * 3; n++) { const x = rnd() * L.w, y = rnd() * L.h, c = Math.floor(y) * L.w + Math.floor(x); if (L.wall[c]) continue; g.fillStyle = rnd() < .5 ? 'rgba(80,90,60,.16)' : 'rgba(255,255,230,.12)'; g.fillRect(SX(x), SY(y), 2, 2); }
+  }
+  ctx.drawImage(floorCv, 0, 0, W, H);
+}
+function drawWalls() {
+  const w = (x, y) => x >= 0 && y >= 0 && x < L.w && y < L.h && L.wall[y * L.w + x];
+  for (let y = 0; y < L.h; y++) for (let x = 0; x < L.w; x++) {
+    if (!w(x, y)) continue; const px = SX(x), py = SY(y) - wallH;
+    ctx.fillStyle = '#566050'; if (!w(x, y + 1)) ctx.fillRect(px, py + cellH, cs + .5, wallH + .5);
+    ctx.fillStyle = '#7a8470'; ctx.fillRect(px, py, cs + .5, cellH + .5);
+  }
+  ctx.strokeStyle = '#2d3428'; ctx.lineWidth = 1.6; ctx.lineCap = 'square'; ctx.beginPath();
+  for (let y = 0; y < L.h; y++) for (let x = 0; x < L.w; x++) {
+    if (!w(x, y)) continue; const px = SX(x), py = SY(y) - wallH, below = !w(x, y + 1);
+    if (!w(x, y - 1)) { ctx.moveTo(px, py); ctx.lineTo(px + cs, py); }
+    if (!w(x - 1, y)) { ctx.moveTo(px, py); ctx.lineTo(px, py + cellH + (below ? wallH : 0)); }
+    if (!w(x + 1, y)) { ctx.moveTo(px + cs, py); ctx.lineTo(px + cs, py + cellH + (below ? wallH : 0)); }
+    if (below) { ctx.moveTo(px, py + cellH); ctx.lineTo(px + cs, py + cellH); ctx.moveTo(px, py + cellH + wallH); ctx.lineTo(px + cs, py + cellH + wallH); }
+  }
+  ctx.stroke();
+}
+function figure(x, y, kind, ang, prone, t, moving) {                                    // x, y: feet in screen px; height about 1.8 cells
+  const s = cs * 1.8, uni = kind === 'guard', pa = uni ? 0 : proneAmt, bob = moving ? Math.abs(Math.sin(t / 95)) * s * .03 : Math.sin(t / 520 + x) * s * .008;
+  ctx.save(); ctx.translate(x, y); ctx.lineWidth = Math.max(1.4, s * .045); ctx.strokeStyle = INK; ctx.lineJoin = 'round';
+  if (!uni && pa > .8) {
+    const d = lastFace, sw = moving ? Math.sin(t / 120) : 0;
+    ctx.beginPath(); ctx.moveTo(-s * .28 * d, -s * .09); ctx.lineTo((-s * .4 + sw * s * .05) * d, -s * .03); ctx.moveTo(s * .1 * d, -s * .05); ctx.lineTo((s * .24 - sw * s * .05) * d, 0); ctx.stroke();
+    ctx.fillStyle = '#e8ead2'; ctx.beginPath(); ctx.ellipse(0, -s * .1 + bob, s * .3, s * .09, 0, 0, 7); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = INK; for (let i = -1; i <= 1; i++) ctx.fillRect(i * s * .12 - s * .02, -s * .18 + bob, s * .04, s * .15);
+    ctx.fillStyle = PINK; ctx.beginPath(); ctx.arc(s * .32 * d, -s * .12 + bob, s * .08, 0, 7); ctx.fill(); ctx.stroke(); ctx.restore(); return;
+  }
+  if (pa > .02) ctx.scale(1 + .3 * pa, 1 - .6 * pa);
+  ctx.fillStyle = uni ? '#3a4a5a' : '#e8ead2'; ctx.fillRect(-s * .14, -s * .6 + bob, s * .28, s * .44); ctx.strokeRect(-s * .14, -s * .6 + bob, s * .28, s * .44);
+  if (!uni) { ctx.fillStyle = INK; for (let i = 0; i < 3; i++) ctx.fillRect(-s * .14, -s * .53 + bob + i * s * .125, s * .28, s * .045); }
+  ctx.fillStyle = '#e8ead2'; ctx.beginPath(); ctx.arc(0, -s * .72 + bob, s * .115, 0, 7); ctx.fill(); ctx.stroke();
+  if (uni) { ctx.fillStyle = INK; ctx.fillRect(-s * .15, -s * .87 + bob, s * .3, s * .075); } else { ctx.fillStyle = PINK; ctx.beginPath(); ctx.arc(0, -s * .75 + bob, s * .115, Math.PI, 0); ctx.fill(); ctx.stroke(); }
+  const sw = moving ? Math.sin(t / 95) * s * .09 : 0; ctx.beginPath(); ctx.moveTo(-s * .07, -s * .16); ctx.lineTo(-s * .07 + sw, 0); ctx.moveTo(s * .07, -s * .16); ctx.lineTo(s * .07 - sw, 0); ctx.stroke();
+  if (uni) { ctx.restore(); ctx.save(); ctx.translate(x, y - s * .38); const dx = Math.sin(ang) * s * .24, dy = -Math.cos(ang) * s * .24 * KY; ctx.fillStyle = '#d03038'; ctx.beginPath(); ctx.arc(dx, dy, s * .05, 0, 7); ctx.fill(); }
+  ctx.restore();
+}
+function bubble(x, y, txt, col, fill) {
+  const r = cs * .42; ctx.fillStyle = '#f4f1dc'; ctx.strokeStyle = INK; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.fill();
+  if (fill != null) { ctx.save(); ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.clip(); ctx.fillStyle = 'rgba(230,170,50,.7)'; ctx.fillRect(x - r, y + r - 2 * r * fill, 2 * r, 2 * r * fill); ctx.restore(); }
+  ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.stroke(); ctx.fillStyle = col; ctx.font = '800 ' + cs * .62 + 'px system-ui'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(txt, x, y + 1); ctx.textBaseline = 'alphabetic';
+}
+function draw(t) {
+  const V = visual(t); ctx.clearRect(0, 0, W, H); drawFloor();
+  // exit and start markers
+  { const [ex, ey] = cellCenter(L.E), [sx, sy] = cellCenter(L.S); ctx.fillStyle = 'rgba(60,120,70,.4)'; ctx.fillRect(SX(ex - .5), SY(ey - .5), cs, cellH); ctx.fillStyle = INK; ctx.font = '700 ' + cs * .38 + 'px system-ui'; ctx.textAlign = 'center'; ctx.fillText('EXIT', SX(ex), SY(ey) + cs * .12);
+    ctx.strokeStyle = 'rgba(40,50,35,.55)'; ctx.lineWidth = 2; ctx.setLineDash([4, 3]); ctx.beginPath(); ctx.ellipse(SX(sx), SY(sy), cs * .4, cellH * .35, 0, 0, 7); ctx.stroke(); ctx.setLineDash([]); }
+  if (opts.routes) { ctx.strokeStyle = 'rgba(30,40,30,.28)'; ctx.setLineDash([2, 5]); ctx.lineWidth = 1.5; for (const G of L.guards) { ctx.beginPath(); G.P.forEach((e, i) => { const [x, y] = cellCenter(e.c); i ? ctx.lineTo(SX(x), SY(y)) : ctx.moveTo(SX(x), SY(y)); }); ctx.closePath(); ctx.stroke(); } ctx.setLineDash([]); }
+  // preview: where each guard will be during the next three ticks
+  if (opts.preview && !play && !won) { let s2 = st; for (let n = 1; n <= 3; n++) { s2 = Pt.tick(L, s2, -1, false).st; s2.g.forEach((g, i) => { const [x, y] = cellCenter(g.c); ctx.fillStyle = `rgba(20,24,20,${.5 - n * .12})`; ctx.beginPath(); ctx.arc(SX(x), SY(y), cs * (.2 - n * .03), 0, 7); ctx.fill(); }); } }
+  // cones
+  V.g.forEach(g => drawCone(g.x, g.y, g.ang, g.G.halfDeg, g.G.near, g.G.far, 1));
+  V.c.forEach(q => { const [x, y] = cellCenter(q.c); drawCone(x, y, q.ang, L.p.cHalf, L.p.cNear, L.p.cFar, 1); });
+  // hearing ring around guards (faint) and the prisoner's noise when he walks upright
+  ctx.strokeStyle = 'rgba(40,60,100,.22)'; ctx.lineWidth = 1.2; ctx.setLineDash([3, 4]); V.g.forEach(g => { ctx.beginPath(); ctx.ellipse(SX(g.x), SY(g.y), g.G.hear * cs, g.G.hear * cellH, 0, 0, 7); ctx.stroke(); }); ctx.setLineDash([]);
+  // throw preview
+  if (throwMode) {
+    const [px, py] = cellCenter(st.p); ctx.strokeStyle = 'rgba(20,30,20,.6)'; ctx.setLineDash([4, 4]); ctx.lineWidth = 1.6; ctx.beginPath(); ctx.ellipse(SX(px), SY(py), L.p.throwR * cs, L.p.throwR * cellH, 0, 0, 7); ctx.stroke(); ctx.setLineDash([]);
+    if (throwT >= 0) { const [tx, ty] = cellCenter(throwT); ctx.fillStyle = 'rgba(40,80,160,.14)'; ctx.beginPath(); ctx.ellipse(SX(tx), SY(ty), L.p.noiseR * cs, L.p.noiseR * cellH, 0, 0, 7); ctx.fill(); ctx.strokeStyle = '#2a50a0'; ctx.lineWidth = 2.5; ctx.stroke(); ctx.beginPath(); ctx.arc(SX(tx), SY(ty), cs * .22, 0, 7); ctx.stroke();
+      V.g.forEach(g => { if ((g.st.m === 0 || g.st.m === 2) && Math.hypot(g.x - tx, g.y - ty) <= L.p.noiseR) bubble(SX(g.x), SY(g.y) - cs * 2.3, '?', '#2a50a0'); }); }
+  }
+  // figures, back to front
+  const items = [], late = [];
+  V.g.forEach((g, i) => items.push({ y: g.y, fn: () => { figure(SX(g.x), SY(g.y) + cellH * .35, 'guard', g.ang, false, t, g.moving); const m = g.st.m; if (m === 1 || m === 2) late.push(() => bubble(SX(g.x), SY(g.y) - cs * 2.3, '?', '#2a50a0')); else if (g.st.sus > 0) late.push(() => bubble(SX(g.x), SY(g.y) - cs * 2.3, '?', '#b07a10', g.st.sus / L.p.delay)); } }));
+  const pf = V.p; proneAmt += ((V.stance ? 1 : 0) - proneAmt) * .22; if (Math.abs(proneAmt - V.stance) < .01) proneAmt = V.stance;
+  if (V.walking && V.stance && t - lastDust > 150) { lastDust = t; dust.push({ x: SX(pf[0]) - lastFace * cs * .4, y: SY(pf[1]) + cellH * .3, t }); }
+  if (play && play.act.t === 'move') { const dx = DXs(play.act.d); if (dx) lastFace = dx; }
+  items.push({ y: pf[1], fn: () => figure(SX(pf[0]), SY(pf[1]) + cellH * .35, 'thief', 0, V.stance, t, V.walking) });
+  items.sort((a, b) => a.y - b.y).forEach(o => o.fn());
+  drawWalls(); late.forEach(f => f());
+  // cameras sit on the wall
+  V.c.forEach(q => { const [x, y] = cellCenter(q.c), mx = SX(x), my = SY(y) - wallH * .6; ctx.save(); ctx.translate(mx, my); ctx.fillStyle = INK; ctx.fillRect(-cs * .32, -cs * .18, cs * .64, cs * .36); ctx.rotate(q.ang); ctx.fillStyle = '#d03038'; ctx.beginPath(); ctx.moveTo(0, -cs * .5); ctx.lineTo(-cs * .16, -cs * .2); ctx.lineTo(cs * .16, -cs * .2); ctx.fill(); ctx.restore(); if (q.sus > 0) bubble(mx, my - cs * 1.1, '?', '#b07a10', q.sus / L.p.delay); });
+  drawFX(t, V);
+}
+const DXs = d => Pt.DX[d];
+function srcPos(src, stt) { const k = +src.slice(1); if (src[0] === 'g') { const g = stt.g[k]; return cellCenter(g.c); } return cellCenter(L.cams[k].c); }
+function drawFX(t, V) {
+  dust = dust.filter(d => t - d.t < 520); for (const d of dust) { const k = Math.max(0, (t - d.t) / 520); ctx.fillStyle = `rgba(90,88,60,${.45 * (1 - k)})`; ctx.beginPath(); ctx.arc(d.x, d.y - k * cs * .2, cs * (.1 + .22 * k), 0, 7); ctx.fill(); }
+  ripples = ripples.filter(r => t - r.t < 900); for (const r of ripples) { const k = Math.max(0, (t - r.t) / 900), [x, y] = cellCenter(r.c); ctx.strokeStyle = `rgba(30,70,150,${.65 * (1 - k)})`; ctx.lineWidth = 3; ctx.beginPath(); ctx.ellipse(SX(x), SY(y), cs * (.2 + k * L.p.noiseR * .8), cellH * (.2 + k * L.p.noiseR * .8), 0, 0, 7); ctx.stroke(); }
+  if (stoneFx && t - stoneFx.t < 450) { const k = Math.max(0, (t - stoneFx.t) / 450), [ax, ay] = cellCenter(stoneFx.from), [bx, by] = cellCenter(stoneFx.to); ctx.fillStyle = INK; ctx.beginPath(); ctx.arc(SX(ax + (bx - ax) * k), SY(ay + (by - ay) * k) - cs * .9 - Math.sin(k * Math.PI) * cs * 1.2, cs * .13, 0, 7); ctx.fill(); }
+  if (alertFx && t - alertFx.t < 1300) { const k = (t - alertFx.t) / 1300, [x, y] = srcPos(alertFx.src, alertFx.st || V.st); ctx.save(); ctx.globalAlpha = 1 - k * k; bubble(SX(x), SY(y) - cs * (alertFx.src[0] === 'c' ? 1.3 : 2.3), '!', '#d03038'); ctx.restore(); }
+}
+function frame(t) { if (L) { try { draw(t); } catch (e) { console.error(e); } } requestAnimationFrame(frame); }
+function boot() { const q = new URLSearchParams(location.search), w = +q.get('level'); let i = store.get('pl_last', 0); if (w) i = Math.max(0, LV.findIndex(l => l.id === w)); load(Math.min(i, LV.length - 1)); requestAnimationFrame(frame); }
+window.lab = { load, doAction, onTapCell, solveAndPlay, undo, Pt, L: () => L, state: () => ({ li, st, ticks: st.tk, par, won, caught: !!caughtInfo, busy: busy() || solving, throwMode, cs, ox, oy, cellH, w: L.w, h: L.h }), cellXY: c => [SX((c % L.w) + .5), SY(((c / L.w) | 0) + .5)] };
+boot();
+</script></body></html>

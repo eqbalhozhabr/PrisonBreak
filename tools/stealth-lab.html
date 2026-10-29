@@ -88,12 +88,19 @@ let sel = -1, lureMode = false, lureT = -1, walking = null, flash = null, ripple
 let cs = 40, cellH = 31, wallH = 14, ox = 0, oy = 0, W = 0, H = 0, custom = null;
 const store = { get(k, d) { try { const v = localStorage.getItem(k); return v === null ? d : JSON.parse(v); } catch (e) { return d; } }, set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { } } };
 let doneSet = store.get('sl_done', {});
+/* ---- motion (all cosmetic: the rules above stay discrete; the picture glides between two configurations) */
+let anim = null, dust = [], proneAmt = 0, lastDust = 0, alertFx = null;
+const ease = k => k <= 0 ? 0 : k >= 1 ? 1 : k * k * (3 - 2 * k);
+const animK = t => anim ? (t - anim.t0) / anim.dur : 1;
+const animPrev = t => anim && t - anim.t0 < anim.dur ? anim.prev : null;
+const animating = () => !!anim && performance.now() - anim.t0 < anim.dur;
+function startAnim(prev, kind, extra) { anim = Object.assign({ t0: performance.now(), dur: kind === 'lure' ? 1150 : 560, kind, prev }, extra || {}); }
 const nOf = () => [L.cams.length, L.guards.length, (L.toggles || []).length, (L.dogs || []).length, (L.lights || []).length];
 const stp = () => S.params(L);
 /* ----------------------------------------------------------------------------------------- level */
 function load(i, keepRules) {
   li = i; rec = LV[li]; L = P.parseLevel(rec.map, rec.meta); if (!keepRules) custom = null; L.stealth = Object.assign({}, rec.stealth, custom || {}); P.prepare(L);
-  dg = P.initialDigits(L); thief = L.S; moves = 0; lureLeft = stp().lures; hist = []; sel = -1; lureMode = false; lureT = -1; walking = null; flash = null; ripples = []; stone = null; won = false; solving = false;
+  dg = P.initialDigits(L); thief = L.S; moves = 0; lureLeft = stp().lures; hist = []; sel = -1; lureMode = false; lureT = -1; walking = null; flash = null; ripples = []; stone = null; won = false; solving = false; anim = null; dust = []; alertFx = null; proneAmt = 0;
   ev = S.evalStealth(L, dg, true);
   const r = S.solveStealth(L, { maxStates: 900000 }); par = r && r.solvable ? r.par : 0;
   layout(); syncUI(); setTip(introTip()); $('ovWin').classList.remove('on');
@@ -147,14 +154,21 @@ const allActions = () => P.actions(L, dg);
 const isWired = i => (L.panels || []).some(p => p.links.includes(i));
 function snapshot() { hist.push({ dg: dg.slice(), thief, moves, lureLeft }); }
 function undo() {
-  if (!hist.length || walking || solving) return; const h = hist.pop(); dg = h.dg; thief = h.thief; moves = h.moves; lureLeft = h.lureLeft; won = false; sel = -1; lureMode = false; lureT = -1;
+  if (!hist.length || walking || solving) return; anim = null; const h = hist.pop(); dg = h.dg; thief = h.thief; moves = h.moves; lureLeft = h.lureLeft; won = false; sel = -1; lureMode = false; lureT = -1;
   ev = S.evalStealth(L, dg, true); setTip(''); syncUI();
 }
 function seenCheck(d2) { const e2 = S.evalStealth(L, d2, true); return { e2, bad: e2.cls[thief] >= 2 || e2.occ[thief] }; }
+function culprit(e2, d2) {                                                 // who would see him: the cell of the camera, guard, light or dog
+  const [nc, ng, nt, nd] = nOf();
+  for (const sg of e2.rays) if (sg.cells.includes(thief)) { const w = sg.who; return w < nc ? L.cams[w].c : w < nc + ng ? L.guards[w - nc].rail[d2[w] >> 1] : (L.lights || [])[w - nc - ng - nt - nd].c; }
+  if (e2.scent[thief]) { const q = (L.dogs || []).findIndex((d, j) => true); if (q >= 0) return L.dogs[q].rail[d2[nc + ng + nt + q]]; }
+  return thief;
+}
+function refuse(e2, d2) { flash = { c: thief, t: performance.now() }; alertFx = { c: culprit(e2, d2), t: performance.now() }; setTip('He would be seen where he stands. Move him somewhere safe first.', true); }
 function doDigits(d2, label) {
   const { e2, bad } = seenCheck(d2);
-  if (bad) { flash = { c: thief, t: performance.now() }; setTip('He would be seen where he stands. Move him somewhere safe first.', true); return false; }
-  snapshot(); dg = d2; ev = e2; moves++; setTip(label || ''); syncUI(); return true;
+  if (bad) { refuse(e2, d2); return false; }
+  const prev = { dg: dg.slice(), ev }; snapshot(); dg = d2; ev = e2; moves++; startAnim(prev, 'act'); setTip(label || ''); syncUI(); return true;
 }
 function doWho(who) { const a = allActions().find(o => o[1] === who); if (!a) return false; return doDigits(a[0]); }
 function doWait() { const ls = L.lights || []; if (!ls.length) return; doWho(dg.length - ls.length); }
@@ -162,9 +176,9 @@ function doLure(T) {
   if (lureLeft < 1) return false;
   const d2 = S.lureApply(L, dg, T), { e2, bad } = seenCheck(d2);
   if (d2.join() === dg.join()) { setTip('Nobody is in earshot of that tile (or they already face it).', true); return false; }
-  if (bad) { flash = { c: thief, t: performance.now() }; setTip('He would be seen where he stands. Move him somewhere safe first.', true); return false; }
-  snapshot(); ripples.push({ c: T, t: performance.now() }); stone = { from: thief, to: T, t: performance.now() };
-  dg = d2; ev = e2; moves++; lureLeft--; lureMode = false; lureT = -1; setTip('The guards in earshot turned toward the noise.'); syncUI(); return true;
+  if (bad) { refuse(e2, d2); return false; }
+  const prev = { dg: dg.slice(), ev }; snapshot(); ripples.push({ c: T, t: performance.now() }); stone = { from: thief, to: T, t: performance.now() };
+  dg = d2; ev = e2; moves++; lureLeft--; startAnim(prev, 'lure', { T }); lureMode = false; lureT = -1; setTip('The guards in earshot turned toward the noise.'); syncUI(); return true;
 }
 function walkTo(cell, instant) {
   const p = S.walkPath(L, ev, thief, cell);
@@ -199,7 +213,7 @@ function buildCtx() {
 }
 /* ----------------------------------------------------------------------------------------- input */
 function onTap(px, py) {
-  if (walking || solving || won) return;
+  if (walking || solving || won || animating()) return;
   const c = hitCell(px, py); if (c < 0) return; const k = kindAt().get(c);
   if (lureMode) {
     if (!S.throwCells(L, thief).includes(c)) { lureMode = false; lureT = -1; setTip(''); syncUI(); return; }
@@ -237,10 +251,10 @@ function solveAndPlay(instant) {
     if (i >= steps.length) { solving = false; walking = null; syncUI(); if (thief === L.E && !won) win(); return; }
     const s = steps[i++];
     if (s.t === 'move') { if (s.crawl) moves += stp().crawl; thief = s.cell; }
-    else if (s.t === 'act') { hist.push({ dg: dg.slice(), thief, moves, lureLeft }); dg = s.d.slice(); ev = S.evalStealth(L, dg, true); moves++; }
-    else if (s.t === 'lure') { hist.push({ dg: dg.slice(), thief, moves, lureLeft }); ripples.push({ c: s.T, t: performance.now() }); stone = { from: thief, to: s.T, t: performance.now() }; dg = s.d.slice(); ev = S.evalStealth(L, dg, true); moves++; lureLeft--; }
+    else if (s.t === 'act') { const prev = { dg: dg.slice(), ev }; hist.push({ dg: dg.slice(), thief, moves, lureLeft }); dg = s.d.slice(); ev = S.evalStealth(L, dg, true); moves++; if (!instant) startAnim(prev, 'act'); }
+    else if (s.t === 'lure') { const prev = { dg: dg.slice(), ev }; hist.push({ dg: dg.slice(), thief, moves, lureLeft }); ripples.push({ c: s.T, t: performance.now() }); stone = { from: thief, to: s.T, t: performance.now() }; dg = s.d.slice(); ev = S.evalStealth(L, dg, true); moves++; lureLeft--; if (!instant) startAnim(prev, 'lure', { T: s.T }); }
     sync();
-    if (instant) run(); else setTimeout(run, s.t === 'move' ? 170 : 520);
+    if (instant) run(); else setTimeout(run, s.t === 'move' ? 170 : s.t === 'lure' ? 1300 : 720);
   };
   run(); return r;
 }
@@ -286,15 +300,17 @@ function hatch(x, y, w, h, alpha) {
   ctx.save(); ctx.beginPath(); ctx.rect(x, y, w, h); ctx.clip(); ctx.strokeStyle = `rgba(150,25,35,${alpha})`; ctx.lineWidth = Math.max(1, cs * .035);
   const st = Math.max(5, cs * .16); for (let k = -h; k < w; k += st) { ctx.beginPath(); ctx.moveTo(x + k, y + h); ctx.lineTo(x + k + h, y); ctx.stroke(); } ctx.restore();
 }
-function drawZones() {
+function drawZones(e, alpha) {
+  if (alpha <= 0.01) return; ctx.save(); ctx.globalAlpha = alpha;
   const lightCells = new Set(), [nc, ng, nt, nd] = nOf();
-  for (const sg of ev.rays) if (sg.who >= nc + ng + nt + nd) for (const c of sg.cells) lightCells.add(c);
+  for (const sg of e.rays) if (sg.who >= nc + ng + nt + nd) for (const c of sg.cells) lightCells.add(c);
   for (let c = 0; c < L.w * L.h; c++) {
-    const v = ev.cls[c]; if (!v || L.wall[c]) continue; const x = c % L.w, y = (c / L.w) | 0;
+    const v = e.cls[c]; if (!v || L.wall[c]) continue; const x = c % L.w, y = (c / L.w) | 0;
     if (v === 2) { ctx.fillStyle = lightCells.has(c) ? 'rgba(230,170,50,.5)' : 'rgba(208,48,56,.45)'; ctx.fillRect(FX(x), FY(y), cs, cellH); }
     else { ctx.fillStyle = 'rgba(208,48,56,.14)'; ctx.fillRect(FX(x), FY(y), cs, cellH); hatch(FX(x), FY(y), cs, cellH, .5); }
-    if (ev.scent[c]) { ctx.fillStyle = 'rgba(40,70,30,.45)'; for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) ctx.fillRect(FX(x) + cs * (.2 + i * .3), FY(y) + cellH * (.2 + j * .3), 2, 2); }
+    if (e.scent[c]) { ctx.fillStyle = 'rgba(40,70,30,.45)'; for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) ctx.fillRect(FX(x) + cs * (.2 + i * .3), FY(y) + cellH * (.2 + j * .3), 2, 2); }
   }
+  ctx.restore();
 }
 function block(c, front, top, glass) {
   const x = c % L.w, y = (c / L.w) | 0, px = FX(x), py = FY(y) - wallH;
@@ -309,39 +325,58 @@ function drawWalls() {
   }
 }
 const footOf = c => ({ x: cx(c), y: FY((c / L.w) | 0) + cellH * .88 });
-function person(x, y, kind, dirV, prone, t) {
-  const s = cs, bob = kind === 'walk' ? Math.sin(t / 90) * s * .02 : 0; ctx.save(); ctx.translate(x, y); ctx.lineWidth = Math.max(1.5, s * .05); ctx.strokeStyle = INK; ctx.lineJoin = 'round';
-  if (prone) {
-    ctx.fillStyle = '#e8ead2'; ctx.beginPath(); ctx.ellipse(0, -s * .1, s * .34, s * .1, 0, 0, 7); ctx.fill(); ctx.stroke();
-    ctx.fillStyle = INK; for (let i = -1; i <= 1; i++) ctx.fillRect(i * s * .13 - s * .02, -s * .19, s * .05, s * .17);
-    ctx.fillStyle = PINK; ctx.beginPath(); ctx.arc(s * .36 * (dirV || 1), -s * .13, s * .09, 0, 7); ctx.fill(); ctx.stroke(); ctx.restore(); return;
+function person(x, y, kind, dirV, prone, t, moving) {
+  const s = cs, uni = kind === 'guard', pa = uni ? 0 : proneAmt, mv = moving || kind === 'walk', bob = mv ? Math.abs(Math.sin(t / 95)) * s * .035 : Math.sin(t / 520 + x) * s * .008;
+  ctx.save(); ctx.translate(x, y); ctx.lineWidth = Math.max(1.5, s * .05); ctx.strokeStyle = INK; ctx.lineJoin = 'round';
+  if (!uni && pa > .8) {                                                                // crawling: flat on the ground, the head leads, arms and legs paddle
+    const d = dirV || 1, sw = moving ? Math.sin(t / 120) : 0;
+    ctx.beginPath(); ctx.moveTo(-s * .3 * d, -s * .1); ctx.lineTo((-s * .42 + sw * s * .05) * d, -s * .04); ctx.moveTo(s * .12 * d, -s * .05); ctx.lineTo((s * .26 - sw * s * .05) * d, s * .0); ctx.stroke();
+    ctx.fillStyle = '#e8ead2'; ctx.beginPath(); ctx.ellipse(0, -s * .1 + bob, s * .34, s * .1, 0, 0, 7); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = INK; for (let i = -1; i <= 1; i++) ctx.fillRect(i * s * .13 - s * .02, -s * .19 + bob, s * .05, s * .17);
+    ctx.fillStyle = PINK; ctx.beginPath(); ctx.arc(s * .36 * d, -s * .13 + bob, s * .09, 0, 7); ctx.fill(); ctx.stroke(); ctx.restore(); return;
   }
-  const uni = kind === 'guard';
+  if (pa > .02) ctx.scale(1 + .3 * pa, 1 - .6 * pa);                                    // getting down / standing up
   ctx.fillStyle = uni ? '#3a4a5a' : '#e8ead2'; ctx.fillRect(-s * .15, -s * .62 + bob, s * .3, s * .46); ctx.strokeRect(-s * .15, -s * .62 + bob, s * .3, s * .46);
   if (!uni) { ctx.fillStyle = INK; for (let i = 0; i < 3; i++) ctx.fillRect(-s * .15, -s * .55 + bob + i * s * .13, s * .3, s * .05); }
   ctx.fillStyle = '#e8ead2'; ctx.beginPath(); ctx.arc(0, -s * .75 + bob, s * .12, 0, 7); ctx.fill(); ctx.stroke();
   if (uni) { ctx.fillStyle = INK; ctx.fillRect(-s * .15, -s * .9 + bob, s * .3, s * .08); } else { ctx.fillStyle = PINK; ctx.beginPath(); ctx.arc(0, -s * .79 + bob, s * .12, Math.PI, 0); ctx.fill(); ctx.stroke(); }
-  ctx.beginPath(); ctx.moveTo(-s * .07, -s * .16); ctx.lineTo(-s * .07, 0); ctx.moveTo(s * .07, -s * .16); ctx.lineTo(s * .07, 0); ctx.stroke(); ctx.restore();
+  const sw = mv ? Math.sin(t / 95) * s * .09 : 0;                                       // legs swing when he walks
+  ctx.beginPath(); ctx.moveTo(-s * .07, -s * .16); ctx.lineTo(-s * .07 + sw, 0); ctx.moveTo(s * .07, -s * .16); ctx.lineTo(s * .07 - sw, 0); ctx.stroke(); ctx.restore();
+}
+function bubble(x, y, txt, col) {
+  const r = cs * .17; ctx.fillStyle = '#f4f1dc'; ctx.strokeStyle = INK; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = col; ctx.font = '800 ' + cs * .26 + 'px system-ui'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(txt, x, y + 1); ctx.textBaseline = 'alphabetic';
 }
 function dogFig(x, y) {
   const s = cs; ctx.save(); ctx.translate(x, y); ctx.lineWidth = Math.max(1.5, s * .05); ctx.strokeStyle = INK; ctx.fillStyle = '#6b5a45';
   ctx.beginPath(); ctx.ellipse(0, -s * .2, s * .26, s * .12, 0, 0, 7); ctx.fill(); ctx.stroke(); ctx.beginPath(); ctx.arc(s * .27, -s * .3, s * .1, 0, 7); ctx.fill(); ctx.stroke();
   ctx.beginPath(); ctx.moveTo(-s * .15, -s * .1); ctx.lineTo(-s * .15, 0); ctx.moveTo(s * .15, -s * .1); ctx.lineTo(s * .15, 0); ctx.stroke(); ctx.fillStyle = '#d03038'; ctx.fillRect(s * .16, -s * .28, s * .05, s * .1); ctx.restore();
 }
-function drawFacingArrow(c, d) {
-  ctx.save(); ctx.translate(cx(c), cy(c) + cellH * .2); ctx.rotate(d * Math.PI / 2); ctx.fillStyle = INK; ctx.beginPath(); ctx.moveTo(0, -cs * .3); ctx.lineTo(-cs * .09, -cs * .18); ctx.lineTo(cs * .09, -cs * .18); ctx.fill(); ctx.restore();
+function drawFacingArrow(x, y, d) {
+  ctx.save(); ctx.translate(x, y); ctx.rotate(d * Math.PI / 2); ctx.fillStyle = INK; ctx.beginPath(); ctx.moveTo(0, -cs * .3); ctx.lineTo(-cs * .09, -cs * .18); ctx.lineTo(cs * .09, -cs * .18); ctx.fill(); ctx.restore();
 }
-function drawWallItems() {
+function visDir(idx, t) {                                                   // a camera's or light's facing, in quarter turns, gliding from the old digit to the new one
+  const p = animPrev(t), cur = dg[idx];
+  if (!p) return cur + Math.sin(t / 750 + idx * 1.7) * .03;
+  const from = p.dg[idx], diff = ((cur - from + 1) % 4 + 4) % 4 - 1; return from + diff * ease(animK(t) / .8);
+}
+function sweepLine(x, y, q, cellsLong) {
+  ctx.save(); ctx.strokeStyle = 'rgba(208,48,56,.75)'; ctx.lineWidth = 3; ctx.setLineDash([6, 4]); ctx.beginPath(); ctx.moveTo(x, y);
+  ctx.lineTo(x + Math.sin(q * Math.PI / 2) * cs * cellsLong, y - Math.cos(q * Math.PI / 2) * cellH * cellsLong); ctx.stroke(); ctx.restore();
+}
+function drawWallItems(t) {
   const [nc, ng, nt, nd] = nOf();
   L.cams.forEach((q, k) => {
-    const x = q.c % L.w, y = (q.c / L.w) | 0, px = FX(x), py = FY(y) - wallH, d = dg[k];
-    ctx.save(); ctx.translate(px + cs / 2, py + cellH * .55); ctx.fillStyle = INK; ctx.fillRect(-cs * .22, -cs * .13, cs * .44, cs * .26);
+    const x = q.c % L.w, y = (q.c / L.w) | 0, px = FX(x), py = FY(y) - wallH, d = visDir(k, t), mx = px + cs / 2, my = py + cellH * .55;
+    ctx.save(); ctx.translate(mx, my); ctx.fillStyle = INK; ctx.fillRect(-cs * .22, -cs * .13, cs * .44, cs * .26);
     ctx.rotate(d * Math.PI / 2); ctx.fillStyle = '#d03038'; ctx.beginPath(); ctx.moveTo(0, -cs * .32); ctx.lineTo(-cs * .1, -cs * .14); ctx.lineTo(cs * .1, -cs * .14); ctx.fill(); ctx.restore();
+    if (animPrev(t) && Math.abs(d - dg[k]) > .02) sweepLine(mx, my, d, 3);
     if (isWired(k)) { ctx.fillStyle = '#e6c04a'; ctx.fillRect(px + 3, py + 3, 5, 5); }
   });
   (L.lights || []).forEach((q, j) => {
-    const x = q.c % L.w, y = (q.c / L.w) | 0, px = FX(x), py = FY(y) - wallH, d = dg[nc + ng + nt + nd + j];
-    ctx.save(); ctx.translate(px + cs / 2, py + cellH * .55); ctx.fillStyle = '#c99a2e'; ctx.strokeStyle = INK; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(0, 0, cs * .22, 0, 7); ctx.fill(); ctx.stroke(); ctx.rotate(d * Math.PI / 2); ctx.fillStyle = '#f6e7a6'; ctx.beginPath(); ctx.moveTo(0, -cs * .34); ctx.lineTo(-cs * .12, -cs * .1); ctx.lineTo(cs * .12, -cs * .1); ctx.fill(); ctx.restore();
+    const x = q.c % L.w, y = (q.c / L.w) | 0, px = FX(x), py = FY(y) - wallH, k = nc + ng + nt + nd + j, d = visDir(k, t), mx = px + cs / 2, my = py + cellH * .55;
+    ctx.save(); ctx.translate(mx, my); ctx.fillStyle = '#c99a2e'; ctx.strokeStyle = INK; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(0, 0, cs * .22, 0, 7); ctx.fill(); ctx.stroke(); ctx.rotate(d * Math.PI / 2); ctx.fillStyle = '#f6e7a6'; ctx.beginPath(); ctx.moveTo(0, -cs * .34); ctx.lineTo(-cs * .12, -cs * .1); ctx.lineTo(cs * .12, -cs * .1); ctx.fill(); ctx.restore();
+    if (animPrev(t) && Math.abs(d - dg[k]) > .02) { ctx.save(); ctx.strokeStyle = 'rgba(230,170,50,.85)'; ctx.lineWidth = 3; ctx.setLineDash([6, 4]); ctx.beginPath(); ctx.moveTo(mx, my); ctx.lineTo(mx + Math.sin(d * Math.PI / 2) * cs * 3, my - Math.cos(d * Math.PI / 2) * cellH * 3); ctx.stroke(); ctx.restore(); }
   });
   (L.panels || []).forEach(q => {
     const x = q.c % L.w, y = (q.c / L.w) | 0, px = FX(x), py = FY(y) - wallH; ctx.fillStyle = '#c8cbb8'; ctx.strokeStyle = INK; ctx.lineWidth = 2; ctx.fillRect(px + cs * .22, py + cellH * .2, cs * .56, cellH * .6); ctx.strokeRect(px + cs * .22, py + cellH * .2, cs * .56, cellH * .6);
@@ -381,10 +416,29 @@ function drawLureUI() {
   }
 }
 function drawFX(t) {
+  dust = dust.filter(d => t - d.t < 520);
+  for (const d of dust) { const k = Math.max(0, (t - d.t) / 520); ctx.fillStyle = `rgba(90,88,60,${.45 * (1 - k)})`; ctx.beginPath(); ctx.arc(d.x, d.y - k * cs * .08, cs * (.04 + .09 * k), 0, 7); ctx.fill(); }
+  if (alertFx && t - alertFx.t < 1100) {
+    const c = alertFx.c, wall = L.wall[c], x = cx(c), y = FY((c / L.w) | 0) - (wall ? wallH + cs * .1 : cs * 1.1), k = Math.max(0, (t - alertFx.t) / 1100);
+    ctx.save(); ctx.globalAlpha = 1 - k * k; bubble(x, y - Math.sin(Math.min(1, k * 4) * Math.PI) * cs * .08, '!', '#d03038'); ctx.restore();
+  }
   ripples = ripples.filter(r => t - r.t < 800);
   for (const r of ripples) { const k = Math.max(0, (t - r.t) / 800), R = stp().hearR; ctx.strokeStyle = `rgba(30,70,150,${.6 * (1 - k)})`; ctx.lineWidth = 3; ctx.beginPath(); ctx.ellipse(cx(r.c), cy(r.c), cs * (.2 + k * R * .55), cellH * (.2 + k * R * .55), 0, 0, 7); ctx.stroke(); }
   if (stone && t - stone.t >= 0 && t - stone.t < 450) { const k = Math.max(0, (t - stone.t) / 450), ax = cx(stone.from), ay = cy(stone.from) - cs * .5, bx = cx(stone.to), by = cy(stone.to); ctx.fillStyle = INK; ctx.beginPath(); ctx.arc(ax + (bx - ax) * k, ay + (by - ay) * k - Math.sin(k * Math.PI) * cs * .6, cs * .06, 0, 7); ctx.fill(); }
   if (flash && t - flash.t < 500) { const k = Math.max(0, (t - flash.t) / 500); ctx.strokeStyle = `rgba(255,40,50,${1 - k})`; ctx.lineWidth = 4; const x = flash.c % L.w, y = (flash.c / L.w) | 0; ctx.strokeRect(FX(x) + 2, FY(y) + 2, cs - 4, cellH - 4); }
+}
+function visGuard(j, t) {
+  const [nc] = nOf(), g = L.guards[j], v = dg[nc + j], c1 = g.rail[v >> 1], f1 = P.guardFacingDir(g, v & 1), p = animPrev(t);
+  if (!p) { const f = footOf(c1); return { cell: c1, x: f.x, y: f.y, face: f1 + Math.sin(t / 900 + j * 2) * .04, moving: false, asked: false }; }
+  const v0 = p.dg[nc + j], c0 = g.rail[v0 >> 1], f0 = P.guardFacingDir(g, v0 & 1), k = animK(t), lure = anim.kind === 'lure';
+  const kt = ease(k / (lure ? .38 : .3)), kw = lure ? ease((k - .42) / .58) : ease(k), diff = ((f1 - f0 + 1) % 4 + 4) % 4 - 1, a = footOf(c0), b = footOf(c1);
+  return { cell: kw > .5 ? c1 : c0, x: a.x + (b.x - a.x) * kw, y: a.y + (b.y - a.y) * kw, face: f0 + diff * kt, moving: c0 !== c1 && kw > 0 && kw < 1, asked: lure && v0 !== v && k < .7 };
+}
+function visDog(j, t) {
+  const [nc, ng, nt] = nOf(), d = L.dogs[j], i1 = dg[nc + ng + nt + j], c1 = d.rail[i1], p = animPrev(t);
+  if (!p) { const f = footOf(c1); return { cell: c1, x: f.x, y: f.y, moving: false }; }
+  const c0 = d.rail[p.dg[nc + ng + nt + j]], kw = ease(animK(t)), a = footOf(c0), b = footOf(c1);
+  return { cell: kw > .5 ? c1 : c0, x: a.x + (b.x - a.x) * kw, y: a.y + (b.y - a.y) * kw, moving: c0 !== c1 && kw > 0 && kw < 1 };
 }
 function thiefPos(t) {
   if (!walking) { const f = footOf(thief); return { c: thief, x: f.x, y: f.y, prone: ev.cls[thief] === 1, face: 1, moving: false }; }
@@ -395,15 +449,20 @@ function thiefPos(t) {
 let lastFace = 1;
 function draw(t) {
   ctx.clearRect(0, 0, W, H); ctx.fillStyle = '#8e947a'; ctx.fillRect(0, 0, W, H);
-  drawFloor(); drawStartExit(); drawZones(); drawRails();
+  drawFloor(); drawStartExit();
+  const pv = animPrev(t), k = pv ? ease(animK(t)) : 1;
+  if (pv) { drawZones(pv.ev, 1 - k); drawZones(ev, k); } else drawZones(ev, 1);
+  drawRails();
   const [nc, ng, nt] = nOf(), items = [];
-  L.guards.forEach((g, j) => { const c = g.rail[dg[nc + j] >> 1]; items.push({ row: (c / L.w) | 0, fn: () => { const p = footOf(c); person(p.x, p.y, 'guard', 1, false, t); drawFacingArrow(c, P.guardFacingDir(g, dg[nc + j] & 1)); if (sel === nc + j) { ctx.strokeStyle = '#fff'; ctx.lineWidth = 3; ctx.strokeRect(FX(c % L.w) + 2, FY((c / L.w) | 0) - cs * .6, cs - 4, cellH + cs * .6 - 2); } } }); });
-  (L.dogs || []).forEach((d, j) => { const c = d.rail[dg[nc + ng + nt + j]]; items.push({ row: (c / L.w) | 0, fn: () => { const p = footOf(c); dogFig(p.x, p.y); if (sel === nc + ng + nt + j) { ctx.strokeStyle = '#fff'; ctx.lineWidth = 3; ctx.strokeRect(FX(c % L.w) + 2, FY((c / L.w) | 0) + 2, cs - 4, cellH - 4); } } }); });
+  L.guards.forEach((g, j) => { const vg = visGuard(j, t); items.push({ row: (vg.cell / L.w) | 0, fn: () => { person(vg.x, vg.y, 'guard', 1, false, t, vg.moving); drawFacingArrow(vg.x, vg.y - cellH * .18, vg.face); if (vg.asked) bubble(vg.x, vg.y - cs * 1.08, '?', '#2a50a0'); if (sel === nc + j) { ctx.strokeStyle = '#fff'; ctx.lineWidth = 3; ctx.strokeRect(FX(vg.cell % L.w) + 2, FY((vg.cell / L.w) | 0) - cs * .6, cs - 4, cellH + cs * .6 - 2); } } }); });
+  (L.dogs || []).forEach((d, j) => { const vd = visDog(j, t); items.push({ row: (vd.cell / L.w) | 0, fn: () => { dogFig(vd.x, vd.y + (vd.moving ? -Math.abs(Math.sin(t / 80)) * cs * .03 : 0)); if (sel === nc + ng + nt + j) { ctx.strokeStyle = '#fff'; ctx.lineWidth = 3; ctx.strokeRect(FX(vd.cell % L.w) + 2, FY((vd.cell / L.w) | 0) + 2, cs - 4, cellH - 4); } } }); });
   const tp = thiefPos(t); if (tp.moving) lastFace = tp.face;
-  items.push({ row: (tp.c / L.w) | 0, fn: () => person(tp.x, tp.y, tp.moving ? 'walk' : 'idle', lastFace, tp.prone, t) });
+  proneAmt += ((tp.prone ? 1 : 0) - proneAmt) * .2; if (Math.abs(proneAmt - (tp.prone ? 1 : 0)) < .01) proneAmt = tp.prone ? 1 : 0;
+  if (tp.moving && tp.prone && t - lastDust > 140) { lastDust = t; dust.push({ x: tp.x - lastFace * cs * .25, y: tp.y - 3, t }); }
+  items.push({ row: (tp.c / L.w) | 0, fn: () => person(tp.x, tp.y, tp.moving ? 'walk' : 'idle', lastFace, tp.prone, t, tp.moving) });
   drawToggles(); drawWalls();
   items.sort((a, b) => a.row - b.row).forEach(o => o.fn());
-  drawWallItems(); drawLureUI(); drawFX(t);
+  drawWallItems(t); drawLureUI(); drawFX(t);
 }
 function frame(t) {
   if (L) {
@@ -418,6 +477,6 @@ function boot() {
   load(Math.min(i, LV.length - 1)); requestAnimationFrame(frame);
 }
 const ctxOptions = () => ctxCur.map(o => o.d);
-window.lab = { ctxOptions, load, onTap, doWho, doLure, walkTo, solveAndPlay, undo, state: () => ({ li, moves, par, thief, dg: dg.slice(), won, lureLeft, walking: !!walking, cls: Array.from(ev.cls), E: L.E, S: L.S, w: L.w, h: L.h }), hitCell, cellXY: c => [cx(c), cy(c)], cellTop: c => [cx(c), FY((c / L.w) | 0) + cellH * .1], cellSide: c => [FX(c % L.w) + cs * .14, FY((c / L.w) | 0) + cellH * .1], L: () => L, S, P, setRules: r => { custom = r; load(li, true); } };
+window.lab = { ctxOptions, load, onTap, doWho, doLure, walkTo, solveAndPlay, undo, state: () => ({ li, moves, par, thief, dg: dg.slice(), won, lureLeft, walking: !!walking || animating(), cls: Array.from(ev.cls), E: L.E, S: L.S, w: L.w, h: L.h }), hitCell, cellXY: c => [cx(c), cy(c)], cellTop: c => [cx(c), FY((c / L.w) | 0) + cellH * .1], cellSide: c => [FX(c % L.w) + cs * .14, FY((c / L.w) | 0) + cellH * .1], L: () => L, S, P, setRules: r => { custom = r; load(li, true); } };
 boot();
 </script></body></html>

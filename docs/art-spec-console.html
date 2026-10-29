@@ -193,6 +193,18 @@ fx_alert_00.png</div>
 <li>پوشه‌های قدیمی (<code>art/thief</code>، <code>art/guard</code>، <code>art/dog</code> و…) را من خودم به ساختار جدید منتقل می‌کنم و <code>art-kit</code> قدیمی را (که مخصوص نسخه‌ی رنگی بود) کنار می‌گذارم.</li>
 </ul></div></section>
 
+<section id="stealth"><h2>۱۰. افزوده‌های قاعده‌ی Stealth (سینه‌خیز و طعمه) <span class="chip p2">P2</span></h2>
+<p class="lead">برای حس واقعی شبیه Commandos این حالت‌ها هم لازم می‌شود. همه با همان سبک قلم مشکی و همان بوم‌های بخش ۱ و ۴. در آزمایشگاه فعلاً با حرکت کد‌کشیده نمایش داده می‌شوند.</p>
+<div class="wrap"><table>
+<tr><th>کاراکتر یا جلوه</th><th>حالت‌ها و تعداد قاب</th><th>جهت‌ها</th><th>مجموع</th></tr>
+<tr><td><b>زندانی</b></td><td><code>crawl</code> ۶ قاب (سینه‌خیز، سر جلو)؛ <code>prone_idle</code> ۲؛ <code>get_down</code> ۴ (برعکس = بلند شدن)؛ <code>throw</code> ۴ (پرتاب سنگ)</td><td>n, e, s</td><td class="num"><bdi dir="ltr">۳×(۶+۲+۴+۴) = ۴۸</bdi></td></tr>
+<tr><td><b>نگهبان</b></td><td><code>look_around</code> ۶ (چرخاندن سر هنگام ایستادن)؛ <code>notice</code> ۳ (جا خوردن)؛ <code>aim</code> ۴ (نشانه‌گیری)</td><td>n, e, s</td><td class="num"><bdi dir="ltr">۳×(۶+۳+۴) = ۳۹</bdi></td></tr>
+<tr><td><b>سگ</b></td><td><code>sniff</code> ۴؛ <code>alert</code> ۳</td><td>e</td><td class="num">۷</td></tr>
+<tr><td><b>جلوه‌ها</b></td><td>حباب «؟» ۳ قاب و حباب «!» ۳ قاب (<bdi dir="ltr">128×128</bdi>)؛ حلقه‌ی صدا روی زمین ۶ قاب (<bdi dir="ltr">256×200</bdi>)؛ سنگ پرتابی ۱ (<bdi dir="ltr">32×32</bdi>)؛ گرد و خاک ۴ قاب (<bdi dir="ltr">128×64</bdi>)</td><td>—</td><td class="num">۱۷</td></tr>
+<tr><td><b>صدا</b></td><td>فرود سنگ، سینه‌خیز، «هان؟» نگهبان (چرخش دوربین از قبل هست)</td><td>—</td><td>—</td></tr>
+</table></div>
+<p>جمع تقریبی: <b>۱۱۱ قاب</b>. بدون این‌ها هم بازی کار می‌کند و آزمایشگاه از حرکت کدی استفاده می‌کند؛ این‌ها فقط حس را به سطح Commandos می‌رسانند. جزئیات زمان‌بندی: <code>docs/stealth-animation.md</code>.</p></section>
+
 <section id="order"><h2>۹. ترتیب پیشنهادی (کمترین کار، بیشترین اثر)</h2>
 <div class="card"><ol style="margin:0;padding-inline-start:20px">
 <li><b>نگهبان A و سگ</b> (E) با همان سبک زندانی، چون الان از زندانی عقب‌ترند. <span class="chip p1">P1</span></li>

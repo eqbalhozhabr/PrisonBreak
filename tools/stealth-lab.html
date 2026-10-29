@@ -1,0 +1,423 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>Blind Eye Stealth Lab</title>
+<style>
+  :root { --bg:#1a2229; --panel:#222d36; --line:#3b4b57; --txt:#d5dcc4; --dim:#8c9a8f; --acc:#d03038; --ok:#8fbf6a; --paper:#a3a98a; --ink:#14160f; color-scheme:dark; }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html, body { margin:0; height:100%; background:var(--bg); color:var(--txt); font:14px/1.35 system-ui, "Segoe UI", sans-serif; overflow:hidden; touch-action:manipulation; user-select:none; -webkit-user-select:none; }
+  #app { position:fixed; inset:0; display:flex; flex-direction:column; padding:env(safe-area-inset-top, 0px) max(16px, env(safe-area-inset-right, 0px)) env(safe-area-inset-bottom, 0px) max(16px, env(safe-area-inset-left, 0px)); gap:6px; }
+  header { display:flex; align-items:center; gap:8px; padding-top:8px; border-top:5px solid var(--acc); }
+  header .lv { flex:1; min-width:0; } header .lv b { display:block; font-size:15px; } header .lv small { color:var(--dim); font-size:11px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; display:block; }
+  .stat { text-align:center; min-width:56px; } .stat .k { display:block; font-size:10px; color:var(--dim); text-transform:uppercase; letter-spacing:.06em; } .stat b { font-size:20px; font-variant-numeric:tabular-nums; }
+  .stat b.over { color:#ff7a80; }
+  button { font:inherit; color:var(--txt); background:var(--panel); border:2px solid var(--line); border-radius:6px; padding:9px 10px; cursor:pointer; min-height:44px; }
+  button:active { background:#2c3a45; } button:disabled { opacity:.35; } button.on { border-color:var(--acc); color:#fff; background:#3a2428; } button.primary { border-color:var(--ok); }
+  #tip { height:62px; overflow:hidden; padding:6px 10px; background:var(--panel); border:1px solid var(--line); border-radius:6px; font-size:12.5px; color:var(--txt); display:flex; align-items:center; }
+  #tip.warn { color:#ff9ea3; border-color:var(--acc); }
+  #stage { position:relative; flex:1; min-height:0; border:3px solid #8aa0ad; border-radius:4px; background:var(--paper); overflow:hidden; box-shadow:0 0 0 3px #11171c; }
+  canvas { position:absolute; inset:0; width:100%; height:100%; touch-action:none; }
+  #ctx { display:flex; gap:8px; justify-content:center; height:50px; flex:none; } #ctx button { flex:1; max-width:120px; font-size:20px; padding:6px; }
+  #bar { display:grid; grid-template-columns:repeat(5, 1fr); gap:6px; padding-bottom:8px; } #bar button { padding:8px 2px; font-size:12px; min-width:0; }
+  #bar button b { display:block; font-size:16px; line-height:1.1; }
+  .ov { position:fixed; inset:0; display:none; align-items:center; justify-content:center; background:rgba(14,19,23,.88); z-index:10; padding:12px; }
+  .ov.on { display:flex; }
+  .card { background:var(--panel); border:2px solid var(--line); border-radius:10px; padding:14px; width:min(560px, 100%); max-height:100%; overflow:auto; }
+  .card h2 { margin:0 0 8px; font-size:17px; } .card h3 { margin:12px 0 6px; font-size:13px; color:var(--dim); text-transform:uppercase; letter-spacing:.06em; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(52px, 1fr)); gap:6px; }
+  .grid button { padding:6px 0; min-height:44px; font-size:13px; position:relative; } .grid button i { position:absolute; top:2px; right:4px; font-style:normal; color:#ffcf6b; font-size:11px; }
+  .grid button.cur { border-color:var(--acc); } .grid button.done { background:#2a3b2d; }
+  .row { display:flex; gap:8px; align-items:center; margin:6px 0; } .row label { flex:1; } .row .v { min-width:26px; text-align:center; font-weight:700; }
+  .row button { min-width:44px; padding:6px; }
+  .legend { display:flex; gap:10px; flex-wrap:wrap; font-size:12px; color:var(--dim); } .legend span::before { content:''; display:inline-block; width:12px; height:12px; margin-right:5px; vertical-align:-2px; border:1px solid #333; }
+  .legend .n::before { background:rgba(208,48,56,.55); } .legend .f::before { background:repeating-linear-gradient(45deg, rgba(208,48,56,.35) 0 2px, rgba(208,48,56,.1) 2px 4px); } .legend .l::before { background:rgba(230,170,50,.6); }
+  small.hint { color:var(--dim); display:block; margin-top:4px; }
+</style></head><body>
+<div id="app">
+  <header>
+    <button id="btnLevels">☰</button>
+    <div class="lv"><b id="lvTitle"></b><small id="lvSub"></small></div>
+    <div class="stat"><span class="k">moves</span><b id="moves">0</b></div>
+    <div class="stat"><span class="k">par</span><b id="par">0</b></div>
+  </header>
+  <div id="tip"></div>
+  <div id="stage"><canvas id="cv"></canvas></div>
+  <div id="ctx"></div>
+  <div id="bar">
+    <button id="bUndo">Undo</button>
+    <button id="bLure"><b id="lureN">0</b>Lure</button>
+    <button id="bWait">Wait</button>
+    <button id="bRestart">Restart</button>
+    <button id="bSolve">Solve</button>
+  </div>
+</div>
+
+<div class="ov" id="ovLevels"><div class="card">
+  <h2>Stealth Lab</h2>
+  <div class="legend"><span class="n">near: seen always</span><span class="f">far: seen only standing</span><span class="l">searchlight: always</span></div>
+  <h3>Hand-picked test levels (the new rules change the best plan)</h3><div class="grid" id="gridTests"></div>
+  <h3>All 196 levels, copied with the new rules <small id="copyInfo" style="text-transform:none;letter-spacing:0"></small></h3><div class="grid" id="gridAll"></div>
+  <div class="row" style="margin-top:12px"><button id="bRules" style="flex:1">Rules…</button><button id="bClose" class="primary" style="flex:1">Close</button></div>
+</div></div>
+
+<div class="ov" id="ovRules"><div class="card">
+  <h2>Rules for this level</h2>
+  <div id="rulesBody"></div>
+  <small class="hint">Changing a rule re-solves the level and shows the new par. The numbers in the level list stay as saved.</small>
+  <div class="row" style="margin-top:10px"><button id="bRulesReset" style="flex:1">Level default</button><button id="bRulesClose" class="primary" style="flex:1">Done</button></div>
+</div></div>
+
+<div class="ov" id="ovWin"><div class="card" style="text-align:center">
+  <h2 id="winTitle">Escaped</h2><div id="winStars" style="font-size:30px;color:#ffcf6b;letter-spacing:.2em"></div><p id="winInfo" style="color:var(--dim)"></p>
+  <div class="row"><button id="wAgain" style="flex:1">Replay</button><button id="wList" style="flex:1">Levels</button><button id="wNext" class="primary" style="flex:1">Next</button></div>
+</div></div>
+
+<script>/*PRISON*/</script>
+<script>/*STEALTH*/</script>
+<script>window.LAB_LEVELS = /*LEVELS*/;</script>
+<script>
+'use strict';
+const P = window.Prison, S = window.Stealth, $ = id => document.getElementById(id);
+const KY = .78, KW = .34;
+const INK = '#14160f', PINK = '#d9708a';
+const cv = $('cv'), ctx = cv.getContext('2d');
+/* ----------------------------------------------------------------------------------------- state */
+const LV = window.LAB_LEVELS;                                              // [{tag,label,short,id,map,meta,par,classicPar,stealth}]
+let li = 0, L = null, rec = null, dg = [], thief = 0, moves = 0, lureLeft = 0, hist = [], ev = null, par = 0;
+let sel = -1, lureMode = false, lureT = -1, walking = null, flash = null, ripples = [], stone = null, solving = false, won = false;
+let cs = 40, cellH = 31, wallH = 14, ox = 0, oy = 0, W = 0, H = 0, custom = null;
+const store = { get(k, d) { try { const v = localStorage.getItem(k); return v === null ? d : JSON.parse(v); } catch (e) { return d; } }, set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { } } };
+let doneSet = store.get('sl_done', {});
+const nOf = () => [L.cams.length, L.guards.length, (L.toggles || []).length, (L.dogs || []).length, (L.lights || []).length];
+const stp = () => S.params(L);
+/* ----------------------------------------------------------------------------------------- level */
+function load(i, keepRules) {
+  li = i; rec = LV[li]; L = P.parseLevel(rec.map, rec.meta); if (!keepRules) custom = null; L.stealth = Object.assign({}, rec.stealth, custom || {}); P.prepare(L);
+  dg = P.initialDigits(L); thief = L.S; moves = 0; lureLeft = stp().lures; hist = []; sel = -1; lureMode = false; lureT = -1; walking = null; flash = null; ripples = []; stone = null; won = false; solving = false;
+  ev = S.evalStealth(L, dg, true);
+  const r = S.solveStealth(L, { maxStates: 900000 }); par = r && r.solvable ? r.par : 0;
+  layout(); syncUI(); setTip(introTip()); $('ovWin').classList.remove('on');
+  store.set('sl_last', i);
+}
+function introTip() {
+  const p = stp(), a = [];
+  a.push('Tap a floor tile to walk. Hatched tiles: he must crawl (costs ' + p.crawl + ' move' + (p.crawl > 1 ? 's' : '') + ' per tile).');
+  if (p.lures > 0) a.push(p.lures + ' lure' + (p.lures > 1 ? 's' : '') + ' on this level: press Lure, pick a tile, tap it again to throw.');
+  return a.join(' ');
+}
+function setTip(t, warn) { const el = $('tip'); el.textContent = t || ''; el.className = warn ? 'warn' : ''; }
+function syncUI() {
+  const t = LV[li], p = stp(), cls = t.classicPar != null ? ' · classic par ' + t.classicPar : '';
+  $('lvTitle').textContent = t.label; $('lvSub').textContent = `near ${p.camNear}/${p.guardNear} · crawl ${p.crawl}/tile · lures ${lureLeft}/${p.lures}` + cls + (custom ? ' · custom rules' : '');
+  const m = $('moves'); m.textContent = moves; m.className = par && moves > par ? 'over' : ''; $('par').textContent = par || '–';
+  $('bUndo').disabled = !hist.length || !!walking || solving; $('bLure').disabled = lureLeft < 1 || !!walking || solving; $('lureN').textContent = lureLeft;
+  $('bLure').classList.toggle('on', lureMode); $('bWait').style.visibility = (L.lights || []).length ? 'visible' : 'hidden';
+  $('bSolve').disabled = !!walking || solving || won;
+  buildCtx();
+}
+/* ----------------------------------------------------------------------------------------- geometry */
+function layout() {
+  const dpr = window.devicePixelRatio || 1; W = cv.clientWidth; H = cv.clientHeight; cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr); ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  cs = Math.max(16, Math.floor(Math.min((W - 8) / L.w, (H - 8) / (L.h * KY + KW + .25)))); cellH = cs * KY; wallH = cs * KW;
+  ox = (W - cs * L.w) / 2; oy = (H - (L.h * cellH + wallH)) / 2 + wallH;
+}
+const FX = x => ox + x * cs, FY = y => oy + y * cellH;
+const cx = c => FX(c % L.w) + cs / 2, cy = c => FY((c / L.w) | 0) + cellH / 2;
+function kindAt() {
+  const [nc, ng, nt, nd] = nOf(), m = new Map();
+  L.cams.forEach((q, k) => m.set(q.c, { t: 'cam', k }));
+  (L.lights || []).forEach((q, j) => m.set(q.c, { t: 'light', k: nc + ng + nt + nd + j }));
+  (L.panels || []).forEach((q, j) => m.set(q.c, { t: 'panel', k: dg.length + j }));
+  L.toggles.forEach((q, j) => m.set(q.c, { t: q.kind, k: nc + ng + j }));
+  L.guards.forEach((g, j) => m.set(g.rail[dg[nc + j] >> 1], { t: 'guard', k: nc + j }));
+  (L.dogs || []).forEach((d, j) => m.set(d.rail[dg[nc + ng + nt + j]], { t: 'dog', k: nc + ng + nt + j }));
+  return m;
+}
+function hitCell(px, py) {
+  const km = kindAt();
+  for (let y = L.h - 1; y >= 0; y--) for (let x = L.w - 1; x >= 0; x--) {
+    const c = y * L.w + x, wl = L.wall[c], k = km.get(c);
+    const top = wl ? FY(y) - wallH : FY(y) - (k && (k.t === 'guard' || k.t === 'dog') ? cs * .3 : 0), bot = FY(y) + cellH;
+    if (px >= FX(x) && px < FX(x) + cs && py >= top && py < bot) return c;
+  }
+  return -1;
+}
+/* ----------------------------------------------------------------------------------------- actions */
+const allActions = () => P.actions(L, dg);
+const isWired = i => (L.panels || []).some(p => p.links.includes(i));
+function snapshot() { hist.push({ dg: dg.slice(), thief, moves, lureLeft }); }
+function undo() {
+  if (!hist.length || walking || solving) return; const h = hist.pop(); dg = h.dg; thief = h.thief; moves = h.moves; lureLeft = h.lureLeft; won = false; sel = -1; lureMode = false; lureT = -1;
+  ev = S.evalStealth(L, dg, true); setTip(''); syncUI();
+}
+function seenCheck(d2) { const e2 = S.evalStealth(L, d2, true); return { e2, bad: e2.cls[thief] >= 2 || e2.occ[thief] }; }
+function doDigits(d2, label) {
+  const { e2, bad } = seenCheck(d2);
+  if (bad) { flash = { c: thief, t: performance.now() }; setTip('He would be seen where he stands. Move him somewhere safe first.', true); return false; }
+  snapshot(); dg = d2; ev = e2; moves++; setTip(label || ''); syncUI(); return true;
+}
+function doWho(who) { const a = allActions().find(o => o[1] === who); if (!a) return false; return doDigits(a[0]); }
+function doWait() { const ls = L.lights || []; if (!ls.length) return; doWho(dg.length - ls.length); }
+function doLure(T) {
+  if (lureLeft < 1) return false;
+  const d2 = S.lureApply(L, dg, T), { e2, bad } = seenCheck(d2);
+  if (d2.join() === dg.join()) { setTip('Nobody is in earshot of that tile (or they already face it).', true); return false; }
+  if (bad) { flash = { c: thief, t: performance.now() }; setTip('He would be seen where he stands. Move him somewhere safe first.', true); return false; }
+  snapshot(); ripples.push({ c: T, t: performance.now() }); stone = { from: thief, to: T, t: performance.now() };
+  dg = d2; ev = e2; moves++; lureLeft--; lureMode = false; lureT = -1; setTip('The guards in earshot turned toward the noise.'); syncUI(); return true;
+}
+function walkTo(cell, instant) {
+  const p = S.walkPath(L, ev, thief, cell);
+  if (!p) { setTip('He cannot get there: the way is lit or blocked.', true); return false; }
+  if (!p.path.length) return true;
+  snapshot(); const cost = p.crawl.reduce((s, v) => s + (v ? stp().crawl : 0), 0);
+  moves += cost;
+  if (instant) { thief = cell; afterWalk(); return true; }
+  walking = { path: p.path, crawl: p.crawl, t: performance.now(), from: thief }; syncUI();
+  if (cost) setTip('Crawling: ' + cost + ' move' + (cost > 1 ? 's' : '') + '.');
+  return true;
+}
+function afterWalk() { sel = -1; syncUI(); if (thief === L.E && !won) win(); }
+function win() {
+  won = true; const stars = par && moves <= par ? 3 : par && moves <= par + 2 ? 2 : 1; doneSet[rec.tag + rec.id] = Math.max(doneSet[rec.tag + rec.id] || 0, stars); store.set('sl_done', doneSet);
+  setTimeout(() => { if (!won) return; $('winTitle').textContent = moves <= par ? 'Escaped at par' : 'Escaped'; $('winStars').textContent = '★'.repeat(stars) + '☆'.repeat(3 - stars); $('winInfo').textContent = `${moves} moves (par ${par}).`; $('ovWin').classList.add('on'); }, 450);
+}
+/* ----------------------------------------------------------------------------------------- context buttons (guards and dogs) */
+const ARROW = { '0,-1': '▲', '1,0': '▶', '0,1': '▼', '-1,0': '◀' };
+let ctxCur = [];
+function buildCtx() {
+  const el = $('ctx'); el.innerHTML = ''; ctxCur = [];
+  if (sel < 0 || walking || solving) return;
+  const [nc, ng, nt] = nOf(), isG = sel >= nc && sel < nc + ng, rail = isG ? L.guards[sel - nc].rail : L.dogs[sel - nc - ng - nt].rail, cur = isG ? dg[sel] >> 1 : dg[sel];
+  const opts = allActions().filter(o => o[1] === sel).map(o => {
+    const v = o[0][sel], ni = isG ? v >> 1 : v;
+    if (ni !== cur) { const a = rail[cur], b = rail[ni], k = Math.sign((b % L.w) - (a % L.w)) + ',' + Math.sign(((b / L.w) | 0) - ((a / L.w) | 0)); return { label: ARROW[k], slot: ni > cur ? 3 : 1, d: o[0] }; }
+    return { label: '↻', slot: 2, d: o[0] };
+  }).sort((a, b) => a.slot - b.slot);
+  ctxCur = opts;
+  for (const o of opts) { const b = document.createElement('button'); b.textContent = o.label; b.onclick = () => { if (doDigits(o.d)) { sel = -1; syncUI(); } }; el.appendChild(b); }
+}
+/* ----------------------------------------------------------------------------------------- input */
+function onTap(px, py) {
+  if (walking || solving || won) return;
+  const c = hitCell(px, py); if (c < 0) return; const k = kindAt().get(c);
+  if (lureMode) {
+    if (!S.throwCells(L, thief).includes(c)) { lureMode = false; lureT = -1; setTip(''); syncUI(); return; }
+    if (lureT === c) doLure(c); else { lureT = c; setTip('Tap the same tile again to throw. The blue diamond is how far the noise carries; ? marks the guards who will turn.'); }
+    return;
+  }
+  if (k) {
+    if (k.t === 'door' && dg[k.k] === 0 && (px < FX(c % L.w) + cs * .28 || px >= FX(c % L.w) + cs * .72)) { /* an open door: only its middle switches it, the sides walk */ }
+    else if (k.t === 'cam' || k.t === 'door' || k.t === 'mirror') { if (isWired(k.k)) setTip('That one is wired to a power panel.', true); else doWho(k.k); return; }
+    if (k.t === 'panel') { doWho(k.k); return; }
+    if (k.t === 'guard' || k.t === 'dog') { sel = sel === k.k ? -1 : k.k; syncUI(); return; }
+    if (k.t === 'light') { setTip('Searchlights turn by themselves after every action. Use Wait to let them swing.'); return; }
+  }
+  if (L.wall[c] || (L.glass && L.glass[c])) return;
+  sel = -1; walkTo(c); syncUI();
+}
+cv.addEventListener('pointerdown', e => { const r = cv.getBoundingClientRect(); onTap(e.clientX - r.left, e.clientY - r.top); });
+$('bUndo').onclick = undo; $('bRestart').onclick = () => load(li, true);
+$('bLure').onclick = () => { lureMode = !lureMode; lureT = -1; sel = -1; setTip(lureMode ? 'Lure: tap a tile within reach (dashed), then tap it again to throw.' : ''); syncUI(); };
+$('bWait').onclick = doWait;
+$('bSolve').onclick = () => solveAndPlay();
+$('btnLevels').onclick = () => { buildLists(); $('ovLevels').classList.add('on'); };
+$('bClose').onclick = () => $('ovLevels').classList.remove('on');
+$('wAgain').onclick = () => load(li, true); $('wList').onclick = () => { $('ovWin').classList.remove('on'); $('btnLevels').click(); }; $('wNext').onclick = () => load(Math.min(LV.length - 1, li + 1));
+addEventListener('resize', () => { if (L) layout(); });
+if (window.ResizeObserver) new ResizeObserver(() => { if (L) layout(); }).observe($('stage'));
+/* ----------------------------------------------------------------------------------------- auto-solve (also the test hook) */
+function solveAndPlay(instant) {
+  const r = S.solveStealth(L, { digits: dg, thief, lures: lureLeft, maxStates: 1500000 });
+  if (!r || !r.solvable) { setTip('No plan from here. Undo or restart.', true); return null; }
+  solving = true; syncUI(); sel = -1; lureMode = false;
+  const steps = r.steps.slice(); let i = 0; setTip('Best plan from here: ' + r.par + ' (' + r.actions + ' actions' + (r.crawled ? ', ' + r.crawled + ' crawled' : '') + (r.lures ? ', ' + r.lures + ' lure' : '') + ').');
+  const sync = () => { $('moves').textContent = moves; $('lureN').textContent = lureLeft; };
+  const run = () => {
+    if (i >= steps.length) { solving = false; walking = null; syncUI(); if (thief === L.E && !won) win(); return; }
+    const s = steps[i++];
+    if (s.t === 'move') { if (s.crawl) moves += stp().crawl; thief = s.cell; }
+    else if (s.t === 'act') { hist.push({ dg: dg.slice(), thief, moves, lureLeft }); dg = s.d.slice(); ev = S.evalStealth(L, dg, true); moves++; }
+    else if (s.t === 'lure') { hist.push({ dg: dg.slice(), thief, moves, lureLeft }); ripples.push({ c: s.T, t: performance.now() }); stone = { from: thief, to: s.T, t: performance.now() }; dg = s.d.slice(); ev = S.evalStealth(L, dg, true); moves++; lureLeft--; }
+    sync();
+    if (instant) run(); else setTimeout(run, s.t === 'move' ? 170 : 520);
+  };
+  run(); return r;
+}
+/* ----------------------------------------------------------------------------------------- level lists and rules */
+function buildLists() {
+  const gt = $('gridTests'), ga = $('gridAll'); gt.innerHTML = ''; ga.innerHTML = '';
+  LV.forEach((t, i) => {
+    const b = document.createElement('button'), s = doneSet[t.tag + t.id]; b.innerHTML = t.short + (t.mark ? '<i>' + t.mark + '</i>' : '') + (s ? '<br><small>' + '★'.repeat(s) + '</small>' : ''); b.className = (i === li ? 'cur ' : '') + (s ? 'done' : '');
+    b.onclick = () => { $('ovLevels').classList.remove('on'); load(i); }; (t.tag === 'T' ? gt : ga).appendChild(b);
+  });
+  const ch = LV.filter(t => t.tag === 'C'), dp = ch.filter(t => t.par !== t.classicPar).length, lu = ch.filter(t => t.stealth.lures > 0).length;
+  $('copyInfo').textContent = `· ${dp} have a lower par than classic, ${lu} come with lures (marked ✦)`;
+}
+const RULES = [['camNear', 'Camera near zone (tiles)', 0, 6], ['guardNear', 'Guard near zone (tiles)', 0, 4], ['crawl', 'Crawl cost per far tile', 1, 4], ['lures', 'Lures', 0, 4], ['throwR', 'Throw reach (tiles)', 1, 6], ['hearR', 'Hearing radius (tiles)', 1, 8]];
+function buildRules() {
+  const b = $('rulesBody'); b.innerHTML = '';
+  for (const [k, label, lo, hi] of RULES) {
+    const row = document.createElement('div'); row.className = 'row'; const v = stp()[k];
+    row.innerHTML = `<label>${label}</label><button>−</button><span class="v">${v}</span><button>+</button>`;
+    const bt = row.querySelectorAll('button'), set = nv => { custom = Object.assign({}, custom || {}, { [k]: Math.max(lo, Math.min(hi, nv)) }); load(li, true); buildRules(); };
+    bt[0].onclick = () => set(v - 1); bt[1].onclick = () => set(v + 1); b.appendChild(row);
+  }
+}
+$('bRules').onclick = () => { $('ovLevels').classList.remove('on'); buildRules(); $('ovRules').classList.add('on'); };
+$('bRulesClose').onclick = () => $('ovRules').classList.remove('on');
+$('bRulesReset').onclick = () => { custom = null; load(li); buildRules(); };
+/* ----------------------------------------------------------------------------------------- drawing */
+const TOP = '#7a8470', FRONT = '#566050', LINE = '#2d3428';
+function drawFloor() {
+  for (let y = 0; y < L.h; y++) for (let x = 0; x < L.w; x++) {
+    const c = y * L.w + x; if (L.wall[c]) continue;
+    ctx.fillStyle = (x + y) % 2 ? '#a7ad8e' : '#9fa586'; ctx.fillRect(FX(x), FY(y), cs, cellH);
+    ctx.strokeStyle = 'rgba(60,70,50,.25)'; ctx.lineWidth = 1; ctx.strokeRect(FX(x) + .5, FY(y) + .5, cs - 1, cellH - 1);
+  }
+}
+function drawStartExit() {
+  const s = L.S, e = L.E;
+  ctx.strokeStyle = 'rgba(40,50,35,.55)'; ctx.lineWidth = 2; ctx.setLineDash([4, 3]); ctx.beginPath(); ctx.ellipse(cx(s), cy(s) + cellH * .12, cs * .3, cellH * .22, 0, 0, 7); ctx.stroke(); ctx.setLineDash([]);
+  ctx.fillStyle = 'rgba(60,110,70,.35)'; ctx.fillRect(FX(e % L.w) + 2, FY((e / L.w) | 0) + 2, cs - 4, cellH - 4);
+  ctx.fillStyle = INK; ctx.font = '700 ' + Math.max(9, cs * .24) + 'px system-ui'; ctx.textAlign = 'center'; ctx.fillText('EXIT', cx(e), cy(e) + cs * .08);
+}
+function hatch(x, y, w, h, alpha) {
+  ctx.save(); ctx.beginPath(); ctx.rect(x, y, w, h); ctx.clip(); ctx.strokeStyle = `rgba(150,25,35,${alpha})`; ctx.lineWidth = Math.max(1, cs * .035);
+  const st = Math.max(5, cs * .16); for (let k = -h; k < w; k += st) { ctx.beginPath(); ctx.moveTo(x + k, y + h); ctx.lineTo(x + k + h, y); ctx.stroke(); } ctx.restore();
+}
+function drawZones() {
+  const lightCells = new Set(), [nc, ng, nt, nd] = nOf();
+  for (const sg of ev.rays) if (sg.who >= nc + ng + nt + nd) for (const c of sg.cells) lightCells.add(c);
+  for (let c = 0; c < L.w * L.h; c++) {
+    const v = ev.cls[c]; if (!v || L.wall[c]) continue; const x = c % L.w, y = (c / L.w) | 0;
+    if (v === 2) { ctx.fillStyle = lightCells.has(c) ? 'rgba(230,170,50,.5)' : 'rgba(208,48,56,.45)'; ctx.fillRect(FX(x), FY(y), cs, cellH); }
+    else { ctx.fillStyle = 'rgba(208,48,56,.14)'; ctx.fillRect(FX(x), FY(y), cs, cellH); hatch(FX(x), FY(y), cs, cellH, .5); }
+    if (ev.scent[c]) { ctx.fillStyle = 'rgba(40,70,30,.45)'; for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) ctx.fillRect(FX(x) + cs * (.2 + i * .3), FY(y) + cellH * (.2 + j * .3), 2, 2); }
+  }
+}
+function block(c, front, top, glass) {
+  const x = c % L.w, y = (c / L.w) | 0, px = FX(x), py = FY(y) - wallH;
+  ctx.fillStyle = front; ctx.fillRect(px, py + cellH, cs, wallH); ctx.fillStyle = top; ctx.fillRect(px, py, cs, cellH);
+  ctx.strokeStyle = LINE; ctx.lineWidth = 1.5; ctx.strokeRect(px + .75, py + .75, cs - 1.5, cellH + wallH - 1.5); ctx.beginPath(); ctx.moveTo(px, py + cellH); ctx.lineTo(px + cs, py + cellH); ctx.stroke();
+  if (glass) { ctx.strokeStyle = 'rgba(255,255,255,.7)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(px + cs * .2, py + cellH * .8); ctx.lineTo(px + cs * .45, py + cellH * .2); ctx.stroke(); }
+}
+function drawWalls() {
+  for (let y = 0; y < L.h; y++) for (let x = 0; x < L.w; x++) {
+    const c = y * L.w + x; if (L.glass && L.glass[c]) { block(c, 'rgba(150,190,200,.55)', 'rgba(190,225,230,.65)', true); continue; }
+    if (L.wall[c]) block(c, FRONT, TOP);
+  }
+}
+const footOf = c => ({ x: cx(c), y: FY((c / L.w) | 0) + cellH * .88 });
+function person(x, y, kind, dirV, prone, t) {
+  const s = cs, bob = kind === 'walk' ? Math.sin(t / 90) * s * .02 : 0; ctx.save(); ctx.translate(x, y); ctx.lineWidth = Math.max(1.5, s * .05); ctx.strokeStyle = INK; ctx.lineJoin = 'round';
+  if (prone) {
+    ctx.fillStyle = '#e8ead2'; ctx.beginPath(); ctx.ellipse(0, -s * .1, s * .34, s * .1, 0, 0, 7); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = INK; for (let i = -1; i <= 1; i++) ctx.fillRect(i * s * .13 - s * .02, -s * .19, s * .05, s * .17);
+    ctx.fillStyle = PINK; ctx.beginPath(); ctx.arc(s * .36 * (dirV || 1), -s * .13, s * .09, 0, 7); ctx.fill(); ctx.stroke(); ctx.restore(); return;
+  }
+  const uni = kind === 'guard';
+  ctx.fillStyle = uni ? '#3a4a5a' : '#e8ead2'; ctx.fillRect(-s * .15, -s * .62 + bob, s * .3, s * .46); ctx.strokeRect(-s * .15, -s * .62 + bob, s * .3, s * .46);
+  if (!uni) { ctx.fillStyle = INK; for (let i = 0; i < 3; i++) ctx.fillRect(-s * .15, -s * .55 + bob + i * s * .13, s * .3, s * .05); }
+  ctx.fillStyle = '#e8ead2'; ctx.beginPath(); ctx.arc(0, -s * .75 + bob, s * .12, 0, 7); ctx.fill(); ctx.stroke();
+  if (uni) { ctx.fillStyle = INK; ctx.fillRect(-s * .15, -s * .9 + bob, s * .3, s * .08); } else { ctx.fillStyle = PINK; ctx.beginPath(); ctx.arc(0, -s * .79 + bob, s * .12, Math.PI, 0); ctx.fill(); ctx.stroke(); }
+  ctx.beginPath(); ctx.moveTo(-s * .07, -s * .16); ctx.lineTo(-s * .07, 0); ctx.moveTo(s * .07, -s * .16); ctx.lineTo(s * .07, 0); ctx.stroke(); ctx.restore();
+}
+function dogFig(x, y) {
+  const s = cs; ctx.save(); ctx.translate(x, y); ctx.lineWidth = Math.max(1.5, s * .05); ctx.strokeStyle = INK; ctx.fillStyle = '#6b5a45';
+  ctx.beginPath(); ctx.ellipse(0, -s * .2, s * .26, s * .12, 0, 0, 7); ctx.fill(); ctx.stroke(); ctx.beginPath(); ctx.arc(s * .27, -s * .3, s * .1, 0, 7); ctx.fill(); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(-s * .15, -s * .1); ctx.lineTo(-s * .15, 0); ctx.moveTo(s * .15, -s * .1); ctx.lineTo(s * .15, 0); ctx.stroke(); ctx.fillStyle = '#d03038'; ctx.fillRect(s * .16, -s * .28, s * .05, s * .1); ctx.restore();
+}
+function drawFacingArrow(c, d) {
+  ctx.save(); ctx.translate(cx(c), cy(c) + cellH * .2); ctx.rotate(d * Math.PI / 2); ctx.fillStyle = INK; ctx.beginPath(); ctx.moveTo(0, -cs * .3); ctx.lineTo(-cs * .09, -cs * .18); ctx.lineTo(cs * .09, -cs * .18); ctx.fill(); ctx.restore();
+}
+function drawWallItems() {
+  const [nc, ng, nt, nd] = nOf();
+  L.cams.forEach((q, k) => {
+    const x = q.c % L.w, y = (q.c / L.w) | 0, px = FX(x), py = FY(y) - wallH, d = dg[k];
+    ctx.save(); ctx.translate(px + cs / 2, py + cellH * .55); ctx.fillStyle = INK; ctx.fillRect(-cs * .22, -cs * .13, cs * .44, cs * .26);
+    ctx.rotate(d * Math.PI / 2); ctx.fillStyle = '#d03038'; ctx.beginPath(); ctx.moveTo(0, -cs * .32); ctx.lineTo(-cs * .1, -cs * .14); ctx.lineTo(cs * .1, -cs * .14); ctx.fill(); ctx.restore();
+    if (isWired(k)) { ctx.fillStyle = '#e6c04a'; ctx.fillRect(px + 3, py + 3, 5, 5); }
+  });
+  (L.lights || []).forEach((q, j) => {
+    const x = q.c % L.w, y = (q.c / L.w) | 0, px = FX(x), py = FY(y) - wallH, d = dg[nc + ng + nt + nd + j];
+    ctx.save(); ctx.translate(px + cs / 2, py + cellH * .55); ctx.fillStyle = '#c99a2e'; ctx.strokeStyle = INK; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(0, 0, cs * .22, 0, 7); ctx.fill(); ctx.stroke(); ctx.rotate(d * Math.PI / 2); ctx.fillStyle = '#f6e7a6'; ctx.beginPath(); ctx.moveTo(0, -cs * .34); ctx.lineTo(-cs * .12, -cs * .1); ctx.lineTo(cs * .12, -cs * .1); ctx.fill(); ctx.restore();
+  });
+  (L.panels || []).forEach(q => {
+    const x = q.c % L.w, y = (q.c / L.w) | 0, px = FX(x), py = FY(y) - wallH; ctx.fillStyle = '#c8cbb8'; ctx.strokeStyle = INK; ctx.lineWidth = 2; ctx.fillRect(px + cs * .22, py + cellH * .2, cs * .56, cellH * .6); ctx.strokeRect(px + cs * .22, py + cellH * .2, cs * .56, cellH * .6);
+    ctx.fillStyle = INK; ctx.font = '700 ' + cs * .3 + 'px system-ui'; ctx.textAlign = 'center'; ctx.fillText('⚡', px + cs / 2, py + cellH * .65);
+  });
+}
+function drawToggles() {
+  const [nc, ng] = nOf();
+  L.toggles.forEach((q, j) => {
+    const v = dg[nc + ng + j], x = q.c % L.w, y = (q.c / L.w) | 0, px = FX(x), py = FY(y);
+    if (q.kind === 'door') {
+      if (v === 1) { block(q.c, '#8a6a44', '#a07c50'); ctx.fillStyle = INK; ctx.fillRect(px + cs * .44, py - wallH + cellH * .35, cs * .12, cellH * .3); }
+      else { ctx.fillStyle = '#6b5336'; ctx.fillRect(px + 2, py + cellH * .1, cs * .12, cellH * .8); ctx.fillRect(px + cs - cs * .14 - 2, py + cellH * .1, cs * .12, cellH * .8); }
+      if (isWired(nc + ng + j)) { ctx.fillStyle = '#e6c04a'; ctx.fillRect(px + 3, py + 3, 5, 5); }
+    } else {
+      ctx.fillStyle = '#b5bdbf'; ctx.strokeStyle = INK; ctx.lineWidth = 2; ctx.fillRect(px + cs * .25, py - wallH * .6, cs * .5, cellH + wallH * .6 - 4); ctx.strokeRect(px + cs * .25, py - wallH * .6, cs * .5, cellH + wallH * .6 - 4);
+      ctx.strokeStyle = '#2a6a8a'; ctx.lineWidth = 3; ctx.beginPath(); if (v === 0) { ctx.moveTo(px + cs * .3, py + cellH * .85); ctx.lineTo(px + cs * .7, py - wallH * .3); } else { ctx.moveTo(px + cs * .3, py - wallH * .3); ctx.lineTo(px + cs * .7, py + cellH * .85); } ctx.stroke();
+      if (isWired(nc + ng + j)) { ctx.fillStyle = '#e6c04a'; ctx.fillRect(px + 3, py - 4, 5, 5); }
+    }
+  });
+}
+function drawRails() {
+  ctx.strokeStyle = 'rgba(30,40,30,.35)'; ctx.setLineDash([3, 4]); ctx.lineWidth = 1.5;
+  for (const g of [...L.guards, ...(L.dogs || [])]) { ctx.beginPath(); g.rail.forEach((c, i) => i ? ctx.lineTo(cx(c), cy(c) + cellH * .3) : ctx.moveTo(cx(c), cy(c) + cellH * .3)); ctx.stroke(); }
+  ctx.setLineDash([]);
+}
+function drawLureUI() {
+  if (!lureMode) return;
+  for (const c of S.throwCells(L, thief)) { const x = c % L.w, y = (c / L.w) | 0; ctx.strokeStyle = 'rgba(20,30,20,.55)'; ctx.setLineDash([3, 3]); ctx.lineWidth = 1.5; ctx.strokeRect(FX(x) + 2, FY(y) + 2, cs - 4, cellH - 4); }
+  ctx.setLineDash([]);
+  if (lureT >= 0) {
+    const R = stp().hearR, tx = lureT % L.w, ty = (lureT / L.w) | 0; ctx.fillStyle = 'rgba(40,80,160,.16)';
+    for (let y = 0; y < L.h; y++) for (let x = 0; x < L.w; x++) if (!L.wall[y * L.w + x] && Math.abs(x - tx) + Math.abs(y - ty) <= R) ctx.fillRect(FX(x), FY(y), cs, cellH);
+    ctx.strokeStyle = '#2a50a0'; ctx.lineWidth = 3; ctx.strokeRect(FX(tx) + 2, FY(ty) + 2, cs - 4, cellH - 4);
+    const [nc] = nOf(), d2 = S.lureApply(L, dg, lureT);
+    L.guards.forEach((g, k) => { if (d2[nc + k] !== dg[nc + k]) { const c = g.rail[dg[nc + k] >> 1]; ctx.fillStyle = '#2a50a0'; ctx.font = '700 ' + cs * .4 + 'px system-ui'; ctx.textAlign = 'center'; ctx.fillText('?', cx(c), FY((c / L.w) | 0) - cs * .85); } });
+  }
+}
+function drawFX(t) {
+  ripples = ripples.filter(r => t - r.t < 800);
+  for (const r of ripples) { const k = Math.max(0, (t - r.t) / 800), R = stp().hearR; ctx.strokeStyle = `rgba(30,70,150,${.6 * (1 - k)})`; ctx.lineWidth = 3; ctx.beginPath(); ctx.ellipse(cx(r.c), cy(r.c), cs * (.2 + k * R * .55), cellH * (.2 + k * R * .55), 0, 0, 7); ctx.stroke(); }
+  if (stone && t - stone.t >= 0 && t - stone.t < 450) { const k = Math.max(0, (t - stone.t) / 450), ax = cx(stone.from), ay = cy(stone.from) - cs * .5, bx = cx(stone.to), by = cy(stone.to); ctx.fillStyle = INK; ctx.beginPath(); ctx.arc(ax + (bx - ax) * k, ay + (by - ay) * k - Math.sin(k * Math.PI) * cs * .6, cs * .06, 0, 7); ctx.fill(); }
+  if (flash && t - flash.t < 500) { const k = Math.max(0, (t - flash.t) / 500); ctx.strokeStyle = `rgba(255,40,50,${1 - k})`; ctx.lineWidth = 4; const x = flash.c % L.w, y = (flash.c / L.w) | 0; ctx.strokeRect(FX(x) + 2, FY(y) + 2, cs - 4, cellH - 4); }
+}
+function thiefPos(t) {
+  if (!walking) { const f = footOf(thief); return { c: thief, x: f.x, y: f.y, prone: ev.cls[thief] === 1, face: 1, moving: false }; }
+  const k = (t - walking.t) / 150, i = Math.min(walking.path.length - 1, Math.floor(k)), a = i ? walking.path[i - 1] : walking.from, b = walking.path[i], f = Math.min(1, k - i);
+  const fa = footOf(a), fb = footOf(b);
+  return { c: b, x: fa.x + (fb.x - fa.x) * f, y: fa.y + (fb.y - fa.y) * f, prone: walking.crawl[i], face: Math.sign(fb.x - fa.x) || 1, moving: true, done: k >= walking.path.length };
+}
+let lastFace = 1;
+function draw(t) {
+  ctx.clearRect(0, 0, W, H); ctx.fillStyle = '#8e947a'; ctx.fillRect(0, 0, W, H);
+  drawFloor(); drawStartExit(); drawZones(); drawRails();
+  const [nc, ng, nt] = nOf(), items = [];
+  L.guards.forEach((g, j) => { const c = g.rail[dg[nc + j] >> 1]; items.push({ row: (c / L.w) | 0, fn: () => { const p = footOf(c); person(p.x, p.y, 'guard', 1, false, t); drawFacingArrow(c, P.guardFacingDir(g, dg[nc + j] & 1)); if (sel === nc + j) { ctx.strokeStyle = '#fff'; ctx.lineWidth = 3; ctx.strokeRect(FX(c % L.w) + 2, FY((c / L.w) | 0) - cs * .6, cs - 4, cellH + cs * .6 - 2); } } }); });
+  (L.dogs || []).forEach((d, j) => { const c = d.rail[dg[nc + ng + nt + j]]; items.push({ row: (c / L.w) | 0, fn: () => { const p = footOf(c); dogFig(p.x, p.y); if (sel === nc + ng + nt + j) { ctx.strokeStyle = '#fff'; ctx.lineWidth = 3; ctx.strokeRect(FX(c % L.w) + 2, FY((c / L.w) | 0) + 2, cs - 4, cellH - 4); } } }); });
+  const tp = thiefPos(t); if (tp.moving) lastFace = tp.face;
+  items.push({ row: (tp.c / L.w) | 0, fn: () => person(tp.x, tp.y, tp.moving ? 'walk' : 'idle', lastFace, tp.prone, t) });
+  drawToggles(); drawWalls();
+  items.sort((a, b) => a.row - b.row).forEach(o => o.fn());
+  drawWallItems(); drawLureUI(); drawFX(t);
+}
+function frame(t) {
+  if (L) {
+    try { draw(t); } catch (e) { console.error(e); }
+    if (walking && thiefPos(t).done) { thief = walking.path[walking.path.length - 1]; walking = null; afterWalk(); }
+  }
+  requestAnimationFrame(frame);
+}
+function boot() {
+  const q = new URLSearchParams(location.search), want = q.get('level'); let i = store.get('sl_last', 0);
+  if (want) { const f = LV.findIndex(t => t.tag + t.id === want); if (f >= 0) i = f; }
+  load(Math.min(i, LV.length - 1)); requestAnimationFrame(frame);
+}
+const ctxOptions = () => ctxCur.map(o => o.d);
+window.lab = { ctxOptions, load, onTap, doWho, doLure, walkTo, solveAndPlay, undo, state: () => ({ li, moves, par, thief, dg: dg.slice(), won, lureLeft, walking: !!walking, cls: Array.from(ev.cls), E: L.E, S: L.S, w: L.w, h: L.h }), hitCell, cellXY: c => [cx(c), cy(c)], cellTop: c => [cx(c), FY((c / L.w) | 0) + cellH * .1], cellSide: c => [FX(c % L.w) + cs * .14, FY((c / L.w) | 0) + cellH * .1], L: () => L, S, P, setRules: r => { custom = r; load(li, true); } };
+boot();
+</script></body></html>

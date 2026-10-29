@@ -1,0 +1,558 @@
+{
+ "params": {
+  "camNear": 2,
+  "guardNear": 1,
+  "crawl": 1,
+  "throwR": 3,
+  "hearR": 4,
+  "lureStep": 1
+ },
+ "tried": 1889782,
+ "found": {
+  "crawl": [
+   {
+    "kind": "crawl",
+    "map": [
+     "#######",
+     "#.....#",
+     "#aaa..#",
+     "#.....#",
+     "#S.^^.#",
+     "#..#E.#",
+     "#######"
+    ],
+    "meta": {
+     "guards": {
+      "a": {
+       "i": 0,
+       "f": 1,
+       "range": 3
+      }
+     }
+    },
+    "classicPar": 4,
+    "crawlPar": 2,
+    "par": 2,
+    "lures": 0,
+    "crawled": 2,
+    "stealth": {
+     "camNear": 2,
+     "guardNear": 1,
+     "crawl": 1,
+     "throwR": 3,
+     "hearR": 4,
+     "lureStep": 1,
+     "lures": 0
+    }
+   },
+   {
+    "kind": "crawl",
+    "map": [
+     "#>#####",
+     "#.....#",
+     "#...<.#",
+     "#.##E.#",
+     "#S#...#",
+     "#..##.#",
+     "#######"
+    ],
+    "meta": {
+     "guards": {}
+    },
+    "classicPar": 4,
+    "crawlPar": 1,
+    "par": 1,
+    "lures": 0,
+    "crawled": 1,
+    "stealth": {
+     "camNear": 2,
+     "guardNear": 1,
+     "crawl": 1,
+     "throwR": 3,
+     "hearR": 4,
+     "lureStep": 1,
+     "lures": 0
+    }
+   },
+   {
+    "kind": "crawl",
+    "map": [
+     "#######",
+     "#.S..##",
+     "###..##",
+     "##...##",
+     "#.#^..#",
+     "#..E..<",
+     "#######"
+    ],
+    "meta": {
+     "guards": {}
+    },
+    "classicPar": 4,
+    "crawlPar": 2,
+    "par": 2,
+    "lures": 0,
+    "crawled": 1,
+    "stealth": {
+     "camNear": 2,
+     "guardNear": 1,
+     "crawl": 1,
+     "throwR": 3,
+     "hearR": 4,
+     "lureStep": 1,
+     "lures": 0
+    }
+   },
+   {
+    "kind": "crawl",
+    "map": [
+     "#######",
+     "#E#...#",
+     "#.#..S#",
+     "#.>...#",
+     ">.....#",
+     "####..#",
+     "#######"
+    ],
+    "meta": {
+     "guards": {}
+    },
+    "classicPar": 4,
+    "crawlPar": 2,
+    "par": 2,
+    "lures": 0,
+    "crawled": 1,
+    "stealth": {
+     "camNear": 2,
+     "guardNear": 1,
+     "crawl": 1,
+     "throwR": 3,
+     "hearR": 4,
+     "lureStep": 1,
+     "lures": 0
+    }
+   },
+   {
+    "kind": "crawl",
+    "map": [
+     "#######",
+     "#.....#",
+     "#a..<E#",
+     "<a#####",
+     "#a..#.#",
+     "#a#..S#",
+     "#######"
+    ],
+    "meta": {
+     "guards": {
+      "a": {
+       "i": 1,
+       "f": 1,
+       "range": 3
+      }
+     }
+    },
+    "classicPar": 5,
+    "crawlPar": 3,
+    "par": 3,
+    "lures": 0,
+    "crawled": 1,
+    "stealth": {
+     "camNear": 2,
+     "guardNear": 1,
+     "crawl": 1,
+     "throwR": 3,
+     "hearR": 4,
+     "lureStep": 1,
+     "lures": 0
+    }
+   },
+   {
+    "kind": "crawl",
+    "map": [
+     "#######",
+     "#...###",
+     "#.....#",
+     "#.....#",
+     "#...<E#",
+     "#S.##.#",
+     "##^####"
+    ],
+    "meta": {
+     "guards": {}
+    },
+    "classicPar": 4,
+    "crawlPar": 2,
+    "par": 2,
+    "lures": 0,
+    "crawled": 2,
+    "stealth": {
+     "camNear": 2,
+     "guardNear": 1,
+     "crawl": 1,
+     "throwR": 3,
+     "hearR": 4,
+     "lureStep": 1,
+     "lures": 0
+    }
+   }
+  ],
+  "lure": [
+   {
+    "kind": "lure",
+    "map": [
+     "#######",
+     "#.ccc##",
+     "vS#####",
+     "#a#.###",
+     "#a..###",
+     "#abbbE#",
+     "#######"
+    ],
+    "meta": {
+     "guards": {
+      "a": {
+       "i": 0,
+       "f": 0,
+       "range": 3
+      },
+      "b": {
+       "i": 2,
+       "f": 0,
+       "range": 3
+      },
+      "c": {
+       "i": 1,
+       "f": 0,
+       "range": 3
+      }
+     }
+    },
+    "classicPar": 4,
+    "crawlPar": 4,
+    "par": 2,
+    "lures": 2,
+    "crawled": 0,
+    "stealth": {
+     "camNear": 2,
+     "guardNear": 1,
+     "crawl": 1,
+     "throwR": 3,
+     "hearR": 4,
+     "lureStep": 1,
+     "lures": 2
+    }
+   },
+   {
+    "kind": "lure",
+    "map": [
+     "#######",
+     "#cccc##",
+     "#..aaa#",
+     "#bE>#.#",
+     "#b#<.S#",
+     "#b##..#",
+     "#######"
+    ],
+    "meta": {
+     "guards": {
+      "a": {
+       "i": 2,
+       "f": 0,
+       "range": 3
+      },
+      "b": {
+       "i": 0,
+       "f": 1,
+       "range": 3
+      },
+      "c": {
+       "i": 3,
+       "f": 1,
+       "range": 3
+      }
+     }
+    },
+    "classicPar": 5,
+    "crawlPar": 5,
+    "par": 3,
+    "lures": 2,
+    "crawled": 0,
+    "stealth": {
+     "camNear": 2,
+     "guardNear": 1,
+     "crawl": 1,
+     "throwR": 3,
+     "hearR": 4,
+     "lureStep": 1,
+     "lures": 2
+    }
+   },
+   {
+    "kind": "lure",
+    "map": [
+     "#######",
+     "#.aaaa#",
+     "#..##.#",
+     "##^ccc^",
+     "##bbbE#",
+     "#S.#..#",
+     "#######"
+    ],
+    "meta": {
+     "guards": {
+      "a": {
+       "i": 1,
+       "f": 0,
+       "range": 3
+      },
+      "b": {
+       "i": 0,
+       "f": 0,
+       "range": 3
+      },
+      "c": {
+       "i": 0,
+       "f": 0,
+       "range": 3
+      }
+     }
+    },
+    "classicPar": 5,
+    "crawlPar": 5,
+    "par": 3,
+    "lures": 2,
+    "crawled": 0,
+    "stealth": {
+     "camNear": 2,
+     "guardNear": 1,
+     "crawl": 1,
+     "throwR": 3,
+     "hearR": 4,
+     "lureStep": 1,
+     "lures": 2
+    }
+   },
+   {
+    "kind": "lure",
+    "map": [
+     "#######",
+     "####..#",
+     "#S.##c#",
+     "#bbbac#",
+     "#.^#ac#",
+     "^.#Eac#",
+     "#######"
+    ],
+    "meta": {
+     "guards": {
+      "a": {
+       "i": 0,
+       "f": 0,
+       "range": 3
+      },
+      "b": {
+       "i": 2,
+       "f": 1,
+       "range": 3
+      },
+      "c": {
+       "i": 1,
+       "f": 0,
+       "range": 3
+      }
+     }
+    },
+    "classicPar": 6,
+    "crawlPar": 6,
+    "par": 4,
+    "lures": 2,
+    "crawled": 0,
+    "stealth": {
+     "camNear": 2,
+     "guardNear": 1,
+     "crawl": 1,
+     "throwR": 3,
+     "hearR": 4,
+     "lureStep": 1,
+     "lures": 2
+    }
+   },
+   {
+    "kind": "lure",
+    "map": [
+     "#######",
+     "#.b#S.#",
+     "##baaa#",
+     "v.b####",
+     "v.Eccc#",
+     "#..#..#",
+     "#######"
+    ],
+    "meta": {
+     "guards": {
+      "a": {
+       "i": 0,
+       "f": 1,
+       "range": 3
+      },
+      "b": {
+       "i": 2,
+       "f": 0,
+       "range": 3
+      },
+      "c": {
+       "i": 0,
+       "f": 1,
+       "range": 3
+      }
+     }
+    },
+    "classicPar": 5,
+    "crawlPar": 5,
+    "par": 2,
+    "lures": 2,
+    "crawled": 0,
+    "stealth": {
+     "camNear": 2,
+     "guardNear": 1,
+     "crawl": 1,
+     "throwR": 3,
+     "hearR": 4,
+     "lureStep": 1,
+     "lures": 2
+    }
+   },
+   {
+    "kind": "lure",
+    "map": [
+     "#######",
+     "#...Eb#",
+     "#^##.b#",
+     "###.#b#",
+     "#S#..b#",
+     "#.aaaa#",
+     "#######"
+    ],
+    "meta": {
+     "guards": {
+      "a": {
+       "i": 0,
+       "f": 1,
+       "range": 3
+      },
+      "b": {
+       "i": 3,
+       "f": 1,
+       "range": 3
+      }
+     }
+    },
+    "classicPar": 5,
+    "crawlPar": 5,
+    "par": 3,
+    "lures": 2,
+    "crawled": 0,
+    "stealth": {
+     "camNear": 2,
+     "guardNear": 1,
+     "crawl": 1,
+     "throwR": 3,
+     "hearR": 4,
+     "lureStep": 1,
+     "lures": 2
+    }
+   },
+   {
+    "kind": "lure",
+    "map": [
+     "######",
+     "#ccca#",
+     "#bbba#",
+     "#S##a#",
+     "#>^E.#",
+     "######"
+    ],
+    "meta": {
+     "guards": {
+      "a": {
+       "i": 1,
+       "f": 0,
+       "range": 3
+      },
+      "b": {
+       "i": 0,
+       "f": 1,
+       "range": 3
+      },
+      "c": {
+       "i": 1,
+       "f": 1,
+       "range": 3
+      }
+     }
+    },
+    "classicPar": 4,
+    "crawlPar": 4,
+    "par": 2,
+    "lures": 1,
+    "crawled": 0,
+    "stealth": {
+     "camNear": 2,
+     "guardNear": 1,
+     "crawl": 1,
+     "throwR": 3,
+     "hearR": 4,
+     "lureStep": 1,
+     "lures": 1
+    }
+   },
+   {
+    "kind": "lure",
+    "map": [
+     "#<#####",
+     "#cb...#",
+     "#cb#S.#",
+     "#cb>###",
+     "#..#..#",
+     "#aaaaE#",
+     "#######"
+    ],
+    "meta": {
+     "guards": {
+      "a": {
+       "i": 3,
+       "f": 0,
+       "range": 3
+      },
+      "b": {
+       "i": 0,
+       "f": 1,
+       "range": 3
+      },
+      "c": {
+       "i": 1,
+       "f": 1,
+       "range": 3
+      }
+     }
+    },
+    "classicPar": 6,
+    "crawlPar": 6,
+    "par": 4,
+    "lures": 1,
+    "crawled": 0,
+    "stealth": {
+     "camNear": 2,
+     "guardNear": 1,
+     "crawl": 1,
+     "throwR": 3,
+     "hearR": 4,
+     "lureStep": 1,
+     "lures": 1
+    }
+   }
+  ],
+  "both": []
+ }
+}
